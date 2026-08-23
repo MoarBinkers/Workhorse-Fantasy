@@ -46,12 +46,30 @@ html,body{margin:0;min-height:100%;background:#0b1016;color:#eef3f7;font-family:
  };
  try{
   if(!("DecompressionStream" in window))throw new Error("Your browser needs an update to open Workhorse.");
-  const files=Array.from({length:10},(_,i)=>'./app-v28-part-'+String(i).padStart(2,'0')+'.bin?v=28b');
-  const buffers=await Promise.all(files.map(async file=>{
-   const r=await fetch(file,{cache:"force-cache"});
-   if(!r.ok)throw new Error("Could not load "+file+" (HTTP "+r.status+").");
-   return new Uint8Array(await r.arrayBuffer());
-  }));
+  const files=Array.from({length:10},(_,i)=>'./app-v28-part-'+String(i).padStart(2,'0')+'.bin?v=28c');
+  const retryableStatuses=new Set([408,425,429,500,502,503,504]);
+  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const fetchPart=async file=>{
+   let lastError=null;
+   for(let attempt=0;attempt<4;attempt++){
+    try{
+     const url=attempt===0?file:file+'&retry='+attempt+'-'+Date.now();
+     const r=await fetch(url,{cache:attempt===0?"force-cache":"no-store"});
+     if(r.ok)return new Uint8Array(await r.arrayBuffer());
+     const err=new Error("Could not load "+file+" (HTTP "+r.status+").");
+     err.status=r.status;
+     lastError=err;
+     if(!retryableStatuses.has(r.status))throw err;
+    }catch(e){
+     lastError=e;
+     if(e&&e.status&&!retryableStatuses.has(e.status))throw e;
+    }
+    if(attempt<3)await sleep(300*(2**attempt));
+   }
+   throw lastError||new Error("Could not load "+file+".");
+  };
+  const buffers=[];
+  for(const file of files)buffers.push(await fetchPart(file));
   const total=buffers.reduce((n,b)=>n+b.length,0);
   if(total!==28016)throw new Error("Workhorse bundle was incomplete ("+total+" bytes).");
   const joined=new Uint8Array(total);
