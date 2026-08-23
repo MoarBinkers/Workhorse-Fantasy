@@ -1,7 +1,7 @@
-// v57.2 — keep Supabase auth redirects on the current Workhorse site and improve password-save support.
+// v57.3 — keep auth redirects on Workhorse while preserving explicit password-recovery context.
 (()=>{
   if(window.__WORKHORSE_AUTH_REDIRECT_GUARD__)return;
-  const state=window.__WORKHORSE_AUTH_REDIRECT_GUARD__={installed:false,url:''};
+  const state=window.__WORKHORSE_AUTH_REDIRECT_GUARD__={installed:false,url:'',recoveryUrl:''};
 
   function currentSiteUrl(){
     try{
@@ -9,6 +9,14 @@
       u.search='';u.hash='';
       return u.href;
     }catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}
+  }
+
+  function recoverySiteUrl(){
+    try{
+      const u=new URL(currentSiteUrl());
+      u.searchParams.set('workhorse_recovery','1');
+      return u.href;
+    }catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/?workhorse_recovery=1'}
   }
 
   function installRedirectGuard(){
@@ -19,11 +27,12 @@
     if(client.auth.__workhorseRedirectPatched){state.installed=true;return true}
 
     const redirectTo=currentSiteUrl();
+    const recoveryRedirectTo=recoverySiteUrl();
     const originalReset=client.auth.resetPasswordForEmail?.bind(client.auth);
     const originalSignUp=client.auth.signUp?.bind(client.auth);
 
     if(originalReset){
-      client.auth.resetPasswordForEmail=(email,options={})=>originalReset(email,{...(options||{}),redirectTo});
+      client.auth.resetPasswordForEmail=(email,options={})=>originalReset(email,{...(options||{}),redirectTo:recoveryRedirectTo});
     }
     if(originalSignUp){
       client.auth.signUp=(credentials={})=>{
@@ -35,7 +44,8 @@
     client.auth.__workhorseRedirectPatched=true;
     state.installed=true;
     state.url=redirectTo;
-    window.WorkhorseAuthRedirect={url:redirectTo};
+    state.recoveryUrl=recoveryRedirectTo;
+    window.WorkhorseAuthRedirect={url:redirectTo,recoveryUrl:recoveryRedirectTo};
     return true;
   }
 
