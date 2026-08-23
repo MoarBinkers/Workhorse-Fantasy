@@ -1,10 +1,10 @@
-// v41.1 — Sleeper-connected draft room with capped, deduplicated injury/status loading.
+// v41.2 — Sleeper-connected draft room with one cached, non-blocking injury/status directory load.
 (()=>{
   const INPUT_KEY='de34_draft_input';
   const SMART_KEY='de41_draft_filter';
+  const STATUS_CACHE_KEY='workhorse-draft-player-status-v412';
   const STATUS_TTL=15*60*1000;
   const STATUS_LIMIT=500;
-  const STATUS_BATCH=150;
   const htmlEsc=v=>typeof esc==='function'?esc(String(v??'')):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const signed=n=>Number(n)>0?'+'+Number(n):String(Number(n)||0);
   let smartFilter=localStorage.getItem(SMART_KEY)||'all';
@@ -37,37 +37,35 @@
     return null;
   }
 
-  function relevantStatusIds(){
-    const ids=[],seen=new Set();
-    const add=p=>{
-      if(ids.length>=STATUS_LIMIT||!p)return;
-      let id='';
-      try{id=String(marketFor(p)?.id||p?.sleeperId||p?.id||'')}catch(_){id=String(p?.sleeperId||p?.id||'')}
-      if(!id||seen.has(id))return;seen.add(id);ids.push(id);
-    };
-    try{(Array.isArray(players)?players.slice().sort((a,b)=>(Number(a?.overall)||99999)-(Number(b?.overall)||99999)):[]).forEach(add)}catch(_){}
-    try{(Array.isArray(sleeperPool)?sleeperPool:[]).forEach(add)}catch(_){}
-    return ids.slice(0,STATUS_LIMIT);
+  function readStatusCache(){
+    try{
+      const cached=JSON.parse(localStorage.getItem(STATUS_CACHE_KEY)||'null');
+      if(!cached||!Array.isArray(cached.rows)||!Number(cached.savedAt)||Date.now()-Number(cached.savedAt)>=STATUS_TTL)return false;
+      playerStatus.clear();cached.rows.forEach(r=>{if(r?.player_id)playerStatus.set(String(r.player_id),r)});
+      statusLoadedAt=Number(cached.savedAt);
+      return playerStatus.size>0;
+    }catch(_){return false}
+  }
+  function writeStatusCache(rows){
+    try{localStorage.setItem(STATUS_CACHE_KEY,JSON.stringify({savedAt:Date.now(),rows:(rows||[]).slice(0,STATUS_LIMIT)}))}catch(_){}
   }
 
   async function loadPlayerStatus(force=false){
     if(statusLoading)return statusLoading;
     if(!force&&playerStatus.size&&Date.now()-statusLoadedAt<STATUS_TTL)return;
     const client=getStatusClient();if(!client)return;
-    const ids=relevantStatusIds();if(!ids.length)return;
     statusLoading=(async()=>{
       try{
-        const batches=[];
-        for(let i=0;i<ids.length;i+=STATUS_BATCH)batches.push(ids.slice(i,i+STATUS_BATCH));
-        const results=await Promise.all(batches.map(batch=>client.from('sleeper_player_status')
-          .select('player_id,status,injury_status,injury_body_part,team,updated_at')
-          .in('player_id',batch)));
-        const all=[];
-        for(const result of results){
-          if(result?.error)throw result.error;
-          if(Array.isArray(result?.data))all.push(...result.data);
-        }
-        playerStatus.clear();all.forEach(r=>playerStatus.set(String(r.player_id),r));statusLoadedAt=Date.now();
+        const {data,error}=await client.from('sleeper_player_status')
+          .select('player_id,status,injury_status,injury_body_part,team,updated_at,search_rank')
+          .in('position',['QB','RB','WR','TE'])
+          .not('search_rank','is',null)
+          .order('search_rank',{ascending:true})
+          .limit(STATUS_LIMIT);
+        if(error)throw error;
+        const all=Array.isArray(data)?data:[];
+        playerStatus.clear();all.forEach(r=>{if(r?.player_id)playerStatus.set(String(r.player_id),r)});statusLoadedAt=Date.now();
+        writeStatusCache(all);
         try{renderAdp();renderRankings();renderDraft()}catch(_){}
       }catch(error){console.warn('Sleeper injury status unavailable',error)}
       finally{statusLoading=null}
@@ -358,11 +356,13 @@
   }
 
   ensureUi();
+  readStatusCache();
   const input=document.getElementById('draftId'),connect=document.getElementById('connectDraft'),stop=document.getElementById('stopDraft');
   if(input){input.placeholder='Paste Sleeper draft link, Draft ID, or League ID';input.style.maxWidth='390px';const listPref=currentList?.()?.draftPrefs?.input,saved=listPref||localStorage.getItem(INPUT_KEY);if(saved&&!input.value)input.value=saved;input.onkeydown=e=>{if(e.key==='Enter')connectDraft41()}}
   if(connect)connect.onclick=connectDraft41;if(stop)stop.onclick=stopDraft41;
   const kickStatusLoad=()=>loadPlayerStatus().catch(()=>{});
-  if(window.WorkhorseCentralAdpReady)setTimeout(kickStatusLoad,100);
-  else window.addEventListener('workhorse:central-adp-ready',()=>setTimeout(kickStatusLoad,100),{once:true});
-  setTimeout(()=>{kickStatusLoad();renderDraft()},1800);
+  const scheduleStatusLoad=()=>setTimeout(kickStatusLoad,2500);
+  if(document.readyState==='complete')scheduleStatusLoad();
+  else window.addEventListener('load',scheduleStatusLoad,{once:true});
+  setTimeout(renderDraft,600);
 })();
