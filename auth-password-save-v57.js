@@ -1,4 +1,53 @@
-// v57 — improve browser/iPhone password-save support for Draft Edge auth.
+// v57.2 — keep Supabase auth redirects on the current Workhorse site and improve password-save support.
+(()=>{
+  if(window.__WORKHORSE_AUTH_REDIRECT_GUARD__)return;
+  const state=window.__WORKHORSE_AUTH_REDIRECT_GUARD__={installed:false,url:''};
+
+  function currentSiteUrl(){
+    try{
+      const u=new URL('./',location.href);
+      u.search='';u.hash='';
+      return u.href;
+    }catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}
+  }
+
+  function installRedirectGuard(){
+    let client=null;
+    try{if(typeof supabaseClient!=='undefined')client=supabaseClient}catch(_){}
+    client=client||window.supabaseClient;
+    if(!client?.auth)return false;
+    if(client.auth.__workhorseRedirectPatched){state.installed=true;return true}
+
+    const redirectTo=currentSiteUrl();
+    const originalReset=client.auth.resetPasswordForEmail?.bind(client.auth);
+    const originalSignUp=client.auth.signUp?.bind(client.auth);
+
+    if(originalReset){
+      client.auth.resetPasswordForEmail=(email,options={})=>originalReset(email,{...(options||{}),redirectTo});
+    }
+    if(originalSignUp){
+      client.auth.signUp=(credentials={})=>{
+        if(!credentials||typeof credentials!=='object')return originalSignUp(credentials);
+        return originalSignUp({...credentials,options:{...(credentials.options||{}),emailRedirectTo:redirectTo}});
+      };
+    }
+
+    client.auth.__workhorseRedirectPatched=true;
+    state.installed=true;
+    state.url=redirectTo;
+    window.WorkhorseAuthRedirect={url:redirectTo};
+    return true;
+  }
+
+  if(!installRedirectGuard()){
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(installRedirectGuard()||tries>=200)clearInterval(timer);
+    },50);
+  }
+})();
+
 (()=>{
   let pendingSignup=null;
   let lastStored='';
