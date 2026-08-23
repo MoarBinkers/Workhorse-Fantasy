@@ -267,7 +267,7 @@ jobs:
             echo 'Bare stale recovery marker incorrectly opened password-reset mode.'
             exit 1
           fi
-          if grep -q 'workhorse-recovery-lock' /tmp/workhorse-stale-recovery.html; then
+          if grep -Eq '<html[^>]*class="[^"]*workhorse-recovery-lock' /tmp/workhorse-stale-recovery.html; then
             echo 'Bare stale recovery marker left the recovery privacy lock active.'
             exit 1
           fi
