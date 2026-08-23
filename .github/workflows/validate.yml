@@ -193,7 +193,21 @@ jobs:
       - name: Test password recovery isolation
         run: |
           set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/workhorse-recovery-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 0.25
+          done
+
           CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME" ]; then
+            echo "No headless Chrome binary is available on this runner."
+            exit 1
+          fi
+
           timeout 35s "$CHROME" \
             --headless=new \
             --no-sandbox \
