@@ -1,9 +1,11 @@
-// v60.4 — guarantee brand-new My Rankings starts as an exact Sleeper Full PPR ADP mirror.
+// v60.5 — guarantee guest and brand-new account My Rankings starts as an exact Sleeper Full PPR ADP mirror until customized.
 (()=>{
   const MIGRATION_KEY='de60_clean_adp_onboarding';
   const STARTER_FORMAT='ppr';
   const STARTER_LIMIT=300;
   let busy=false,createConfirmBusy=false,starterRowsPromise=null;
+
+  window.WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized';
 
   const allowedPos=pos=>['QB','RB','WR','TE'].includes(String(pos||'').toUpperCase());
 
@@ -137,6 +139,29 @@
     }finally{busy=false}
   }
 
+  async function createLocalStarter(){
+    let count=0;try{count=Object.keys(rankingLists||{}).length}catch(_){return false}
+    if(busy||currentUser||count)return false;
+    if(activeListId&&!rankingLists?.[activeListId])activeListId=null;
+    if(activeListId)return false;
+    busy=true;
+    try{
+      const rows=await fetchStarterRows();
+      if(!rows||currentUser||activeListId||Object.keys(rankingLists||{}).length)return false;
+      const list=cleanListData('My Rankings',playersFromRows(rows));
+      if(!list)return false;
+      await persistNewList(list);
+      activeTagFilter='ALL';
+      document.getElementById('newListModal')?.classList.remove('open');
+      try{localStorage.setItem(MIGRATION_KEY,'1')}catch(_){}
+      try{renderEverything()}catch(_){}
+      return true;
+    }catch(e){
+      console.warn('Workhorse guest starter rankings could not be created from Sleeper ADP',e);
+      return false;
+    }finally{busy=false}
+  }
+
   async function migrateUntouchedLocalStarter(){
     if(currentUser)return false;
     let ids=[];try{ids=Object.keys(rankingLists||{})}catch(_){return false}
@@ -250,7 +275,9 @@
     if(currentUser){
       if(!activeListId&&Object.keys(rankingLists||{}).length===0)await createCloudStarter();
     }else{
-      await migrateUntouchedLocalStarter();
+      let ids=[];try{ids=Object.keys(rankingLists||{})}catch(_){}
+      if(ids.length===0)await createLocalStarter();
+      else await migrateUntouchedLocalStarter();
     }
     try{window.WorkhorseReconcileSleeperRankings?.()}catch(_){}
   }
@@ -260,5 +287,6 @@
     const modal=document.getElementById('newListModal');
     if(modal&&!modal.classList.contains('open'))setTimeout(ensureCreateConfirm,0);
   });
+  window.addEventListener('workhorse:cloud-rankings-ready',()=>setTimeout(reconcile,0));
   [100,500,1200,2500,5000,8000].forEach(ms=>setTimeout(reconcile,ms));
 })();

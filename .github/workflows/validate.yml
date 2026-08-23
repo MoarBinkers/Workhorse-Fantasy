@@ -68,7 +68,7 @@ jobs:
             node --check "$file"
           done < /tmp/workhorse-loaded-js.txt
 
-      - name: Check production auth protections
+      - name: Check production protections
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -97,10 +97,11 @@ jobs:
               './auth-recovery-v54.js?v=545',
               './auth-forgot-popup-v56.js?v=564',
               './auth-password-save-v57.js?v=572',
+              './new-user-adp-v60.js?v=605',
           ]
           for term in index_required:
               if term not in index:
-                  raise SystemExit(f'Boot/auth protection missing: {term}')
+                  raise SystemExit(f'Boot/production protection missing: {term}')
 
           recovery = auth_files[0].read_text(encoding='utf-8')
           for term in [
@@ -125,7 +126,21 @@ jobs:
           if 'Draft Edge account' in forgot or 'Draft Edge recovery email' in forgot:
               raise SystemExit('Forgot-password UI still contains retired Draft Edge branding')
 
-          print('Production auth protection checks passed.')
+          starter = Path('new-user-adp-v60.js').read_text(encoding='utf-8')
+          starter_required = [
+              "WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized'",
+              "const STARTER_FORMAT='ppr'",
+              'async function createLocalStarter()',
+              "const list=cleanListData('My Rankings',playersFromRows(rows));",
+              'if(ids.length===0)await createLocalStarter();',
+              'await createCloudStarter();',
+              "window.addEventListener('workhorse:cloud-rankings-ready'",
+          ]
+          for term in starter_required:
+              if term not in starter:
+                  raise SystemExit(f'Default Sleeper ADP onboarding protection missing: {term}')
+
+          print('Production auth and default-ranking protection checks passed.')
           PY
 
       - name: Boot Workhorse in headless Chrome
