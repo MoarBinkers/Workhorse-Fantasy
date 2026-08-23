@@ -1,4 +1,4 @@
-// v54.2 — production-safe email auth redirects + complete password recovery UI.
+// v54.4 — isolate password recovery from the normal Workhorse app.
 (()=>{
   const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
   let recoveryMode=false;
@@ -6,6 +6,11 @@
   let resetBusy=false;
 
   const el=id=>document.getElementById(id);
+
+  function releaseRecoveryLock(){
+    window.__WORKHORSE_RECOVERY_PENDING__=false;
+    document.documentElement.classList.remove('workhorse-recovery-lock');
+  }
 
   function injectCss(){
     if(el('deAuth54Css'))return;
@@ -60,9 +65,11 @@
     }catch(_){}
   }
 
-  function showRecovery(message='Choose a new password for your Draft Edge account.'){
+  function showRecovery(message='Choose a new password for your Workhorse account.'){
     ensureRecoveryUi();
     recoveryMode=true;
+    window.__WORKHORSE_RECOVERY_PENDING__=true;
+    document.documentElement.classList.add('workhorse-recovery-lock');
     normalAuthVisible(false);
     el('deRecovery54')?.classList.add('open');
     if(el('authTitle'))el('authTitle').textContent='Set New Password';
@@ -92,21 +99,21 @@
     try{
       const {error}=await supabaseClient.auth.updateUser({password:p});
       if(error)throw error;
-      recoveryMode=false;
+      try{await supabaseClient.auth.signOut({scope:'local'})}catch(_){}
       cleanAuthUrl();
-      if(el('authMessage'))el('authMessage').textContent='Password changed successfully.';
-      el('deRecovery54')?.classList.remove('open');
-      normalAuthVisible(true);
-      el('authGate')?.classList.remove('open');
-      try{if(typeof loadCloudLists==='function'&&currentUser)await loadCloudLists()}catch(_){}
+      releaseRecoveryLock();
+      restoreSignin('Password changed successfully. Sign in with your new password.');
+      if(el('deRecoveryPassword54'))el('deRecoveryPassword54').value='';
+      if(el('deRecoveryConfirm54'))el('deRecoveryConfirm54').value='';
     }catch(e){
       if(el('authMessage'))el('authMessage').textContent=e?.message||'Could not update your password. Request a new reset link and try again.';
     }finally{if(b)b.disabled=false}
   }
 
   async function cancelRecovery(){
-    try{if(supabaseClient)await supabaseClient.auth.signOut()}catch(_){}
+    try{if(supabaseClient)await supabaseClient.auth.signOut({scope:'local'})}catch(_){}
     cleanAuthUrl();
+    releaseRecoveryLock();
     restoreSignin('Password reset canceled.');
   }
 
@@ -130,7 +137,7 @@
   }
 
   async function submitProductionAuth(){
-    if(!supabaseClient||recoveryMode)return;
+    if(!supabaseClient||recoveryMode||window.__WORKHORSE_RECOVERY_PENDING__)return;
     const email=el('authEmail')?.value.trim()||'';
     const password=el('authPassword')?.value||'';
     if(!email||password.length<6){el('authMessage').textContent='Enter an email and a password with at least 6 characters.';return}
@@ -171,10 +178,10 @@
     if(!supabaseClient||authSubscription)return false;
     const {data}=supabaseClient.auth.onAuthStateChange((event)=>{
       if(event==='PASSWORD_RECOVERY')showRecovery();
-      else if(event==='SIGNED_OUT'&&recoveryMode)restoreSignin();
+      else if(event==='SIGNED_OUT'&&recoveryMode){releaseRecoveryLock();restoreSignin('Sign in with your password.')}
     });
     authSubscription=data?.subscription||true;
-    if(urlLooksRecovery())showRecovery();
+    if(window.__WORKHORSE_RECOVERY_PENDING__||urlLooksRecovery())showRecovery();
     return true;
   }
 
@@ -187,10 +194,13 @@
 
     const err=authErrorFromUrl();
     if(err){
+      releaseRecoveryLock();
       const msg=/expired|token/i.test(String(err.desc||err.code||''))
         ? 'That email link is invalid or expired. Enter your email and request a new password reset link.'
         : 'That email link could not be used. Enter your email and request a new link.';
       restoreSignin(msg);
+    }else if(window.__WORKHORSE_RECOVERY_PENDING__||urlLooksRecovery()){
+      showRecovery();
     }
 
     if(!wireClient()){
