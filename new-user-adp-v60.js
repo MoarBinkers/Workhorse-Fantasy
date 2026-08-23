@@ -1,4 +1,4 @@
-// v60.5 — guarantee guest and brand-new account My Rankings starts as an exact Sleeper Full PPR ADP mirror until customized.
+// v60.6 — guarantee guest and brand-new account My Rankings starts as an exact Sleeper Full PPR ADP mirror until customized.
 (()=>{
   const MIGRATION_KEY='de60_clean_adp_onboarding';
   const STARTER_FORMAT='ppr';
@@ -192,6 +192,35 @@
     }
   }
 
+  async function migrateUntouchedCloudStarter(){
+    if(!currentUser)return false;
+    let ids=[];try{ids=Object.keys(rankingLists||{})}catch(_){return false}
+    if(ids.length!==1)return false;
+    const id=ids[0],before=rankingLists[id];
+    if(!untouchedBuiltInList(before))return false;
+    try{
+      const rows=await fetchStarterRows();
+      if(!rows||!currentUser)return false;
+      const list=rankingLists?.[id];
+      if(!list||!untouchedBuiltInList(list))return false;
+      list.players=playersFromRows(rows);
+      list.tiers=emptyTiers();
+      list.draftPrefs=null;
+      list.excludedSleeperIds=[];
+      list.updatedAt=Date.now();
+      rankingLists[id]=list;
+      activeListId=id;
+      loadActiveList();
+      activeTagFilter='ALL';
+      try{renderEverything()}catch(_){}
+      try{queueCloudSave()}catch(_){try{save()}catch(__){}}
+      return true;
+    }catch(e){
+      console.warn('Workhorse legacy cloud starter could not be replaced with Sleeper ADP',e);
+      return false;
+    }
+  }
+
   // Explicit "from ADP" lists preserve the current ADP format the user is viewing.
   const baseCreateNamedList=typeof createNamedList==='function'?createNamedList:null;
   if(baseCreateNamedList){
@@ -260,12 +289,13 @@
     return true;
   }
 
-  // Cloud reliability loads the account first. If the account has zero lists, create the starter from Sleeper PPR directly.
+  // Cloud reliability loads the account first. If the account has zero lists, create the starter from Sleeper PPR directly. If it has only the untouched legacy built-in, migrate it.
   const baseLoadCloudLists=typeof loadCloudLists==='function'?loadCloudLists:null;
   if(baseLoadCloudLists){
     loadCloudLists=async function(){
       const out=await baseLoadCloudLists.apply(this,arguments);
       if(currentUser&&!activeListId&&Object.keys(rankingLists||{}).length===0)await createCloudStarter();
+      else if(currentUser)await migrateUntouchedCloudStarter();
       return out;
     };
     try{window.loadCloudLists=loadCloudLists}catch(_){}
@@ -274,6 +304,7 @@
   async function reconcile(){
     if(currentUser){
       if(!activeListId&&Object.keys(rankingLists||{}).length===0)await createCloudStarter();
+      else await migrateUntouchedCloudStarter();
     }else{
       let ids=[];try{ids=Object.keys(rankingLists||{})}catch(_){}
       if(ids.length===0)await createLocalStarter();
