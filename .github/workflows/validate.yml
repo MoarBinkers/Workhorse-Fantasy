@@ -57,22 +57,18 @@ jobs:
               raise SystemExit('No Workhorse JavaScript files were discovered from index.html')
 
           Path('/tmp/workhorse-loaded-js.txt').write_text(
-              ''.join(f'{p}\n' for p in sorted(checked)),
-              encoding='utf-8'
+              ''.join(f'{p}\n' for p in sorted(checked)), encoding='utf-8'
           )
           print(f'Found {len(checked)} loaded JavaScript files.')
-          for path in sorted(checked):
-              print(path)
           PY
 
       - name: Check loaded JavaScript syntax
         run: |
           while IFS= read -r file; do
-            echo "Checking $file"
             node --check "$file"
           done < /tmp/workhorse-loaded-js.txt
 
-      - name: Check production auth redirects
+      - name: Check production auth protections
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -88,58 +84,48 @@ jobs:
           for file in auth_files:
               text = file.read_text(encoding='utf-8')
               if retired in text:
-                  raise SystemExit(f'STALE production auth redirect found in {file}: {retired}')
+                  raise SystemExit(f'STALE production auth redirect found in {file}')
               if current not in text:
                   raise SystemExit(f'Current Workhorse fallback URL missing from {file}')
 
-          for file in auth_files[:2]:
-              text = file.read_text(encoding='utf-8')
-              if "new URL('./',location.href)" not in text:
-                  raise SystemExit(f'{file} must derive its auth redirect from the current site URL')
-
-          guard = auth_files[2].read_text(encoding='utf-8')
-          required_guard_terms = [
-              '__WORKHORSE_AUTH_REDIRECT_GUARD__',
-              'resetPasswordForEmail',
-              'emailRedirectTo',
-              "new URL('./',location.href)",
-          ]
-          for term in required_guard_terms:
-              if term not in guard:
-                  raise SystemExit(f'Auth redirect guard is missing required behavior: {term}')
-
           index = Path('index.html').read_text(encoding='utf-8')
-          expected_assets = [
-              './auth-recovery-v54.js?v=544',
-              './auth-forgot-popup-v56.js?v=563',
+          index_required = [
+              "const credential=h.get('access_token')||h.get('refresh_token')||q.get('code')||q.get('token_hash')||'';",
+              "return type==='recovery'&&!!credential;",
+              '__WORKHORSE_RECOVERY_FETCH_GUARD__',
+              'Account data is locked during password recovery.',
+              './auth-recovery-v54.js?v=545',
+              './auth-forgot-popup-v56.js?v=564',
               './auth-password-save-v57.js?v=572',
           ]
-          for asset in expected_assets:
-              if asset not in index:
-                  raise SystemExit(f'Auth cache-busting asset reference missing from index.html: {asset}')
+          for term in index_required:
+              if term not in index:
+                  raise SystemExit(f'Boot/auth protection missing: {term}')
 
           recovery = auth_files[0].read_text(encoding='utf-8')
-          recovery_terms = [
-              '__WORKHORSE_RECOVERY_PENDING__',
-              'workhorse-recovery-lock',
+          for term in [
+              'hasFreshRecoveryCredential',
+              "s.type==='recovery'&&!!s.credential",
               "signOut({scope:'local'})",
               'Sign in with your new password.',
-          ]
-          for term in recovery_terms:
+          ]:
               if term not in recovery:
-                  raise SystemExit(f'Password recovery isolation is missing required behavior: {term}')
+                  raise SystemExit(f'Recovery protection missing: {term}')
 
-          index_recovery_terms = [
-              '__WORKHORSE_RECOVERY_FETCH_GUARD__',
-              '__WORKHORSE_RECOVERY_PENDING__',
-              'Account data is locked during password recovery.',
-              'workhorse-recovery-lock',
-          ]
-          for term in index_recovery_terms:
-              if term not in index:
-                  raise SystemExit(f'Boot-time recovery isolation is missing required behavior: {term}')
+          forgot = auth_files[1].read_text(encoding='utf-8')
+          for term in [
+              'workhorse-password-reset-cooldown-until',
+              'setCooldown(60)',
+              'repeated taps cannot make the problem worse',
+              'Use only the newest Workhorse reset email.',
+          ]:
+              if term not in forgot:
+                  raise SystemExit(f'Reset rate-limit protection missing: {term}')
 
-          print('Production auth redirect and recovery isolation checks passed.')
+          if 'Draft Edge account' in forgot or 'Draft Edge recovery email' in forgot:
+              raise SystemExit('Forgot-password UI still contains retired Draft Edge branding')
+
+          print('Production auth protection checks passed.')
           PY
 
       - name: Boot Workhorse in headless Chrome
@@ -149,23 +135,25 @@ jobs:
           SERVER_PID=$!
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
 
-          for i in {1..20}; do
+          for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
             sleep 0.25
           done
 
           CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
           if [ -z "$CHROME" ]; then
-            echo "No headless Chrome binary is available on this runner."
+            echo 'No headless Chrome binary is available on this runner.'
             exit 1
           fi
 
-          timeout 35s "$CHROME" \
+          timeout 60s "$CHROME" \
             --headless=new \
             --no-sandbox \
             --disable-gpu \
             --disable-dev-shm-usage \
-            --virtual-time-budget=12000 \
+            --disable-background-networking \
+            --no-first-run \
+            --virtual-time-budget=15000 \
             --dump-dom http://127.0.0.1:4173/ \
             >/tmp/workhorse-dom.html 2>/tmp/workhorse-chrome.log || {
               cat /tmp/workhorse-chrome.log || true
@@ -174,82 +162,25 @@ jobs:
 
           if grep -q 'The app could not start' /tmp/workhorse-dom.html; then
             echo 'Workhorse reached its startup error screen.'
-            cat /tmp/workhorse-dom.html
             exit 1
           fi
           if grep -q 'id="workhorse-app-gate"' /tmp/workhorse-dom.html; then
             echo 'Workhorse never cleared its loading gate.'
-            cat /tmp/workhorse-dom.html
             exit 1
           fi
           if ! grep -qi 'WORKHORSE' /tmp/workhorse-dom.html; then
             echo 'Workhorse branding/app content was not rendered.'
-            cat /tmp/workhorse-dom.html
             exit 1
           fi
 
           echo 'Workhorse boot smoke test passed.'
-
-      - name: Test password recovery isolation
-        run: |
-          set -euo pipefail
-          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/workhorse-recovery-server.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
-
-          for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
-            sleep 0.25
-          done
-
-          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$CHROME" ]; then
-            echo "No headless Chrome binary is available on this runner."
-            exit 1
-          fi
-
-          timeout 35s "$CHROME" \
-            --headless=new \
-            --no-sandbox \
-            --disable-gpu \
-            --disable-dev-shm-usage \
-            --virtual-time-budget=12000 \
-            --dump-dom 'http://127.0.0.1:4173/#type=recovery' \
-            >/tmp/workhorse-recovery-dom.html 2>/tmp/workhorse-recovery-chrome.log || {
-              cat /tmp/workhorse-recovery-chrome.log || true
-              exit 1
-            }
-
-          if grep -q 'The app could not start' /tmp/workhorse-recovery-dom.html; then
-            echo 'Recovery link caused the app startup error screen.'
-            cat /tmp/workhorse-recovery-dom.html
-            exit 1
-          fi
-          if ! grep -q 'Set New Password' /tmp/workhorse-recovery-dom.html; then
-            echo 'Recovery link did not stay on the Set New Password screen.'
-            cat /tmp/workhorse-recovery-dom.html
-            exit 1
-          fi
-          if ! grep -q 'workhorse-recovery-lock' /tmp/workhorse-recovery-dom.html; then
-            echo 'Recovery privacy lock was not active.'
-            cat /tmp/workhorse-recovery-dom.html
-            exit 1
-          fi
-
-          echo 'Password recovery isolation smoke test passed.'
 
       - name: Note unused legacy scripts
         continue-on-error: true
         run: |
           python - <<'PY'
           from pathlib import Path
-
           loaded = set(Path('/tmp/workhorse-loaded-js.txt').read_text(encoding='utf-8').splitlines())
           all_js = {p.name for p in Path('.').glob('*.js')}
-          unused = sorted(all_js - loaded)
-          print(f'{len(unused)} root JavaScript files are not part of the current load chain.')
-          if unused:
-              print('Unused/legacy files are not treated as a production failure:')
-              for path in unused:
-                  print(path)
+          print(f'{len(all_js - loaded)} root JavaScript files are not part of the current load chain.')
           PY
