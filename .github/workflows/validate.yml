@@ -109,6 +109,7 @@ jobs:
               "s.type==='recovery'&&!!s.credential",
               "signOut({scope:'local'})",
               'Sign in with your new password.',
+              'A bare/stale #type=recovery marker is not proof of a live reset session.',
           ]:
               if term not in recovery:
                   raise SystemExit(f'Recovery protection missing: {term}')
@@ -142,10 +143,27 @@ jobs:
               if term not in starter:
                   raise SystemExit(f'Default Sleeper ADP onboarding protection missing: {term}')
 
-          print('Production auth and default-ranking protection checks passed.')
+          cloud = Path('cloud-reliability-v41.js').read_text(encoding='utf-8')
+          for term in [
+              ".eq('user_id',currentUser.id)",
+              ".eq('revision',expectedRevision)",
+              'storeRecoveryVersion',
+              'resolveConflict',
+          ]:
+              if term not in cloud:
+                  raise SystemExit(f'Cloud ranking safety behavior missing: {term}')
+
+          print('Production auth, cloud and default-ranking protection checks passed.')
           PY
 
-      - name: Boot Workhorse in headless Chrome
+      - name: Audit startup data callers
+        run: |
+          echo 'Files that reference sleeper_player_status:'
+          grep -RIl --include='*.js' 'sleeper_player_status' . | sort || true
+          echo 'Files that reference injury_status:'
+          grep -RIl --include='*.js' 'injury_status' . | sort || true
+
+      - name: Browser matrix
         run: |
           set -euo pipefail
           python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/workhorse-server.log 2>&1 &
@@ -163,34 +181,71 @@ jobs:
             exit 1
           fi
 
-          timeout 60s "$CHROME" \
-            --headless=new \
-            --no-sandbox \
-            --disable-gpu \
-            --disable-dev-shm-usage \
-            --disable-background-networking \
-            --no-first-run \
-            --virtual-time-budget=15000 \
-            --dump-dom http://127.0.0.1:4173/ \
-            >/tmp/workhorse-dom.html 2>/tmp/workhorse-chrome.log || {
-              cat /tmp/workhorse-chrome.log || true
+          run_case() {
+            name="$1"
+            url="$2"
+            size="$3"
+            out="/tmp/workhorse-${name}.html"
+            log="/tmp/workhorse-${name}.log"
+            start=$(date +%s%3N)
+            timeout 60s "$CHROME" \
+              --headless=new \
+              --no-sandbox \
+              --disable-gpu \
+              --disable-dev-shm-usage \
+              --disable-background-networking \
+              --no-first-run \
+              --window-size="$size" \
+              --virtual-time-budget=15000 \
+              --dump-dom "$url" \
+              >"$out" 2>"$log" || {
+                cat "$log" || true
+                exit 1
+              }
+            end=$(date +%s%3N)
+            echo "$name real boot elapsed: $((end-start)) ms"
+
+            if grep -q 'The app could not start' "$out"; then
+              echo "$name reached its startup error screen."
               exit 1
-            }
+            fi
+            if grep -q 'id="workhorse-app-gate"' "$out"; then
+              echo "$name never cleared its loading gate."
+              exit 1
+            fi
+            if ! grep -qi 'WORKHORSE' "$out"; then
+              echo "$name did not render Workhorse."
+              exit 1
+            fi
+            if ! grep -q 'id="authEmail"' "$out" || ! grep -q 'id="authPassword"' "$out" || ! grep -q 'id="authSubmit"' "$out"; then
+              echo "$name is missing normal auth controls."
+              exit 1
+            fi
+          }
 
-          if grep -q 'The app could not start' /tmp/workhorse-dom.html; then
-            echo 'Workhorse reached its startup error screen.'
+          run_case desktop http://127.0.0.1:4173/ 1440,1000
+          run_case mobile http://127.0.0.1:4173/ 390,844
+          run_case stale-recovery 'http://127.0.0.1:4173/#type=recovery' 390,844
+
+          if grep -q 'Set New Password' /tmp/workhorse-stale-recovery.html; then
+            echo 'Bare stale recovery marker incorrectly opened password-reset mode.'
             exit 1
           fi
-          if grep -q 'id="workhorse-app-gate"' /tmp/workhorse-dom.html; then
-            echo 'Workhorse never cleared its loading gate.'
+          if grep -q 'workhorse-recovery-lock' /tmp/workhorse-stale-recovery.html; then
+            echo 'Bare stale recovery marker left the recovery privacy lock active.'
             exit 1
           fi
-          if ! grep -qi 'WORKHORSE' /tmp/workhorse-dom.html; then
-            echo 'Workhorse branding/app content was not rendered.'
+          if ! grep -q '>Sign In<' /tmp/workhorse-stale-recovery.html; then
+            echo 'Stale recovery URL did not restore normal Sign In.'
             exit 1
           fi
 
-          echo 'Workhorse boot smoke test passed.'
+          if ! grep -q 'id="workhorseMobilePolish81"' /tmp/workhorse-mobile.html; then
+            echo 'Mobile polish did not load in the mobile browser test.'
+            exit 1
+          fi
+
+          echo 'Desktop, mobile and stale-recovery browser matrix passed.'
 
       - name: Note unused legacy scripts
         continue-on-error: true
