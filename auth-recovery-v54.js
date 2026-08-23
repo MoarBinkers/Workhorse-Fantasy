@@ -1,6 +1,7 @@
-// v54.6 — isolate password recovery and force reliable mobile touch ownership on the reset form.
+// v54.7 — preserve proven recovery state after Supabase consumes the URL and keep mobile reset controls touch-safe.
 (()=>{
   const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
+  const RECOVERY_URL=(()=>{try{const u=new URL(LIVE_URL);u.searchParams.set('workhorse_recovery','1');return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/?workhorse_recovery=1'}})();
   let recoveryMode=false;
   let authSubscription=null;
   let resetBusy=false;
@@ -12,20 +13,27 @@
       const h=new URLSearchParams((location.hash||'').replace(/^#/,''));
       const q=new URLSearchParams(location.search||'');
       const type=h.get('type')||q.get('type')||'';
+      const marker=q.get('workhorse_recovery')==='1';
       const credential=h.get('access_token')||h.get('refresh_token')||q.get('code')||q.get('token_hash')||'';
-      return {h,q,type,credential};
-    }catch(_){return {h:new URLSearchParams(),q:new URLSearchParams(),type:'',credential:''}}
+      return {h,q,type,marker,credential};
+    }catch(_){return {h:new URLSearchParams(),q:new URLSearchParams(),type:'',marker:false,credential:''}}
   }
 
   function hasFreshRecoveryCredential(){
+    if(window.__WORKHORSE_RECOVERY_BOOT_PROOF__)return true;
     const s=authUrlState();
-    return s.type==='recovery'&&!!s.credential;
+    return (s.type==='recovery'||s.marker)&&!!s.credential;
   }
 
-  function hasRecoveryMarker(){return authUrlState().type==='recovery'}
+  function hasRecoveryMarker(){
+    if(window.__WORKHORSE_RECOVERY_BOOT_PROOF__)return true;
+    const s=authUrlState();
+    return s.type==='recovery'||s.marker;
+  }
 
   function releaseRecoveryLock(){
     window.__WORKHORSE_RECOVERY_PENDING__=false;
+    window.__WORKHORSE_RECOVERY_BOOT_PROOF__=false;
     document.documentElement.classList.remove('workhorse-recovery-lock');
   }
 
@@ -87,7 +95,7 @@
     try{
       const u=new URL(location.href);
       u.hash='';
-      ['error','error_code','error_description','type','code','token_hash'].forEach(k=>u.searchParams.delete(k));
+      ['error','error_code','error_description','type','code','token_hash','workhorse_recovery'].forEach(k=>u.searchParams.delete(k));
       history.replaceState({},document.title,u.pathname+(u.search?u.search:'')+(u.hash||''));
     }catch(_){}
   }
@@ -159,7 +167,7 @@
     const b=el('forgotPassword');
     resetBusy=true;if(b){b.disabled=true;b.textContent='Sending…'}
     try{
-      const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:LIVE_URL});
+      const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:RECOVERY_URL});
       if(error)throw error;
       if(el('authMessage'))el('authMessage').textContent='Password reset email sent. Use the newest email you receive; older reset links stop working after a new one is requested.';
       if(b)b.textContent='Email sent';
@@ -228,9 +236,8 @@
     }else if(hasFreshRecoveryCredential()){
       showRecovery();
     }else if(window.__WORKHORSE_RECOVERY_PENDING__||hasRecoveryMarker()){
-      // A bare/stale #type=recovery marker is not proof of a live reset session.
       cleanAuthUrl();
-      restoreSignin('Sign in to access and sync your ranking lists.');
+      restoreSignin('That recovery link is no longer active. Request a new reset email and use it once.');
     }else{
       releaseRecoveryLock();
       normalAuthVisible(true);
@@ -243,5 +250,5 @@
   }
 
   install();
-  window.DraftEdgeAuthRecovery={show:showRecovery,sendReset,liveUrl:LIVE_URL};
+  window.DraftEdgeAuthRecovery={show:showRecovery,sendReset,liveUrl:LIVE_URL,recoveryUrl:RECOVERY_URL};
 })();
