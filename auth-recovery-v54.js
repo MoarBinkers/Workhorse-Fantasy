@@ -1,4 +1,4 @@
-// v54.4 — isolate password recovery from the normal Workhorse app.
+// v54.5 — isolate password recovery without trapping normal mobile sign-in.
 (()=>{
   const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
   let recoveryMode=false;
@@ -6,6 +6,23 @@
   let resetBusy=false;
 
   const el=id=>document.getElementById(id);
+
+  function authUrlState(){
+    try{
+      const h=new URLSearchParams((location.hash||'').replace(/^#/,''));
+      const q=new URLSearchParams(location.search||'');
+      const type=h.get('type')||q.get('type')||'';
+      const credential=h.get('access_token')||h.get('refresh_token')||q.get('code')||q.get('token_hash')||'';
+      return {h,q,type,credential};
+    }catch(_){return {h:new URLSearchParams(),q:new URLSearchParams(),type:'',credential:''}}
+  }
+
+  function hasFreshRecoveryCredential(){
+    const s=authUrlState();
+    return s.type==='recovery'&&!!s.credential;
+  }
+
+  function hasRecoveryMarker(){return authUrlState().type==='recovery'}
 
   function releaseRecoveryLock(){
     window.__WORKHORSE_RECOVERY_PENDING__=false;
@@ -51,16 +68,16 @@
   }
 
   function normalAuthVisible(show){
-    ['authEmail','authPassword','authSubmit'].forEach(id=>{const n=el(id);if(n)n.style.display=show?'':'none'});
-    const links=document.querySelector('#authGate .auth-links');if(links)links.style.display=show?'':'none';
-    const guest=el('backToLocal');if(guest)guest.style.display=show?'':'none';
+    ['authEmail','authPassword','authSubmit'].forEach(id=>{const n=el(id);if(n){n.style.display=show?'':'none';n.style.pointerEvents=show?'auto':'none'}});
+    const links=document.querySelector('#authGate .auth-links');if(links){links.style.display=show?'':'none';links.style.pointerEvents=show?'auto':'none'}
+    const guest=el('backToLocal');if(guest){guest.style.display=show?'':'none';guest.style.pointerEvents=show?'auto':'none'}
   }
 
   function cleanAuthUrl(){
     try{
       const u=new URL(location.href);
       u.hash='';
-      ['error','error_code','error_description','type'].forEach(k=>u.searchParams.delete(k));
+      ['error','error_code','error_description','type','code','token_hash'].forEach(k=>u.searchParams.delete(k));
       history.replaceState({},document.title,u.pathname+(u.search?u.search:'')+(u.hash||''));
     }catch(_){}
   }
@@ -80,6 +97,7 @@
 
   function restoreSignin(message='Sign in to access and sync your ranking lists.'){
     recoveryMode=false;
+    releaseRecoveryLock();
     ensureRecoveryUi();
     el('deRecovery54')?.classList.remove('open');
     normalAuthVisible(true);
@@ -90,18 +108,17 @@
   }
 
   async function saveNewPassword(){
-    if(!supabaseClient)return;
+    if(typeof supabaseClient==='undefined'||!supabaseClient)return;
     const p=el('deRecoveryPassword54')?.value||'';
     const c=el('deRecoveryConfirm54')?.value||'';
-    if(p.length<6){el('authMessage').textContent='Use a password with at least 6 characters.';return}
-    if(p!==c){el('authMessage').textContent='Those passwords do not match.';return}
+    if(p.length<6){if(el('authMessage'))el('authMessage').textContent='Use a password with at least 6 characters.';return}
+    if(p!==c){if(el('authMessage'))el('authMessage').textContent='Those passwords do not match.';return}
     const b=el('deRecoverySave54');if(b)b.disabled=true;
     try{
       const {error}=await supabaseClient.auth.updateUser({password:p});
       if(error)throw error;
       try{await supabaseClient.auth.signOut({scope:'local'})}catch(_){}
       cleanAuthUrl();
-      releaseRecoveryLock();
       restoreSignin('Password changed successfully. Sign in with your new password.');
       if(el('deRecoveryPassword54'))el('deRecoveryPassword54').value='';
       if(el('deRecoveryConfirm54'))el('deRecoveryConfirm54').value='';
@@ -111,16 +128,15 @@
   }
 
   async function cancelRecovery(){
-    try{if(supabaseClient)await supabaseClient.auth.signOut({scope:'local'})}catch(_){}
+    try{if(typeof supabaseClient!=='undefined'&&supabaseClient)await supabaseClient.auth.signOut({scope:'local'})}catch(_){}
     cleanAuthUrl();
-    releaseRecoveryLock();
     restoreSignin('Password reset canceled.');
   }
 
   async function sendReset(){
-    if(!supabaseClient||resetBusy)return;
+    if(typeof supabaseClient==='undefined'||!supabaseClient||resetBusy)return;
     const email=el('authEmail')?.value.trim()||'';
-    if(!email){el('authMessage').textContent='Enter your email first.';return}
+    if(!email){if(el('authMessage'))el('authMessage').textContent='Enter your email first.';return}
     const b=el('forgotPassword');
     resetBusy=true;if(b){b.disabled=true;b.textContent='Sending…'}
     try{
@@ -137,51 +153,42 @@
   }
 
   async function submitProductionAuth(){
-    if(!supabaseClient||recoveryMode||window.__WORKHORSE_RECOVERY_PENDING__)return;
+    if(typeof supabaseClient==='undefined'||!supabaseClient||recoveryMode||window.__WORKHORSE_RECOVERY_PENDING__)return;
     const email=el('authEmail')?.value.trim()||'';
     const password=el('authPassword')?.value||'';
-    if(!email||password.length<6){el('authMessage').textContent='Enter an email and a password with at least 6 characters.';return}
+    if(!email||password.length<6){if(el('authMessage'))el('authMessage').textContent='Enter an email and a password with at least 6 characters.';return}
     const b=el('authSubmit');if(b)b.disabled=true;
     try{
       if(typeof authMode!=='undefined'&&authMode==='signup'){
         const {data,error}=await supabaseClient.auth.signUp({email,password,options:{emailRedirectTo:LIVE_URL}});
         if(error)throw error;
-        el('authMessage').textContent=data.session?'Account created.':'Account created — check your email to verify it, then sign in.';
+        if(el('authMessage'))el('authMessage').textContent=data.session?'Account created.':'Account created — check your email to verify it, then sign in.';
       }else{
         const {error}=await supabaseClient.auth.signInWithPassword({email,password});
         if(error)throw error;
       }
-    }catch(e){el('authMessage').textContent=e?.message||'Account request failed.'}
+    }catch(e){if(el('authMessage'))el('authMessage').textContent=e?.message||'Account request failed.'}
     finally{if(b)b.disabled=false}
   }
 
   function authErrorFromUrl(){
     try{
-      const hash=new URLSearchParams((location.hash||'').replace(/^#/,''));
-      const query=new URLSearchParams(location.search||'');
-      const code=hash.get('error_code')||query.get('error_code');
-      const desc=hash.get('error_description')||query.get('error_description');
+      const {h,q}=authUrlState();
+      const code=h.get('error_code')||q.get('error_code');
+      const desc=h.get('error_description')||q.get('error_description');
       if(code||desc)return {code,desc};
     }catch(_){}
     return null;
   }
 
-  function urlLooksRecovery(){
-    try{
-      const h=new URLSearchParams((location.hash||'').replace(/^#/,''));
-      const q=new URLSearchParams(location.search||'');
-      return h.get('type')==='recovery'||q.get('type')==='recovery';
-    }catch(_){return false}
-  }
-
   function wireClient(){
-    if(!supabaseClient||authSubscription)return false;
+    if(typeof supabaseClient==='undefined'||!supabaseClient||authSubscription)return false;
     const {data}=supabaseClient.auth.onAuthStateChange((event)=>{
       if(event==='PASSWORD_RECOVERY')showRecovery();
-      else if(event==='SIGNED_OUT'&&recoveryMode){releaseRecoveryLock();restoreSignin('Sign in with your password.')}
+      else if(event==='SIGNED_OUT'&&recoveryMode)restoreSignin('Sign in with your password.');
     });
     authSubscription=data?.subscription||true;
-    if(window.__WORKHORSE_RECOVERY_PENDING__||urlLooksRecovery())showRecovery();
+    if(hasFreshRecoveryCredential())showRecovery();
     return true;
   }
 
@@ -194,13 +201,20 @@
 
     const err=authErrorFromUrl();
     if(err){
-      releaseRecoveryLock();
+      cleanAuthUrl();
       const msg=/expired|token/i.test(String(err.desc||err.code||''))
         ? 'That email link is invalid or expired. Enter your email and request a new password reset link.'
         : 'That email link could not be used. Enter your email and request a new link.';
       restoreSignin(msg);
-    }else if(window.__WORKHORSE_RECOVERY_PENDING__||urlLooksRecovery()){
+    }else if(hasFreshRecoveryCredential()){
       showRecovery();
+    }else if(window.__WORKHORSE_RECOVERY_PENDING__||hasRecoveryMarker()){
+      // A bare/stale #type=recovery marker is not proof of a live reset session.
+      cleanAuthUrl();
+      restoreSignin('Sign in to access and sync your ranking lists.');
+    }else{
+      releaseRecoveryLock();
+      normalAuthVisible(true);
     }
 
     if(!wireClient()){
