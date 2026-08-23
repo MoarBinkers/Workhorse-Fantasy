@@ -1,6 +1,6 @@
-// v56 — dedicated Forgot Password popup with accurate Supabase rate-limit states.
+// v56.3 — dedicated Forgot Password popup with accurate Supabase rate-limit states.
 (()=>{
-  const LIVE_URL='https://moarbinkers.github.io/Draft-Edge/';
+  const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
   let sending=false;
   const $=id=>document.getElementById(id);
 
@@ -79,7 +79,7 @@
 (()=>{
   if(document.querySelector('script[data-de-password-save57]'))return;
   const s=document.createElement('script');
-  s.src='./auth-password-save-v57.js?v=57';
+  s.src='./auth-password-save-v57.js?v=572';
   s.dataset.dePasswordSave57='1';
   document.head.appendChild(s);
 })();
