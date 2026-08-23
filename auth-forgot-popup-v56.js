@@ -1,6 +1,7 @@
-// v56.4 — production Forgot Password flow with durable cooldown and clear Supabase rate-limit states.
+// v56.5 — production Forgot Password flow with durable cooldown, clear rate-limit states, and explicit recovery redirects.
 (()=>{
   const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
+  const RECOVERY_URL=(()=>{try{const u=new URL(LIVE_URL);u.searchParams.set('workhorse_recovery','1');return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/?workhorse_recovery=1'}})();
   const COOLDOWN_KEY='workhorse-password-reset-cooldown-until';
   let sending=false;
   let cooldownTimer=null;
@@ -78,7 +79,7 @@
     if(typeof supabaseClient==='undefined'||!supabaseClient){message('Account service is still loading. Try again in a moment.','err');return}
     sending=true;const b=$('deForgotSend56');if(input)input.disabled=true;if(b){b.disabled=true;b.textContent='Sending…'}message('Requesting one recovery email…');
     try{
-      const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:LIVE_URL});if(error)throw error;
+      const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:RECOVERY_URL});if(error)throw error;
       setCooldown(60);
       if($('authEmail'))$('authEmail').value=email;
       $('deForgot56')?.classList.add('sent');
@@ -107,13 +108,13 @@
   $('deForgot55')?.remove();
   document.addEventListener('click',e=>{const f=e.target.closest?.('#forgotPassword');if(!f)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('deForgot56')?.classList.contains('open'))close()});
-  ensure();syncCooldown();window.WorkhorseForgotPassword={open,close,send};
+  ensure();syncCooldown();window.WorkhorseForgotPassword={open,close,send,recoveryUrl:RECOVERY_URL};
 })();
 
 (()=>{
   if(document.querySelector('script[data-de-password-save57]'))return;
   const s=document.createElement('script');
-  s.src='./auth-password-save-v57.js?v=572';
+  s.src='./auth-password-save-v57.js?v=573';
   s.dataset.dePasswordSave57='1';
   document.head.appendChild(s);
 })();

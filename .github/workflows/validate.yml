@@ -90,13 +90,15 @@ jobs:
 
           index = Path('index.html').read_text(encoding='utf-8')
           index_required = [
+              "const marker=q.get('workhorse_recovery')==='1';",
               "const credential=h.get('access_token')||h.get('refresh_token')||q.get('code')||q.get('token_hash')||'';",
-              "return type==='recovery'&&!!credential;",
+              "return (type==='recovery'||marker)&&!!credential;",
+              '__WORKHORSE_RECOVERY_BOOT_PROOF__=true',
               '__WORKHORSE_RECOVERY_FETCH_GUARD__',
               'Account data is locked during password recovery.',
-              './auth-recovery-v54.js?v=546',
-              './auth-forgot-popup-v56.js?v=564',
-              './auth-password-save-v57.js?v=572',
+              './auth-recovery-v54.js?v=547',
+              './auth-forgot-popup-v56.js?v=565',
+              './auth-password-save-v57.js?v=573',
               './new-user-adp-v60.js?v=606',
               './draft-room-v41.js?v=412',
               './decision-loader-v61.js?v=636',
@@ -108,10 +110,13 @@ jobs:
           recovery = auth_files[0].read_text(encoding='utf-8')
           for term in [
               'hasFreshRecoveryCredential',
-              "s.type==='recovery'&&!!s.credential",
+              'if(window.__WORKHORSE_RECOVERY_BOOT_PROOF__)return true;',
+              "return (s.type==='recovery'||s.marker)&&!!s.credential;",
+              "q.get('workhorse_recovery')==='1'",
+              "'workhorse_recovery'",
+              'RECOVERY_URL',
               "signOut({scope:'local'})",
               'Sign in with your new password.',
-              'A bare/stale #type=recovery marker is not proof of a live reset session.',
               'function ownRecoveryTouchLayer()',
               "gate.removeAttribute('inert')",
               'touch-action:manipulation!important',
@@ -127,9 +132,22 @@ jobs:
               'setCooldown(60)',
               'repeated taps cannot make the problem worse',
               'Use only the newest Workhorse reset email.',
+              "u.searchParams.set('workhorse_recovery','1')",
+              'redirectTo:RECOVERY_URL',
+              './auth-password-save-v57.js?v=573',
           ]:
               if term not in forgot:
-                  raise SystemExit(f'Reset rate-limit protection missing: {term}')
+                  raise SystemExit(f'Reset email protection missing: {term}')
+
+          redirect_guard = auth_files[2].read_text(encoding='utf-8')
+          for term in [
+              'function recoverySiteUrl()',
+              "u.searchParams.set('workhorse_recovery','1')",
+              'redirectTo:recoveryRedirectTo',
+              'emailRedirectTo:redirectTo',
+          ]:
+              if term not in redirect_guard:
+                  raise SystemExit(f'Auth redirect guard missing: {term}')
 
           if 'Draft Edge account' in forgot or 'Draft Edge recovery email' in forgot:
               raise SystemExit('Forgot-password UI still contains retired Draft Edge branding')
@@ -189,7 +207,7 @@ jobs:
           if "window.addEventListener('workhorse:central-adp-ready'" in fallback:
               raise SystemExit('Fallback rank helper must not race the central ADP directory at startup')
 
-          print('Production auth, cloud, mobile recovery and startup protections passed.')
+          print('Production auth, recovery redirect, cloud, mobile and startup protections passed.')
           PY
 
       - name: Audit startup data callers
@@ -262,19 +280,22 @@ jobs:
           run_case desktop http://127.0.0.1:4173/ 1440,1000
           run_case mobile http://127.0.0.1:4173/ 390,844
           run_case stale-recovery 'http://127.0.0.1:4173/#type=recovery' 390,844
+          run_case stale-marked-recovery 'http://127.0.0.1:4173/?workhorse_recovery=1' 390,844
 
-          if grep -q 'Set New Password' /tmp/workhorse-stale-recovery.html; then
-            echo 'Bare stale recovery marker incorrectly opened password-reset mode.'
-            exit 1
-          fi
-          if grep -Eq '<html[^>]*class="[^"]*workhorse-recovery-lock' /tmp/workhorse-stale-recovery.html; then
-            echo 'Bare stale recovery marker left the recovery privacy lock active.'
-            exit 1
-          fi
-          if ! grep -q '>Sign In<' /tmp/workhorse-stale-recovery.html; then
-            echo 'Stale recovery URL did not restore normal Sign In.'
-            exit 1
-          fi
+          for stale in /tmp/workhorse-stale-recovery.html /tmp/workhorse-stale-marked-recovery.html; do
+            if grep -q 'Set New Password' "$stale"; then
+              echo 'Stale recovery marker incorrectly opened password-reset mode.'
+              exit 1
+            fi
+            if grep -Eq '<html[^>]*class="[^"]*workhorse-recovery-lock' "$stale"; then
+              echo 'Stale recovery marker left the recovery privacy lock active.'
+              exit 1
+            fi
+            if ! grep -q '>Sign In<' "$stale"; then
+              echo 'Stale recovery URL did not restore normal Sign In.'
+              exit 1
+            fi
+          done
 
           if ! grep -q 'id="workhorseMobilePolish81"' /tmp/workhorse-mobile.html; then
             echo 'Mobile polish did not load in the mobile browser test.'
