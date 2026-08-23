@@ -1,6 +1,6 @@
-// v54 — production-safe email auth redirects + complete password recovery UI.
+// v54.2 — production-safe email auth redirects + complete password recovery UI.
 (()=>{
-  const LIVE_URL='https://moarbinkers.github.io/Draft-Edge/';
+  const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
   let recoveryMode=false;
   let authSubscription=null;
   let resetBusy=false;
