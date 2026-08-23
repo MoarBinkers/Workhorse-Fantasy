@@ -96,7 +96,8 @@ jobs:
               '__WORKHORSE_RECOVERY_BOOT_PROOF__=true',
               '__WORKHORSE_RECOVERY_FETCH_GUARD__',
               'Account data is locked during password recovery.',
-              './auth-recovery-v54.js?v=547',
+              'body>*:not(#authGate):not(#deRecovery54)',
+              './auth-recovery-v54.js?v=548',
               './auth-forgot-popup-v56.js?v=565',
               './auth-password-save-v57.js?v=573',
               './new-user-adp-v60.js?v=606',
@@ -108,7 +109,7 @@ jobs:
                   raise SystemExit(f'Boot/production protection missing: {term}')
 
           recovery = auth_files[0].read_text(encoding='utf-8')
-          for term in [
+          recovery_required = [
               'hasFreshRecoveryCredential',
               'if(window.__WORKHORSE_RECOVERY_BOOT_PROOF__)return true;',
               "return (s.type==='recovery'||s.marker)&&!!s.credential;",
@@ -117,14 +118,21 @@ jobs:
               'RECOVERY_URL',
               "signOut({scope:'local'})",
               'Sign in with your new password.',
-              'function ownRecoveryTouchLayer()',
-              "gate.removeAttribute('inert')",
-              'touch-action:manipulation!important',
+              'document.body.appendChild(box)',
+              'html.workhorse-recovery-lock body>*:not(#deRecovery54)',
+              'html.workhorse-recovery-lock #authGate{visibility:hidden!important;pointer-events:none!important}',
+              'function bindTouchField(field)',
+              "field.addEventListener('pointerdown',focus",
+              "field.addEventListener('touchend',focus",
+              'function bindTouchButton(button,action)',
+              "button.addEventListener('touchend'",
               'pointer-events:auto!important',
-              'type="button">Save New Password',
-          ]:
+              'touch-action:manipulation!important',
+              'id="deRecoverySave54" type="button"',
+          ]
+          for term in recovery_required:
               if term not in recovery:
-                  raise SystemExit(f'Recovery protection missing: {term}')
+                  raise SystemExit(f'Recovery/touch protection missing: {term}')
 
           forgot = auth_files[1].read_text(encoding='utf-8')
           for term in [
@@ -153,7 +161,7 @@ jobs:
               raise SystemExit('Forgot-password UI still contains retired Draft Edge branding')
 
           starter = Path('new-user-adp-v60.js').read_text(encoding='utf-8')
-          starter_required = [
+          for term in [
               "WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized'",
               "const STARTER_FORMAT='ppr'",
               'async function createLocalStarter()',
@@ -163,8 +171,7 @@ jobs:
               'else if(currentUser)await migrateUntouchedCloudStarter();',
               'try{queueCloudSave()}catch(_){try{save()}catch(__){}}',
               "window.addEventListener('workhorse:cloud-rankings-ready'",
-          ]
-          for term in starter_required:
+          ]:
               if term not in starter:
                   raise SystemExit(f'Default Sleeper ADP onboarding protection missing: {term}')
 
@@ -207,7 +214,12 @@ jobs:
           if "window.addEventListener('workhorse:central-adp-ready'" in fallback:
               raise SystemExit('Fallback rank helper must not race the central ADP directory at startup')
 
-          print('Production auth, recovery redirect, cloud, mobile and startup protections passed.')
+          fixture = Path('.github/test-fixtures/mobile-recovery-interaction.html').read_text(encoding='utf-8')
+          for term in ['elementFromPoint', "pointerType:'touch'", "new w.Event('touchend'", 'data-recovery-touch-result']:
+              if term not in fixture:
+                  raise SystemExit(f'Mobile recovery interaction fixture missing: {term}')
+
+          print('Production auth, recovery redirect, real mobile touch, cloud and startup protections passed.')
           PY
 
       - name: Audit startup data callers
@@ -217,7 +229,7 @@ jobs:
           echo 'Files that reference injury_status:'
           grep -RIl --include='*.js' 'injury_status' . | sort || true
 
-      - name: Browser matrix
+      - name: Browser matrix and real mobile recovery touch
         run: |
           set -euo pipefail
           python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/workhorse-server.log 2>&1 &
@@ -302,7 +314,31 @@ jobs:
             exit 1
           fi
 
-          echo 'Desktop, mobile and stale-recovery 8-second-budget matrix passed.'
+          TOUCH_OUT=/tmp/workhorse-recovery-touch.html
+          TOUCH_LOG=/tmp/workhorse-recovery-touch.log
+          timeout 50s "$CHROME" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --disable-dev-shm-usage \
+            --disable-background-networking \
+            --no-first-run \
+            --window-size=390,844 \
+            --virtual-time-budget=14000 \
+            --dump-dom http://127.0.0.1:4173/.github/test-fixtures/mobile-recovery-interaction.html \
+            >"$TOUCH_OUT" 2>"$TOUCH_LOG" || {
+              cat "$TOUCH_LOG" || true
+              exit 1
+            }
+
+          if ! grep -q 'data-recovery-touch-result="pass"' "$TOUCH_OUT"; then
+            echo 'Real mobile recovery touch test failed.'
+            grep -o 'data-recovery-touch-message="[^"]*"' "$TOUCH_OUT" || true
+            cat "$TOUCH_LOG" || true
+            exit 1
+          fi
+
+          echo 'Desktop, mobile, stale recovery and real recovery touch interaction tests passed.'
 
       - name: Note unused legacy scripts
         continue-on-error: true
