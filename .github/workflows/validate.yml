@@ -72,6 +72,55 @@ jobs:
             node --check "$file"
           done < /tmp/workhorse-loaded-js.txt
 
+      - name: Check production auth redirects
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          retired = 'https://moarbinkers.github.io/Draft-Edge/'
+          current = 'https://moarbinkers.github.io/Workhorse-Fantasy/'
+          auth_files = [
+              Path('auth-recovery-v54.js'),
+              Path('auth-forgot-popup-v56.js'),
+              Path('auth-password-save-v57.js'),
+          ]
+
+          for file in auth_files:
+              text = file.read_text(encoding='utf-8')
+              if retired in text:
+                  raise SystemExit(f'STALE production auth redirect found in {file}: {retired}')
+              if current not in text:
+                  raise SystemExit(f'Current Workhorse fallback URL missing from {file}')
+
+          for file in auth_files[:2]:
+              text = file.read_text(encoding='utf-8')
+              if "new URL('./',location.href)" not in text:
+                  raise SystemExit(f'{file} must derive its auth redirect from the current site URL')
+
+          guard = auth_files[2].read_text(encoding='utf-8')
+          required_guard_terms = [
+              '__WORKHORSE_AUTH_REDIRECT_GUARD__',
+              'resetPasswordForEmail',
+              'emailRedirectTo',
+              "new URL('./',location.href)",
+          ]
+          for term in required_guard_terms:
+              if term not in guard:
+                  raise SystemExit(f'Auth redirect guard is missing required behavior: {term}')
+
+          index = Path('index.html').read_text(encoding='utf-8')
+          expected_assets = [
+              './auth-recovery-v54.js?v=542',
+              './auth-forgot-popup-v56.js?v=563',
+              './auth-password-save-v57.js?v=572',
+          ]
+          for asset in expected_assets:
+              if asset not in index:
+                  raise SystemExit(f'Auth cache-busting asset reference missing from index.html: {asset}')
+
+          print('Production auth redirect regression checks passed.')
+          PY
+
       - name: Boot Workhorse in headless Chrome
         run: |
           set -euo pipefail
