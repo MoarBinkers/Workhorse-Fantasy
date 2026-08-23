@@ -110,7 +110,7 @@ jobs:
 
           index = Path('index.html').read_text(encoding='utf-8')
           expected_assets = [
-              './auth-recovery-v54.js?v=542',
+              './auth-recovery-v54.js?v=544',
               './auth-forgot-popup-v56.js?v=563',
               './auth-password-save-v57.js?v=572',
           ]
@@ -118,7 +118,28 @@ jobs:
               if asset not in index:
                   raise SystemExit(f'Auth cache-busting asset reference missing from index.html: {asset}')
 
-          print('Production auth redirect regression checks passed.')
+          recovery = auth_files[0].read_text(encoding='utf-8')
+          recovery_terms = [
+              '__WORKHORSE_RECOVERY_PENDING__',
+              'workhorse-recovery-lock',
+              "signOut({scope:'local'})",
+              'Sign in with your new password.',
+          ]
+          for term in recovery_terms:
+              if term not in recovery:
+                  raise SystemExit(f'Password recovery isolation is missing required behavior: {term}')
+
+          index_recovery_terms = [
+              '__WORKHORSE_RECOVERY_FETCH_GUARD__',
+              '__WORKHORSE_RECOVERY_PENDING__',
+              'Account data is locked during password recovery.',
+              'workhorse-recovery-lock',
+          ]
+          for term in index_recovery_terms:
+              if term not in index:
+                  raise SystemExit(f'Boot-time recovery isolation is missing required behavior: {term}')
+
+          print('Production auth redirect and recovery isolation checks passed.')
           PY
 
       - name: Boot Workhorse in headless Chrome
@@ -168,6 +189,40 @@ jobs:
           fi
 
           echo 'Workhorse boot smoke test passed.'
+
+      - name: Test password recovery isolation
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          timeout 35s "$CHROME" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --disable-dev-shm-usage \
+            --virtual-time-budget=12000 \
+            --dump-dom 'http://127.0.0.1:4173/#type=recovery' \
+            >/tmp/workhorse-recovery-dom.html 2>/tmp/workhorse-recovery-chrome.log || {
+              cat /tmp/workhorse-recovery-chrome.log || true
+              exit 1
+            }
+
+          if grep -q 'The app could not start' /tmp/workhorse-recovery-dom.html; then
+            echo 'Recovery link caused the app startup error screen.'
+            cat /tmp/workhorse-recovery-dom.html
+            exit 1
+          fi
+          if ! grep -q 'Set New Password' /tmp/workhorse-recovery-dom.html; then
+            echo 'Recovery link did not stay on the Set New Password screen.'
+            cat /tmp/workhorse-recovery-dom.html
+            exit 1
+          fi
+          if ! grep -q 'workhorse-recovery-lock' /tmp/workhorse-recovery-dom.html; then
+            echo 'Recovery privacy lock was not active.'
+            cat /tmp/workhorse-recovery-dom.html
+            exit 1
+          fi
+
+          echo 'Password recovery isolation smoke test passed.'
 
       - name: Note unused legacy scripts
         continue-on-error: true
