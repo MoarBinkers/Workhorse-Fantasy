@@ -97,7 +97,7 @@ jobs:
               './auth-recovery-v54.js?v=545',
               './auth-forgot-popup-v56.js?v=564',
               './auth-password-save-v57.js?v=572',
-              './new-user-adp-v60.js?v=605',
+              './new-user-adp-v60.js?v=606',
           ]
           for term in index_required:
               if term not in index:
@@ -131,9 +131,11 @@ jobs:
               "WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized'",
               "const STARTER_FORMAT='ppr'",
               'async function createLocalStarter()',
+              'async function migrateUntouchedCloudStarter()',
               "const list=cleanListData('My Rankings',playersFromRows(rows));",
               'if(ids.length===0)await createLocalStarter();',
-              'await createCloudStarter();',
+              'else if(currentUser)await migrateUntouchedCloudStarter();',
+              'try{queueCloudSave()}catch(_){try{save()}catch(__){}}',
               "window.addEventListener('workhorse:cloud-rankings-ready'",
           ]
           for term in starter_required:
