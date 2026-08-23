@@ -99,6 +99,7 @@ jobs:
               './auth-password-save-v57.js?v=572',
               './new-user-adp-v60.js?v=606',
               './draft-room-v41.js?v=412',
+              './decision-loader-v61.js?v=636',
           ]
           for term in index_required:
               if term not in index:
@@ -168,6 +169,20 @@ jobs:
               raise SystemExit('Draft room reintroduced chunked startup status batches')
           if draft.count("client.from('sleeper_player_status')") != 1:
               raise SystemExit('Draft room must have exactly one Sleeper status query path')
+
+          loader = Path('decision-loader-v61.js').read_text(encoding='utf-8')
+          if './adp-unranked-label-v78.js?v=783' not in loader:
+              raise SystemExit('Optimized fallback-rank helper cache key is missing')
+          fallback = Path('adp-unranked-label-v78.js').read_text(encoding='utf-8')
+          for term in [
+              'const direct=Number(info?.searchRank)',
+              "window.addEventListener('load',scheduleRefresh,{once:true})",
+              'setTimeout(refresh,6000)',
+          ]:
+              if term not in fallback:
+                  raise SystemExit(f'Fallback-rank performance guard missing: {term}')
+          if "window.addEventListener('workhorse:central-adp-ready'" in fallback:
+              raise SystemExit('Fallback rank helper must not race the central ADP directory at startup')
 
           print('Production auth, cloud, mobile recovery and startup protections passed.')
           PY
