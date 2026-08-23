@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workhorse mobile recovery interaction test</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+#app{position:fixed;inset:0;width:100%;height:100%;border:0}
+#result{position:fixed;left:0;bottom:0;z-index:999999999;background:#000;color:#fff;font:12px monospace;padding:2px;opacity:.01;pointer-events:none}
+</style>
+</head>
+<body>
+<!-- runtime success serializes as data-recovery-touch-result="pass" -->
+<iframe id="app" src="../../index.html"></iframe>
+<div id="result">RUNNING</div>
+<script>
+(()=>{
+  const frame=document.getElementById('app');
+  const result=document.getElementById('result');
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const finish=(ok,msg)=>{
+    result.textContent=(ok?'PASS: ':'FAIL: ')+msg;
+    document.body.dataset.recoveryTouchResult=ok?'pass':'fail';
+    document.body.dataset.recoveryTouchMessage=msg;
+  };
+  async function run(){
+    try{
+      for(let i=0;i<120;i++){
+        const w=frame.contentWindow;
+        const d=frame.contentDocument;
+        if(w?.DraftEdgeAuthRecovery?.show&&d&&!d.getElementById('workhorse-app-gate'))break;
+        await sleep(100);
+      }
+      const w=frame.contentWindow,d=frame.contentDocument;
+      if(!w?.DraftEdgeAuthRecovery?.show)throw new Error('recovery controller never loaded');
+      w.DraftEdgeAuthRecovery.show('Mobile touch interaction test.');
+      await sleep(250);
+
+      const ids=['deRecoveryPassword54','deRecoveryConfirm54','deRecoverySave54','deRecoveryCancel54'];
+      const nodes=Object.fromEntries(ids.map(id=>[id,d.getElementById(id)]));
+      for(const [id,node] of Object.entries(nodes))if(!node)throw new Error(id+' missing');
+      if(!d.documentElement.classList.contains('workhorse-recovery-lock'))throw new Error('recovery lock missing');
+
+      const hit=id=>{
+        const node=nodes[id];
+        const r=node.getBoundingClientRect();
+        if(r.width<20||r.height<20)throw new Error(id+' has no usable touch target');
+        const target=d.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+        if(target!==node)throw new Error(id+' center is covered by '+(target?.id||target?.className||target?.tagName||'nothing'));
+        if(w.getComputedStyle(node).pointerEvents==='none')throw new Error(id+' pointer-events is none');
+        if(node.closest('[inert]'))throw new Error(id+' is inside inert content');
+        return {node,r};
+      };
+
+      const p=hit('deRecoveryPassword54');
+      const c=hit('deRecoveryConfirm54');
+      hit('deRecoveryCancel54');
+      const s=hit('deRecoverySave54');
+
+      p.node.blur();
+      p.node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'touch',isPrimary:true,clientX:p.r.left+p.r.width/2,clientY:p.r.top+p.r.height/2}));
+      if(d.activeElement!==p.node)throw new Error('password field did not focus from a touch pointerdown');
+
+      c.node.blur();
+      c.node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'touch',isPrimary:true,clientX:c.r.left+c.r.width/2,clientY:c.r.top+c.r.height/2}));
+      if(d.activeElement!==c.node)throw new Error('confirm field did not focus from a touch pointerdown');
+
+      p.node.value='123';
+      c.node.value='123';
+      s.node.dispatchEvent(new w.Event('touchend',{bubbles:true,cancelable:true}));
+      await sleep(50);
+      const message=d.getElementById('deRecoveryMessage54')?.textContent||'';
+      if(!/at least 6 characters/i.test(message))throw new Error('Save New Password touch did not reach its handler');
+
+      finish(true,'password, confirm, save and cancel are topmost mobile touch targets; field focus and Save touch handler work');
+    }catch(e){finish(false,String(e?.message||e))}
+  }
+  window.addEventListener('load',()=>setTimeout(run,50),{once:true});
+})();
+</script>
+</body>
+</html>
