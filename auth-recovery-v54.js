@@ -1,4 +1,4 @@
-// v54.5 — isolate password recovery without trapping normal mobile sign-in.
+// v54.6 — isolate password recovery and force reliable mobile touch ownership on the reset form.
 (()=>{
   const LIVE_URL=(()=>{try{const u=new URL('./',location.href);u.search='';u.hash='';return u.href}catch(_){return 'https://moarbinkers.github.io/Workhorse-Fantasy/'}})();
   let recoveryMode=false;
@@ -35,14 +35,24 @@
     s.id='deAuth54Css';
     s.textContent=`
       #deRecovery54{display:none;margin-top:12px}
-      #deRecovery54.open{display:block}
-      #deRecovery54 .de54-field{width:100%;box-sizing:border-box;margin-top:10px}
-      #deRecovery54 .de54-actions{display:grid;gap:9px;margin-top:12px}
-      #deRecovery54 .de54-save{width:100%;padding:12px 14px;border:1px solid #4e9bd5;border-radius:10px;background:linear-gradient(135deg,#1d77b5,#155d91);color:#fff;font-weight:900;cursor:pointer}
+      #deRecovery54.open{display:block!important;position:relative!important;z-index:2147483646!important;pointer-events:auto!important;touch-action:manipulation!important}
+      #deRecovery54 .de54-field{width:100%;box-sizing:border-box;margin-top:10px;position:relative;z-index:2;pointer-events:auto!important;touch-action:manipulation!important}
+      #deRecovery54 .de54-actions{display:grid;gap:9px;margin-top:12px;position:relative;z-index:2;pointer-events:auto!important}
+      #deRecovery54 .de54-save{width:100%;padding:12px 14px;border:1px solid #4e9bd5;border-radius:10px;background:linear-gradient(135deg,#1d77b5,#155d91);color:#fff;font-weight:900;cursor:pointer;position:relative;z-index:3;pointer-events:auto!important;touch-action:manipulation!important;-webkit-user-select:none;user-select:none}
       #deRecovery54 .de54-save:hover{filter:brightness(1.08)}
-      #deRecovery54 .de54-cancel{border:0;background:transparent;color:#8fa0af;font-weight:800;cursor:pointer;padding:7px}
+      #deRecovery54 .de54-cancel{border:0;background:transparent;color:#8fa0af;font-weight:800;cursor:pointer;padding:7px;position:relative;z-index:3;pointer-events:auto!important;touch-action:manipulation!important;-webkit-user-select:none;user-select:none}
       #deRecovery54 .de54-cancel:hover{color:#dbe8f1}
       #forgotPassword:disabled,#authSubmit:disabled,#deRecoverySave54:disabled{opacity:.58;cursor:not-allowed}
+      html.workhorse-recovery-lock #authGate{pointer-events:auto!important;touch-action:manipulation!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important}
+      html.workhorse-recovery-lock #authGate::before,html.workhorse-recovery-lock #authGate::after{pointer-events:none!important}
+      html.workhorse-recovery-lock #authGate .auth-card{position:relative!important;z-index:2147483645!important;pointer-events:auto!important;touch-action:manipulation!important}
+      html.workhorse-recovery-lock #authGate .auth-card::before,html.workhorse-recovery-lock #authGate .auth-card::after{pointer-events:none!important}
+      @media(max-width:820px){
+        html.workhorse-recovery-lock #authGate{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))!important;box-sizing:border-box!important}
+        html.workhorse-recovery-lock #authGate .auth-card{width:min(100%,440px)!important;max-width:440px!important;box-sizing:border-box!important;margin:auto!important}
+        #deRecovery54 .de54-field{min-height:48px!important;font-size:16px!important}
+        #deRecovery54 .de54-save,#deRecovery54 .de54-cancel{min-height:48px!important;font-size:16px!important}
+      }
     `;
     document.head.appendChild(s);
   }
@@ -57,8 +67,8 @@
       <input class="de54-field" id="deRecoveryPassword54" type="password" autocomplete="new-password" placeholder="New password">
       <input class="de54-field" id="deRecoveryConfirm54" type="password" autocomplete="new-password" placeholder="Confirm new password">
       <div class="de54-actions">
-        <button class="de54-save" id="deRecoverySave54">Save New Password</button>
-        <button class="de54-cancel" id="deRecoveryCancel54">Cancel and sign out</button>
+        <button class="de54-save" id="deRecoverySave54" type="button">Save New Password</button>
+        <button class="de54-cancel" id="deRecoveryCancel54" type="button">Cancel and sign out</button>
       </div>`;
     const links=card.querySelector('.auth-links');
     if(links)links.insertAdjacentElement('afterend',box);else card.appendChild(box);
@@ -82,6 +92,13 @@
     }catch(_){}
   }
 
+  function ownRecoveryTouchLayer(){
+    const gate=el('authGate'),card=document.querySelector('#authGate .auth-card'),box=el('deRecovery54');
+    if(gate){gate.removeAttribute('inert');gate.setAttribute('aria-hidden','false');gate.style.pointerEvents='auto'}
+    if(card){card.removeAttribute('inert');card.style.pointerEvents='auto'}
+    if(box){box.removeAttribute('inert');box.style.pointerEvents='auto'}
+  }
+
   function showRecovery(message='Choose a new password for your Workhorse account.'){
     ensureRecoveryUi();
     recoveryMode=true;
@@ -89,10 +106,12 @@
     document.documentElement.classList.add('workhorse-recovery-lock');
     normalAuthVisible(false);
     el('deRecovery54')?.classList.add('open');
+    ownRecoveryTouchLayer();
     if(el('authTitle'))el('authTitle').textContent='Set New Password';
     if(el('authMessage'))el('authMessage').textContent=message;
     el('authGate')?.classList.add('open');
-    setTimeout(()=>el('deRecoveryPassword54')?.focus(),0);
+    setTimeout(()=>{ownRecoveryTouchLayer();el('deRecoveryPassword54')?.focus()},0);
+    setTimeout(ownRecoveryTouchLayer,250);
   }
 
   function restoreSignin(message='Sign in to access and sync your ranking lists.'){

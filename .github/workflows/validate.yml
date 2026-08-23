@@ -94,7 +94,7 @@ jobs:
               "return type==='recovery'&&!!credential;",
               '__WORKHORSE_RECOVERY_FETCH_GUARD__',
               'Account data is locked during password recovery.',
-              './auth-recovery-v54.js?v=545',
+              './auth-recovery-v54.js?v=546',
               './auth-forgot-popup-v56.js?v=564',
               './auth-password-save-v57.js?v=572',
               './new-user-adp-v60.js?v=606',
@@ -112,6 +112,11 @@ jobs:
               "signOut({scope:'local'})",
               'Sign in with your new password.',
               'A bare/stale #type=recovery marker is not proof of a live reset session.',
+              'function ownRecoveryTouchLayer()',
+              "gate.removeAttribute('inert')",
+              'touch-action:manipulation!important',
+              'pointer-events:auto!important',
+              'type="button">Save New Password',
           ]:
               if term not in recovery:
                   raise SystemExit(f'Recovery protection missing: {term}')
@@ -262,7 +267,7 @@ jobs:
             echo 'Bare stale recovery marker incorrectly opened password-reset mode.'
             exit 1
           fi
-          if grep -q 'workhorse-recovery-lock' /tmp/workhorse-stale-recovery.html; then
+          if grep -Eq '<html[^>]*class="[^"]*workhorse-recovery-lock' /tmp/workhorse-stale-recovery.html; then
             echo 'Bare stale recovery marker left the recovery privacy lock active.'
             exit 1
           fi
