@@ -1,4 +1,4 @@
-// v78.2 — fetch fallback Sleeper ranks only for players that actually lack format-specific ADP.
+// v78.3 — reuse the main Sleeper directory before making any delayed fallback-rank queries.
 (()=>{
   const FALLBACK_LIMIT=500;
   const BATCH=100;
@@ -25,7 +25,10 @@
         if(info?.rank!=null)continue;
         const id=String(p?.sleeperId||info?.id||'');
         if(!id||seen.has(id))continue;
-        seen.add(id);out.push(id);
+        seen.add(id);
+        const direct=Number(info?.searchRank);
+        if(Number.isFinite(direct)&&direct>0){fallbackRanks.set(id,direct);continue}
+        out.push(id);
         if(out.length>=FALLBACK_LIMIT)break;
       }
     }catch(_){}
@@ -87,7 +90,9 @@
           ensureMyRank(metrics,p);
 
           const id=String(p?.sleeperId||info?.id||'');
-          const fallback=Number(fallbackRanks.get(id));
+          const direct=Number(info?.searchRank);
+          const cached=Number(fallbackRanks.get(id));
+          const fallback=Number.isFinite(direct)&&direct>0?direct:cached;
           if(Number.isFinite(fallback)&&fallback>0){
             if(metrics[2]){
               const value=metrics[2].querySelector('.num');
@@ -135,9 +140,10 @@
     try{if(typeof renderRankings==='function')renderRankings()}catch(e){console.warn('Workhorse Sleeper fallback render skipped',e)}
   }
 
-  if(window.WorkhorseCentralAdpReady)setTimeout(refresh,100);
-  else setTimeout(refresh,800);
-  window.addEventListener('workhorse:central-adp-ready',()=>setTimeout(refresh,0));
-  setTimeout(refresh,2500);
+  const scheduleRefresh=()=>setTimeout(refresh,3000);
+  if(document.readyState==='complete')scheduleRefresh();
+  else window.addEventListener('load',scheduleRefresh,{once:true});
+  setTimeout(install,600);
+  setTimeout(refresh,6000);
   window.WorkhorseUnrankedLabels={refresh};
 })();
