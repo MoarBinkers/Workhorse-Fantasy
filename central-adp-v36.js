@@ -227,7 +227,7 @@
       const client=getClient();
       const {data,error}=await client.from('sleeper_adp_current')
         .select('format,player_id,full_name,position,team,sleeper_rank,position_rank,sleeper_adp,captured_at,rank_change')
-        .eq('format',activeFormat).order('sleeper_rank',{ascending:true});
+        .eq('format',activeFormat).order('sleeper_rank',{ascending:true}).limit(AUTO_RANK_LIMIT);
       if(error)throw error;
       if(!Array.isArray(data)||data.length<100)throw new Error('Shared Sleeper '+FORMATS[activeFormat].short+' ranks are incomplete.');
 
@@ -241,12 +241,8 @@
       window.WorkhorseCentralAdpReady=true;
       try{window.dispatchEvent(new CustomEvent('workhorse:central-adp-ready',{detail:{format:activeFormat,count:data.length}}))}catch(_){}
 
-      loadPlayerDirectory(client).then(directory=>{
-        activeDirectory=directory;
-        applyRows(activeRows,activeDirectory);
-        const repaint=()=>{if(typeof renderEverything==='function')renderEverything()};
-        if('requestIdleCallback' in window)requestIdleCallback(repaint,{timeout:1200});else setTimeout(repaint,80);
-      }).catch(e=>console.warn('Sleeper player directory enrichment unavailable',e));
+      // Do not preload the 500-player identity directory. The Add Player box searches
+      // the full Sleeper directory on demand, so startup stays limited to these top 250 rows.
       return data;
     }catch(e){console.error('Central Sleeper ADP failed',e);setText('liveText','Couldn’t load shared Sleeper ranks');setText('adpStatus',e?.message||String(e));throw e}
   }
