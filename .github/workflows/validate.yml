@@ -100,9 +100,9 @@ jobs:
               './auth-recovery-v54.js?v=548',
               './auth-forgot-popup-v56.js?v=565',
               './auth-password-save-v57.js?v=573',
-              './new-user-adp-v60.js?v=606',
+              './new-user-adp-v60.js?v=607',
               './draft-room-v41.js?v=412',
-              './decision-loader-v61.js?v=636',
+              './decision-loader-v61.js?v=637',
           ]
           for term in index_required:
               if term not in index:
@@ -164,6 +164,7 @@ jobs:
           for term in [
               "WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized'",
               "const STARTER_FORMAT='ppr'",
+              'const STARTER_LIMIT=250;',
               'async function createLocalStarter()',
               'async function migrateUntouchedCloudStarter()',
               "const list=cleanListData('My Rankings',playersFromRows(rows));",
@@ -174,6 +175,30 @@ jobs:
           ]:
               if term not in starter:
                   raise SystemExit(f'Default Sleeper ADP onboarding protection missing: {term}')
+
+          # Rankings/Edge invariants: keep the fast default board at 250 without shrinking manual player access.
+          central = Path('central-adp-v36.js').read_text(encoding='utf-8')
+          for term in [
+              'const AUTO_RANK_LIMIT=250;',
+              'const DIRECTORY_LIMIT=500;',
+              'try{sleeperPool=pool}',
+          ]:
+              if term not in central:
+                  raise SystemExit(f'Player-load/search invariant missing: {term}')
+
+          edge = Path('live-draft-edge-v82.js').read_text(encoding='utf-8')
+          if 'edge:sleeper-mine' not in edge:
+              raise SystemExit('My Edge sign/formula changed unexpectedly')
+          if 'm?.searchRank' in edge or 'Sleeper live player rank' in edge:
+              raise SystemExit('My Edge must use true Sleeper ADP only, never search rank')
+
+          market_patch = Path('patch-v29.js').read_text(encoding='utf-8')
+          if 'data-market-add' not in market_patch:
+              raise SystemExit('Manual Add Player path is missing')
+          id_pos = market_patch.find('if(sleeperId){')
+          name_pos = market_patch.find('if(name&&market[name])')
+          if id_pos < 0 or name_pos < 0 or id_pos > name_pos:
+              raise SystemExit('Sleeper ID matching must remain ahead of name matching')
 
           cloud = Path('cloud-reliability-v41.js').read_text(encoding='utf-8')
           for term in [
