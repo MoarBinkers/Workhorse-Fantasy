@@ -29,10 +29,11 @@ replace_exact(
 )
 
 replace_exact('index.html', './central-adp-v36.js?v=367', './central-adp-v36.js?v=368')
+rank_sync_marker = r'<scr"+"ipt src=\"./rank-sync-v38.js?v=393'
 replace_exact(
     'index.html',
-    '<scr"+"ipt src="./central-adp-v36.js?v=368"></scr"+"ipt><scr"+"ipt src="./rank-sync-v38.js?v=393"></scr"+"ipt>',
-    '<scr"+"ipt src="./central-adp-v36.js?v=368"></scr"+"ipt><scr"+"ipt src="./on-demand-player-search-v88.js?v=881"></scr"+"ipt><scr"+"ipt src="./rank-sync-v38.js?v=393"></scr"+"ipt>'
+    rank_sync_marker,
+    r'<scr"+"ipt src=\"./on-demand-player-search-v88.js?v=881\"></scr"+"ipt>' + rank_sync_marker
 )
 
 central = Path('central-adp-v36.js').read_text(encoding='utf-8')
