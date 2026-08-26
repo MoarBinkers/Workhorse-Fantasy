@@ -1,4 +1,4 @@
-// v88.1 — keep startup at top 250; search the full Sleeper player directory only when the Add Player box is used.
+// v88.2 — keep startup at top 250; search the full Sleeper player directory only when the Add Player box is used.
 (()=>{
   const REMOTE_LIMIT=40;
   const MIN_QUERY=2;
@@ -136,7 +136,9 @@
     try{
       overall=players.length?Math.max(...players.map(p=>Number(p.overall)||0))+1:1;
       posRank=players.filter(p=>p.position===src.position).length+1;
-      players.push(playerTemplate(src,overall,posRank));
+      const added=playerTemplate(src,overall,posRank);
+      added.sleeperId=String(src.id);
+      players.push(added);
       save();renderEverything();
     }catch(e){console.warn('Could not add searched player',e)}
   };
