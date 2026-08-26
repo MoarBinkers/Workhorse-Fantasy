@@ -37,6 +37,7 @@ for term in [
     '.limit(REMOTE_LIMIT)',
     ".from('sleeper_adp_current')",
     ".in('player_id',ids)",
+    'added.sleeperId=String(src.id);',
     'window.WorkhorseFullPlayerSearch',
 ]:
     if term not in ondemand:
