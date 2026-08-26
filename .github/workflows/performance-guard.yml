@@ -1,0 +1,22 @@
+name: Validate Interaction Performance
+
+on:
+  push:
+    branches: ["staging"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check interaction performance protections
+        run: python .github/performance-regression-check.py
+      - name: Check changed JavaScript syntax
+        run: |
+          node --check central-adp-v36.js
+          node --check player-detail-v34.js
