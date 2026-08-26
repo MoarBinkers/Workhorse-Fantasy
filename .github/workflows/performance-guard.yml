@@ -20,3 +20,4 @@ jobs:
         run: |
           node --check central-adp-v36.js
           node --check player-detail-v34.js
+          node --check on-demand-player-search-v88.js
