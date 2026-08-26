@@ -3,7 +3,7 @@
   const HISTORY_KEY='de29_adp_history';
   const FORMAT_KEY='de36_adp_format';
   const HISTORY_TTL=5*60*1000;
-  const AUTO_RANK_LIMIT=300;
+  const AUTO_RANK_LIMIT=250;
   const DIRECTORY_LIMIT=500;
   const FORMATS={
     ppr:{label:'Full PPR',short:'PPR'},

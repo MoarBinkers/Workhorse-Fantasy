@@ -21,11 +21,7 @@
   function rankInfo(p){
     let m=null;
     try{m=typeof marketFor==='function'?marketFor(p):null}catch(_){}
-    let sleeper=Number(m?.rank),source='Sleeper ADP';
-    if(!(Number.isFinite(sleeper)&&sleeper>0)){
-      sleeper=Number(m?.searchRank);
-      source='Sleeper live player rank';
-    }
+    const sleeper=Number(m?.rank),source='Sleeper ADP';
     const mine=Number(p?.overall);
     if(!(Number.isFinite(mine)&&mine>0&&Number.isFinite(sleeper)&&sleeper>0))return {mine:Number.isFinite(mine)?mine:null,sleeper:null,edge:null,source:null};
     return {mine,sleeper,edge:sleeper-mine,source};

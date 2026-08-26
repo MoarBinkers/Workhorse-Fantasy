@@ -2,7 +2,7 @@
 (()=>{
   const MIGRATION_KEY='de60_clean_adp_onboarding';
   const STARTER_FORMAT='ppr';
-  const STARTER_LIMIT=300;
+  const STARTER_LIMIT=250;
   let busy=false,createConfirmBusy=false,starterRowsPromise=null;
 
   window.WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized';

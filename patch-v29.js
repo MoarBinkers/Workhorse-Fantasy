@@ -20,11 +20,15 @@
   function marketMatch(value){
     const name=typeof value==="string"?value:value?.name;
     const sleeperId=typeof value==="object"?(value?.sleeperId||value?.id):null;
+    if(sleeperId){
+      for(const [key,entry] of Object.entries(market)){
+        if(entry&&typeof entry==="object"&&entry.id&&String(entry.id)===String(sleeperId))return {name:key,entry};
+      }
+    }
     if(name&&market[name])return {name,entry:market[name]};
     const n=norm(name);
     for(const [key,entry] of Object.entries(market)){
       if(!entry||typeof entry!=="object")continue;
-      if(sleeperId&&entry.id&&String(entry.id)===String(sleeperId))return {name:key,entry};
       if(n&&norm(key)===n)return {name:key,entry};
     }
     return null;
