@@ -1,0 +1,37 @@
+name: Inspect Add Player Flow
+
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-add-player.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect bundled Add Player code
+        shell: bash
+        run: |
+          cat app-v28-part-*.bin > /tmp/workhorse-app.gz
+          gzip -dc /tmp/workhorse-app.gz > /tmp/workhorse-app.html
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/workhorse-app.html').read_text(encoding='utf-8')
+          terms=['addPlayerModal','sleeperPool','openAddPlayer','addPlayerSearch','Add Player']
+          for term in terms:
+              print('\n===',term,'===')
+              start=0
+              found=False
+              while True:
+                  i=text.find(term,start)
+                  if i<0: break
+                  found=True
+                  print(text[max(0,i-1200):min(len(text),i+2400)])
+                  print('\n---')
+                  start=i+len(term)
+              if not found: print('NOT FOUND')
+          PY
