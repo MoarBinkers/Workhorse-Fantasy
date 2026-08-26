@@ -244,7 +244,8 @@
       loadPlayerDirectory(client).then(directory=>{
         activeDirectory=directory;
         applyRows(activeRows,activeDirectory);
-        if(typeof renderEverything==='function')renderEverything();
+        const repaint=()=>{if(typeof renderEverything==='function')renderEverything()};
+        if('requestIdleCallback' in window)requestIdleCallback(repaint,{timeout:1200});else setTimeout(repaint,80);
       }).catch(e=>console.warn('Sleeper player directory enrichment unavailable',e));
       return data;
     }catch(e){console.error('Central Sleeper ADP failed',e);setText('liveText','Couldn’t load shared Sleeper ranks');setText('adpStatus',e?.message||String(e));throw e}
@@ -261,23 +262,22 @@
   refreshCurrentAdp=loadCentralRanks;window.refreshCurrentAdp=loadCentralRanks;
   const update=document.getElementById('topUpdate');if(update)update.onclick=loadCentralRanks;
 
-  const originalRenderAdp=typeof renderAdp==='function'?renderAdp:null;
-  if(originalRenderAdp){renderAdp=function(){if(activeRows.length)applyRows(activeRows,activeDirectory);return originalRenderAdp()}}
-  const originalRenderRankings=typeof renderRankings==='function'?renderRankings:null;
-  if(originalRenderRankings){renderRankings=function(){if(activeRows.length)applyRows(activeRows,activeDirectory);return originalRenderRankings()}}
-  const originalRenderDraft=typeof renderDraft==='function'?renderDraft:null;
-  if(originalRenderDraft){renderDraft=function(){if(activeRows.length)applyRows(activeRows,activeDirectory);return originalRenderDraft()}}
+  // Central ADP is applied only when fresh central data arrives. Ordinary UI renders stay DOM-only.
 
   async function fetchHistory(playerId){
     const id=String(playerId||'');if(!id)return [];
     const cacheKey=activeFormat+':'+id,cached=historyCache.get(cacheKey);
     if(cached&&Date.now()-cached.at<HISTORY_TTL)return cached.rows;
-    const client=getClient(),all=[];let from=0;
-    while(true){
-      const {data,error}=await client.from('sleeper_adp_history').select('sleeper_rank,captured_at,sleeper_adp').eq('format',activeFormat).eq('player_id',id).order('captured_at',{ascending:true}).range(from,from+999);
-      if(error)throw error;const batch=Array.isArray(data)?data:[];all.push(...batch);if(batch.length<1000)break;from+=1000;
-    }
-    const rows=all.map(r=>({t:r.captured_at?new Date(r.captured_at).getTime():null,rank:Number(r.sleeper_rank),label:null})).filter(r=>Number.isFinite(r.rank));
+    const client=getClient();
+    const {data,error}=await client.from('sleeper_adp_history')
+      .select('sleeper_rank,captured_at,sleeper_adp')
+      .eq('format',activeFormat).eq('player_id',id)
+      .order('captured_at',{ascending:false}).limit(240);
+    if(error)throw error;
+    const latest=(Array.isArray(data)?data:[]).slice().reverse();
+    const rows=latest.map(r=>({t:r.captured_at?new Date(r.captured_at).getTime():null,rank:Number(r.sleeper_rank),label:null}))
+      .filter(r=>Number.isFinite(r.rank))
+      .filter((r,i,a)=>i===0||Number(r.rank)!==Number(a[i-1].rank));
     historyCache.set(cacheKey,{at:Date.now(),rows});return rows;
   }
   function playerIdFor(value){
@@ -291,18 +291,28 @@
   }
   async function hydrateHistory(value){
     const id=playerIdFor(value);if(!id)return;
-    const rows=await fetchHistory(id);let store={};try{store=JSON.parse(localStorage.getItem(HISTORY_KEY)||'{}')||{}}catch(_){}
-    store['id:'+id]=rows;try{localStorage.setItem(HISTORY_KEY,JSON.stringify(store))}catch(_){}
+    const rows=await fetchHistory(id);
+    try{localStorage.setItem(HISTORY_KEY,JSON.stringify({['id:'+id]:rows}))}catch(_){}
   }
 
   const detailBase=typeof openDetail==='function'?openDetail:null;
-  if(detailBase){openDetail=async function(i){const p=players?.[i];if(!p)return detailBase(i);const drawer=document.getElementById('drawer'),content=document.getElementById('drawerContent');if(drawer&&content){content.innerHTML='<div class="small" style="padding:24px">Loading '+FORMATS[activeFormat].label+' Sleeper history…</div>';drawer.classList.add('open')}try{await hydrateHistory(p)}catch(e){console.warn(e)}return detailBase(i)};window.openDetail=openDetail}
+  if(detailBase){openDetail=function(i){
+    const p=players?.[i];
+    const out=detailBase(i);
+    if(p)setTimeout(()=>hydrateHistory(p).then(()=>window.WorkhorseRefreshPlayerHistory?.(p)).catch(e=>console.warn('Sleeper history unavailable',e)),0);
+    return out;
+  };window.openDetail=openDetail}
 
   const marketDetailBase=typeof window.openMarketDetail==='function'?window.openMarketDetail:null;
-  if(marketDetailBase){const wrapped=async function(name){const p=(typeof sleeperPool!=='undefined'?sleeperPool:[]).find(x=>nrm(x.name)===nrm(name))||{name};const drawer=document.getElementById('drawer'),content=document.getElementById('drawerContent');if(drawer&&content){content.innerHTML='<div class="small" style="padding:24px">Loading '+FORMATS[activeFormat].label+' Sleeper history…</div>';drawer.classList.add('open')}try{await hydrateHistory(p)}catch(e){console.warn(e)}return marketDetailBase(name)};window.openMarketDetail=wrapped;try{openMarketDetail=wrapped}catch(_){}}
+  if(marketDetailBase){const wrapped=function(name){
+    const p=(typeof sleeperPool!=='undefined'?sleeperPool:[]).find(x=>nrm(x.name)===nrm(name))||{name};
+    const out=marketDetailBase(name);
+    setTimeout(()=>hydrateHistory(p).then(()=>window.WorkhorseRefreshPlayerHistory?.(p)).catch(e=>console.warn('Sleeper history unavailable',e)),0);
+    return out;
+  };window.openMarketDetail=wrapped;try{openMarketDetail=wrapped}catch(_){}}
 
   try{localStorage.removeItem(HISTORY_KEY);localStorage.removeItem('de5_history')}catch(_){}
   renderFormatTabs();
   loadCentralRanks().catch(()=>{});
-  [1200,3000].forEach(ms=>setTimeout(()=>{if(activeRows.length){applyRows(activeRows,activeDirectory);if(typeof renderEverything==='function')renderEverything()}},ms));
+  // No timed full-app rerenders: data loaders repaint only when their data actually changes.
 })();

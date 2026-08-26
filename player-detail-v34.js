@@ -66,7 +66,7 @@
     return sameDay?d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):d.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   }
   function historyHtml(p){
-    const h=historySummary(p),all=h.list;
+    const h=historySummary(p),raw=h.list,step=raw.length>120?(raw.length-1)/119:1,all=raw.length>120?Array.from({length:120},(_,i)=>raw[Math.round(i*step)]):raw;
     if(!all.length)return '<div class="small" style="padding:14px 0">No Sleeper ADP history has been recorded for this player yet.</div>';
     const ranks=all.map(x=>Number(x.rank));
     const min=Math.min(...ranks),max=Math.max(...ranks),range=Math.max(1,max-min);
@@ -85,15 +85,22 @@
     return '<div id="de34History" data-de34-token="'+token+'"><div class="small" style="padding:14px 0;color:#8fa0af">Loading Sleeper ADP history…</div></div>';
   }
   function scheduleHistory(p,token){
-    requestAnimationFrame(()=>{
+    const run=()=>{
       const slot=document.getElementById('de34History');
       if(!slot||slot.dataset.de34Token!==token)return;
       try{slot.innerHTML=historyHtml(p)}catch(e){
         console.warn('Workhorse ADP history could not render',e);
         if(slot&&slot.dataset.de34Token===token)slot.innerHTML='<div class="small" style="padding:14px 0">Sleeper ADP history is temporarily unavailable.</div>';
       }
-    });
+    };
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:300});else setTimeout(run,0);
   }
+  window.WorkhorseRefreshPlayerHistory=function(p){
+    const slot=document.getElementById('de34History');if(!slot||!p)return;
+    const shown=document.querySelector('#drawerContent .detailhead h2')?.textContent||'';
+    if(normalized(shown)!==normalized(p.name||''))return;
+    scheduleHistory(p,slot.dataset.de34Token||'');
+  };
 
   function ownedDetailHtml(p,i,token){
     const m=marketFor(p),edge=m?.rank!=null?Number(m.rank)-Number(p.overall):null,mv=Number(m?.move)||0;
