@@ -13,11 +13,23 @@
   });
 
   function marketMoveFor(p){
-    try{return numMove(marketFor(p)?.move)}catch(_){return 0}
+    try{
+      const raw=marketFor(p);
+      const info=typeof window.WorkhorseTrueSleeperAdpEntry==='function'?window.WorkhorseTrueSleeperAdpEntry(raw):(raw?.identityOnly===false?raw:null);
+      if(!info)return null;
+      return numMove(info.move);
+    }catch(_){return null}
   }
 
   function paintMove(el,n){
     if(!el)return;
+    if(n==null){
+      if(el.textContent!=='N/A')el.textContent='N/A';
+      el.classList.add('move','flat');el.classList.remove('up','down');
+      el.title='Format-specific Sleeper ADP change is unavailable.';
+      return;
+    }
+    el.removeAttribute('title');
     const v=moveView(n);
     if(el.textContent!==v.text)el.textContent=v.text;
     el.classList.add('move');

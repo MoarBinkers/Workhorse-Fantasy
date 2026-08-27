@@ -19,8 +19,9 @@
   }
 
   function rankInfo(p){
-    let m=null;
-    try{m=typeof marketFor==='function'?marketFor(p):null}catch(_){}
+    let raw=null,m=null;
+    try{raw=typeof marketFor==='function'?marketFor(p):null}catch(_){}
+    try{m=typeof window.WorkhorseTrueSleeperAdpEntry==='function'?window.WorkhorseTrueSleeperAdpEntry(raw):(raw?.identityOnly===false?raw:null)}catch(_){}
     const sleeper=Number(m?.rank),source='Sleeper ADP';
     const mine=Number(p?.overall);
     if(!(Number.isFinite(mine)&&mine>0&&Number.isFinite(sleeper)&&sleeper>0))return {mine:Number.isFinite(mine)?mine:null,sleeper:null,edge:null,source:null};

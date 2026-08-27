@@ -20,46 +20,63 @@
   function marketMatch(value){
     const name=typeof value==="string"?value:value?.name;
     const sleeperId=typeof value==="object"?(value?.sleeperId||value?.id):null;
+    const position=typeof value==="object"?String(value?.position||value?.pos||'').toUpperCase():'';
+    const identityMatches=(key,entry)=>{
+      if(!name)return true;
+      const sameName=norm(key)===norm(name);
+      const entryPos=String(entry?.pos||'').toUpperCase();
+      return sameName&&(!position||!entryPos||entryPos===position);
+    };
     if(sleeperId){
       for(const [key,entry] of Object.entries(market)){
-        if(entry&&typeof entry==="object"&&entry.id&&String(entry.id)===String(sleeperId))return {name:key,entry};
+        if(entry&&typeof entry==="object"&&entry.id&&String(entry.id)===String(sleeperId)&&identityMatches(key,entry))return {name:key,entry};
       }
     }
-    if(name&&market[name])return {name,entry:market[name]};
+    if(name&&market[name]&&identityMatches(name,market[name]))return {name,entry:market[name]};
     const n=norm(name);
     for(const [key,entry] of Object.entries(market)){
       if(!entry||typeof entry!=="object")continue;
-      if(n&&norm(key)===n)return {name:key,entry};
+      if(n&&norm(key)===n&&identityMatches(key,entry))return {name:key,entry};
     }
     return null;
   }
 
   marketFor=function(p){return marketMatch(p)?.entry||null};
+  function trueSleeperAdpEntry(info){
+    if(!info||info.identityOnly!==false)return null;
+    const rank=Number(info.rank);if(!Number.isFinite(rank)||rank<=0)return null;
+    let active='';try{active=typeof window.DraftEdgeAdpFormat==='function'?String(window.DraftEdgeAdpFormat()||''):''}catch(_){}
+    const format=String(info.format||'');
+    if(active&&format&&active!==format)return null;
+    return info;
+  }
+  window.WorkhorseTrueSleeperAdpEntry=trueSleeperAdpEntry;
   imgUrl=function(p){const m=marketFor(p);return m?.id?"https://sleepercdn.com/content/nfl/players/thumb/"+encodeURIComponent(m.id)+".jpg":""};
   moveText=function(p){
-    const info=marketFor(p);
-    if(!info||info.rank==null)return {text:"—",cls:"flat"};
-    const m=Number(info.move)||0;
+    const info=trueSleeperAdpEntry(marketFor(p));
+    if(!info)return {text:"N/A",cls:"flat"};
+    const raw=Number(info.move),m=Number.isFinite(raw)?raw:0;
     return {text:m>0?"+"+m:String(m),cls:m>0?"up":m<0?"down":"flat"};
   };
 
   marketHeads=function(){return '<div class="colheads market"><div>Player</div><div>Sleeper Rank</div><div>Pos Rank</div><div>ADP Change</div></div>'};
 
   rankRow=function(p,mode="rankings"){
-    const i=players.indexOf(p),m=marketFor(p),mv=moveText(p);
+    const i=players.indexOf(p),m=marketFor(p),adp=trueSleeperAdpEntry(m),mv=moveText(p);
     const myPrimary=rankPos==="ALL"?p.overall:p.posRank;
     const mySecondary=rankPos==="ALL"?p.position+p.posRank:p.overall;
-    const edge=m?.rank!=null?m.rank-p.overall:null;
+    const sleeperRank=adp?Number(adp.rank):null;
+    const edge=sleeperRank!=null?sleeperRank-p.overall:null;
     const draftControl=mode==="draft"?'<button class="draft-btn" onclick="event.stopPropagation();toggleDraft('+i+')">Draft</button>':"";
     return '<div class="player rankings '+(mode==="draft"&&p.drafted?"drafted":"")+'" draggable="'+(mode==="rankings")+'" data-index="'+i+'">'+
     '<div class="person" onclick="openDetail('+i+')"><img class="avatar" src="'+imgUrl(p)+'" onerror="this.style.visibility=\'hidden\'"><div class="playertext"><div class="name-line"><span class="name">'+esc(cleanPlayerName(p.name))+'</span><span class="tags">'+tagsHtml(p)+'</span>'+noteHtml(p,i)+'</div><div class="meta"><span class="pos '+p.position+'">'+p.position+'</span><span>'+esc(p.team||'—')+'</span><span>Bye '+esc(p.bye)+'</span>'+draftControl+'</div>'+notePreview(p)+'</div></div>'+
-    '<div class="metric"><div class="num">#'+myPrimary+'</div></div><div class="metric"><div class="num">'+(rankPos==="ALL"?p.position+"#"+p.posRank:"#"+mySecondary)+'</div></div><div class="metric"><div class="num">'+(m?.rank!=null?"#"+m.rank:"—")+'</div></div><div class="metric"><div class="edge '+(edge==null?"":edge>0?"good":edge<0?"bad":"")+'">'+(edge==null?"—":(edge>0?"+":"")+edge)+'</div></div><div class="metric"><div class="move '+mv.cls+'">'+mv.text+'</div></div></div>';
+    '<div class="metric"><div class="num">#'+myPrimary+'</div></div><div class="metric"><div class="num">'+(rankPos==="ALL"?p.position+"#"+p.posRank:"#"+mySecondary)+'</div></div><div class="metric"><div class="num">'+(sleeperRank!=null?"#"+sleeperRank:"NR")+'</div></div><div class="metric"><div class="edge '+(edge==null?"":edge>0?"good":edge<0?"bad":"")+'">'+(edge==null?"—":(edge>0?"+":"")+edge)+'</div></div><div class="metric"><div class="move '+mv.cls+'">'+mv.text+'</div></div></div>';
   };
 
   marketRow=function(p){
-    const owned=findPersonalByName(p.name),i=owned?players.indexOf(owned):-1,m=marketFor(p),mv=moveText(p);
+    const owned=findPersonalByName(p.name),i=owned?players.indexOf(owned):-1,m=marketFor(p),adp=trueSleeperAdpEntry(m),mv=moveText(p),sleeperRank=adp?Number(adp.rank):null;
     const add=i<0?'<button class="market-add" data-market-add="'+esc(p.name)+'">＋ Add</button>':"";
-    return '<div class="player market"><div class="person" data-market-player="'+encodeURIComponent(p.name)+'"><img class="avatar" src="'+imgUrl(p)+'" onerror="this.style.visibility=\'hidden\'"><div class="playertext"><div class="name-line"><span class="name">'+esc(cleanPlayerName(p.name))+'</span><span class="tags">'+(owned?tagsHtml(owned):"")+'</span>'+(owned?noteHtml(owned,i):"")+'</div><div class="meta"><span class="pos '+p.position+'">'+p.position+'</span><span>'+esc(p.team||"—")+'</span>'+add+'</div>'+(owned?notePreview(owned):"")+'</div></div><div class="metric"><div class="num">'+(m?.rank!=null?"#"+m.rank:"—")+'</div></div><div class="metric"><div class="num">'+(m?.posRank?p.position+"#"+m.posRank:"—")+'</div></div><div class="metric"><div class="move '+mv.cls+'">'+mv.text+'</div></div></div>';
+    return '<div class="player market"><div class="person" data-market-player="'+encodeURIComponent(p.name)+'"><img class="avatar" src="'+imgUrl(p)+'" onerror="this.style.visibility=\'hidden\'"><div class="playertext"><div class="name-line"><span class="name">'+esc(cleanPlayerName(p.name))+'</span><span class="tags">'+(owned?tagsHtml(owned):"")+'</span>'+(owned?noteHtml(owned,i):"")+'</div><div class="meta"><span class="pos '+p.position+'">'+p.position+'</span><span>'+esc(p.team||"—")+'</span>'+add+'</div>'+(owned?notePreview(owned):"")+'</div></div><div class="metric"><div class="num">'+(sleeperRank!=null?"#"+sleeperRank:"NR")+'</div></div><div class="metric"><div class="num">'+(m?.posRank?p.position+"#"+m.posRank:"—")+'</div></div><div class="metric"><div class="move '+mv.cls+'">'+mv.text+'</div></div></div>';
   };
 
   function listRef(){try{return typeof currentList==='function'?currentList():rankingLists?.[activeListId]||null}catch(_){return null}}

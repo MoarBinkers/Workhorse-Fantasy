@@ -53,12 +53,14 @@ for term in [
     './central-adp-v36.js?v=368',
     './on-demand-player-search-v88.js?v=881',
     './player-detail-v34.js?v=343',
+    './patch-v29.js?v=295',
+    './live-draft-edge-v82.js?v=822',
     './draft-room-v41.js?v=413',
     './rankings-news-update-v83.js?v=833',
-    './adp-movement-v49.js?v=493',
+    './adp-movement-v49.js?v=494',
     './cloud-reliability-v41.js?v=413',
     './new-user-adp-v60.js?v=608',
-    './decision-loader-v61.js?v=638',
+    './decision-loader-v61.js?v=639',
 ]:
     if term not in index:
         raise SystemExit(f'Performance cache/load key missing: {term}')
@@ -78,5 +80,18 @@ if '[600,4000].forEach' not in onboarding or '[100,500,1200,2500,5000,8000].forE
     raise SystemExit('Onboarding reconciliation protection missing.')
 if 'files.length;i+=2' not in loader or 'timeout:1600' not in loader:
     raise SystemExit('Optional feature batching protection missing.')
+
+
+patch = Path('patch-v29.js').read_text(encoding='utf-8')
+edge = Path('live-draft-edge-v82.js').read_text(encoding='utf-8')
+if './adp-unranked-label-v78.js' in loader:
+    raise SystemExit('Generic Sleeper search-rank fallback must never load.')
+for term in ['identityMatches', 'WorkhorseTrueSleeperAdpEntry', 'identityOnly!==false', 'sleeperRank=adp?Number(adp.rank):null']:
+    if term not in patch:
+        raise SystemExit(f'True-ADP/player-identity protection missing: {term}')
+if 'WorkhorseTrueSleeperAdpEntry' not in edge or 'searchRank' in edge:
+    raise SystemExit('Live Draft Edge is not locked to true Sleeper ADP.')
+if 'WorkhorseTrueSleeperAdpEntry' not in movement:
+    raise SystemExit('ADP Change is not locked to true Sleeper ADP.')
 
 print('Top-250 startup, on-demand search, and interaction responsiveness checks passed.')
