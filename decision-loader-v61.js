@@ -18,6 +18,14 @@
       await yieldFrame();
     }
   };
-  if('requestIdleCallback' in window)requestIdleCallback(()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e)),{timeout:1600});
-  else setTimeout(()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e)),500);
+  let begun=false;
+  const begin=()=>{
+    if(begun)return;begun=true;
+    const run=()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e));
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:3000});
+    else setTimeout(run,900);
+  };
+  if(window.WorkhorseCentralAdpReady)begin();
+  else window.addEventListener('workhorse:central-adp-ready',begin,{once:true});
+  setTimeout(begin,6000);
 })();

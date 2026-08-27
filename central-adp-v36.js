@@ -204,7 +204,19 @@
       try{sleeperPool=pool}catch(_){}
       try{localStorage.setItem('de_sleeper_pool',JSON.stringify(pool))}catch(_){}
     }finally{applying=false}
-    reconcileCurrentRankings(rows,directory);
+  }
+
+  function scheduleRankingReconcile(rows,directory=activeDirectory){
+    const run=()=>{
+      try{
+        if(reconcileCurrentRankings(rows,directory)){
+          if(typeof renderRankings==='function')renderRankings();
+          else if(typeof renderEverything==='function')renderEverything();
+        }
+      }catch(e){console.warn('Workhorse ranking reconciliation unavailable',e)}
+    };
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:1800});
+    else setTimeout(run,500);
   }
 
   function renderFormatTabs(){
@@ -240,6 +252,7 @@
       if(typeof renderEverything==='function')renderEverything();
       window.WorkhorseCentralAdpReady=true;
       try{window.dispatchEvent(new CustomEvent('workhorse:central-adp-ready',{detail:{format:activeFormat,count:data.length}}))}catch(_){}
+      scheduleRankingReconcile(activeRows,activeDirectory);
 
       // Do not preload the 500-player identity directory. The Add Player box searches
       // the full Sleeper directory on demand, so startup stays limited to these top 250 rows.

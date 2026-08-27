@@ -10,6 +10,7 @@ movement = Path('adp-movement-v49.js').read_text(encoding='utf-8')
 cloud = Path('cloud-reliability-v41.js').read_text(encoding='utf-8')
 onboarding = Path('new-user-adp-v60.js').read_text(encoding='utf-8')
 loader = Path('decision-loader-v61.js').read_text(encoding='utf-8')
+rank_sync = Path('rank-sync-v38.js').read_text(encoding='utf-8')
 
 required_central = [
     ".order('captured_at',{ascending:false}).limit(240)",
@@ -50,8 +51,9 @@ for term in [
         raise SystemExit(f'On-demand full-player search protection missing: {term}')
 
 for term in [
-    './central-adp-v36.js?v=368',
+    './central-adp-v36.js?v=369',
     './on-demand-player-search-v88.js?v=881',
+    './rank-sync-v38.js?v=394',
     './player-detail-v34.js?v=343',
     './patch-v29.js?v=295',
     './live-draft-edge-v82.js?v=822',
@@ -60,7 +62,7 @@ for term in [
     './adp-movement-v49.js?v=494',
     './cloud-reliability-v41.js?v=413',
     './new-user-adp-v60.js?v=608',
-    './decision-loader-v61.js?v=639',
+    './decision-loader-v61.js?v=640',
 ]:
     if term not in index:
         raise SystemExit(f'Performance cache/load key missing: {term}')
@@ -78,8 +80,12 @@ if 'attempt<20' not in cloud or 'attempt<60' in cloud:
     raise SystemExit('Cloud startup polling protection missing.')
 if '[600,4000].forEach' not in onboarding or '[100,500,1200,2500,5000,8000].forEach' in onboarding:
     raise SystemExit('Onboarding reconciliation protection missing.')
-if 'files.length;i+=2' not in loader or 'timeout:1600' not in loader:
-    raise SystemExit('Optional feature batching protection missing.')
+if 'files.length;i+=2' not in loader or "window.addEventListener('workhorse:central-adp-ready',begin,{once:true})" not in loader or 'setTimeout(begin,6000)' not in loader:
+    raise SystemExit('Optional features can compete with critical ADP loading.')
+if 'scheduleRankingReconcile' not in central or 'requestIdleCallback(run,{timeout:1800})' not in central:
+    raise SystemExit('Ranking reconciliation moved back onto the critical ADP path.')
+if 'requestIdleCallback(verifyInitialRanks,{timeout:2200})' not in rank_sync or '},350);' in rank_sync:
+    raise SystemExit('Ranking integrity scan moved back onto the startup hot path.')
 
 
 patch = Path('patch-v29.js').read_text(encoding='utf-8')

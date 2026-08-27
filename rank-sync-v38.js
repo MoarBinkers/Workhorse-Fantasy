@@ -299,12 +299,14 @@
     boot.observe(document.documentElement,{childList:true,subtree:true});
   }
 
-  setTimeout(()=>{
+  const verifyInitialRanks=()=>{
     if(fixing||!Array.isArray(players))return;
     if(syncPosRanksFromOverall()){
       try{save()}catch(_){}
       try{renderRankings()}catch(_){}
     }
     disableNativeRows();
-  },350);
+  };
+  if('requestIdleCallback' in window)requestIdleCallback(verifyInitialRanks,{timeout:2200});
+  else setTimeout(verifyInitialRanks,900);
 })();
