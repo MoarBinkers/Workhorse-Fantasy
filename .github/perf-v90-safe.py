@@ -21,8 +21,8 @@ replace_once('decision-loader-v61.js',
 
 # Ranking integrity scan: keep it, but do not make it a 350ms startup snag.
 replace_once('rank-sync-v38.js',
-'''  setTimeout(()=>{\n    if(fixing||!Array.isArray(players))return;\n    if(syncPosRanksFromOverall()){\n      try{save()}catch(_){}\n      try{renderRankings()}catch(_){}\n    }\n    disableNativeRows();\n  },350);\n})();\n''',
-'''  const verifyInitialRanks=()=>{\n    if(fixing||!Array.isArray(players))return;\n    if(syncPosRanksFromOverall()){\n      try{save()}catch(_){}\n      try{renderRankings()}catch(_){}\n    }\n    disableNativeRows();\n  };\n  if('requestIdleCallback' in window)requestIdleCallback(verifyInitialRanks,{timeout:2200});\n  else setTimeout(verifyInitialRanks,900);\n})();\n''')
+'''  setTimeout(()=>{\n    if(fixing||!Array.isArray(players))return;\n    if(syncPosRanksFromOverall()){\n      try{save()}catch(_){}\n      try{renderRankings()}catch(_){}\n    }\n    disableNativeRows();\n  },350);\n})();''',
+'''  const verifyInitialRanks=()=>{\n    if(fixing||!Array.isArray(players))return;\n    if(syncPosRanksFromOverall()){\n      try{save()}catch(_){}\n      try{renderRankings()}catch(_){}\n    }\n    disableNativeRows();\n  };\n  if('requestIdleCallback' in window)requestIdleCallback(verifyInitialRanks,{timeout:2200});\n  else setTimeout(verifyInitialRanks,900);\n})();''')
 
 # Cache bust.
 p=Path('index.html'); text=p.read_text(encoding='utf-8')
