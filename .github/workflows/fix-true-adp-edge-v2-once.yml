@@ -1,0 +1,47 @@
+name: Fix true ADP Edge v2 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-true-adp-edge-v2-once.yml'
+      - '.github/fix-true-adp-edge-v2.py'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply true ADP repair
+        run: python .github/fix-true-adp-edge-v2.py
+      - name: Check changed JavaScript
+        run: |
+          node --check patch-v29.js
+          node --check adp-movement-v49.js
+          node --check live-draft-edge-v82.js
+          node --check decision-loader-v61.js
+      - name: Run permanent performance and accuracy guard
+        run: python .github/performance-regression-check.py
+      - name: Verify true-ADP-only behavior
+        run: |
+          ! grep -q 'adp-unranked-label-v78.js' decision-loader-v61.js
+          grep -q 'WorkhorseTrueSleeperAdpEntry' patch-v29.js
+          grep -q 'identityMatches' patch-v29.js
+          grep -q 'WorkhorseTrueSleeperAdpEntry' live-draft-edge-v82.js
+          grep -q 'WorkhorseTrueSleeperAdpEntry' adp-movement-v49.js
+      - name: Commit production repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add patch-v29.js adp-movement-v49.js live-draft-edge-v82.js decision-loader-v61.js index.html .github/performance-regression-check.py .github/workflows/validate.yml
+          if git diff --cached --quiet; then
+            echo "No production changes needed"
+          else
+            git commit -m "Lock Edge and ADP change to true Sleeper ADP"
+            git push
+          fi
