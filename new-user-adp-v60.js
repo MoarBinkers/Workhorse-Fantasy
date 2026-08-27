@@ -313,11 +313,15 @@
     try{window.WorkhorseReconcileSleeperRankings?.()}catch(_){}
   }
 
-  [80,250,700,1500,3000].forEach(ms=>setTimeout(ensureCreateConfirm,ms));
+  [150,900].forEach(ms=>setTimeout(ensureCreateConfirm,ms));
   document.addEventListener('click',e=>{
     const modal=document.getElementById('newListModal');
     if(modal&&!modal.classList.contains('open'))setTimeout(ensureCreateConfirm,0);
   });
   window.addEventListener('workhorse:cloud-rankings-ready',()=>setTimeout(reconcile,0));
-  [100,500,1200,2500,5000,8000].forEach(ms=>setTimeout(reconcile,ms));
+  [600,4000].forEach(ms=>setTimeout(()=>{
+    const run=()=>reconcile();
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:700});
+    else setTimeout(run,80);
+  },ms));
 })();

@@ -4,7 +4,7 @@
   const SMART_KEY='de41_draft_filter';
   const STATUS_CACHE_KEY='workhorse-draft-player-status-v412';
   const STATUS_TTL=15*60*1000;
-  const STATUS_LIMIT=500;
+  const STATUS_LIMIT=250;
   const htmlEsc=v=>typeof esc==='function'?esc(String(v??'')):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const signed=n=>Number(n)>0?'+'+Number(n):String(Number(n)||0);
   let smartFilter=localStorage.getItem(SMART_KEY)||'all';
@@ -52,6 +52,7 @@
 
   async function loadPlayerStatus(force=false){
     if(statusLoading)return statusLoading;
+    if(!playerStatus.size)readStatusCache();
     if(!force&&playerStatus.size&&Date.now()-statusLoadedAt<STATUS_TTL)return;
     const client=getStatusClient();if(!client)return;
     statusLoading=(async()=>{
@@ -342,9 +343,11 @@
       const detected=detectFormat(draft,league);connected.format=detected.format;connected.scoringLabel=detected.label;
       localStorage.setItem(INPUT_KEY,raw);populateSlotSelect();
       if(typeof window.setDraftEdgeAdpFormat==='function')try{await window.setDraftEdgeAdpFormat(detected.format)}catch(e){console.warn('Could not switch ADP format',e)}
-      await loadPlayerStatus().catch(()=>{});
       const list=currentList?.();if(list){list.draftPrefs={...(list.draftPrefs||{}),input:raw,draftId:connected.id,slot:connected.slot||null};try{save()}catch(_){}}
       await refreshConnected();connected.timer=setInterval(refreshConnected,15000);try{draftTimer=connected.timer}catch(_){}
+      const loadStatusLater=()=>loadPlayerStatus().catch(()=>{});
+      if('requestIdleCallback' in window)requestIdleCallback(loadStatusLater,{timeout:1200});
+      else setTimeout(loadStatusLater,250);
     }catch(e){if(state)state.textContent='Connection error: '+e.message}
     finally{if(btn)btn.disabled=false}
   }
@@ -356,13 +359,8 @@
   }
 
   ensureUi();
-  readStatusCache();
   const input=document.getElementById('draftId'),connect=document.getElementById('connectDraft'),stop=document.getElementById('stopDraft');
   if(input){input.placeholder='Paste Sleeper draft link, Draft ID, or League ID';input.style.maxWidth='390px';const listPref=currentList?.()?.draftPrefs?.input,saved=listPref||localStorage.getItem(INPUT_KEY);if(saved&&!input.value)input.value=saved;input.onkeydown=e=>{if(e.key==='Enter')connectDraft41()}}
   if(connect)connect.onclick=connectDraft41;if(stop)stop.onclick=stopDraft41;
-  const kickStatusLoad=()=>loadPlayerStatus().catch(()=>{});
-  const scheduleStatusLoad=()=>setTimeout(kickStatusLoad,2500);
-  if(document.readyState==='complete')scheduleStatusLoad();
-  else window.addEventListener('load',scheduleStatusLoad,{once:true});
   setTimeout(renderDraft,600);
 })();

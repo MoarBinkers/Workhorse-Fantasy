@@ -11,7 +11,13 @@
       document.body.appendChild(s);
     }catch(e){console.warn('Workhorse optional feature loader error:',src,e);resolve()}
   });
-  const start=async()=>{for(let i=0;i<files.length;i+=4)await Promise.all(files.slice(i,i+4).map(loadOne))};
-  if('requestIdleCallback' in window)requestIdleCallback(()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e)),{timeout:600});
-  else setTimeout(()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e)),200);
+  const yieldFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+  const start=async()=>{
+    for(let i=0;i<files.length;i+=2){
+      await Promise.all(files.slice(i,i+2).map(loadOne));
+      await yieldFrame();
+    }
+  };
+  if('requestIdleCallback' in window)requestIdleCallback(()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e)),{timeout:1600});
+  else setTimeout(()=>start().catch(e=>console.warn('Workhorse optional feature batch error',e)),500);
 })();

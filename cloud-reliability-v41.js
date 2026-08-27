@@ -204,10 +204,9 @@
   }
 
   function startCloudRestore(attempt=0){
-    ensureBackupUI();refreshSettingsCopy();
     const signedIn=typeof currentUser!=='undefined'&&currentUser;
     if(signedIn){loadCloudLists();return}
-    if(attempt<60)setTimeout(()=>startCloudRestore(attempt+1),100);
+    if(attempt<20)setTimeout(()=>startCloudRestore(attempt+1),250);
   }
 
   ensureBackupUI();refreshSettingsCopy();

@@ -2,7 +2,7 @@
 (()=>{
   const LOOKBACK_HOURS=48;
   const REFRESH_MS=10*60*1000;
-  const MAX_ROWS=700;
+  const MAX_ROWS=350;
   const newsByPlayer=new Map();
   const pendingLists=new Set();
   let client=null,loading=null,lastLoaded=0;
@@ -136,7 +136,9 @@
   function scheduleList(id){
     if(pendingLists.has(id))return;
     pendingLists.add(id);
-    queueMicrotask(()=>{pendingLists.delete(id);decorateList($(id))});
+    const run=()=>{pendingLists.delete(id);decorateList($(id))};
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:250});
+    else setTimeout(run,60);
   }
 
   function observe(id){
@@ -145,9 +147,12 @@
     mo.observe(list,{childList:true,subtree:true});list.__whNews83Observed=true;return true;
   }
 
-  function boot(){css();decorate();observe('rankList');observe('adpList');load(false)}
+  function boot(){css();decorate();observe('rankList');observe('adpList')}
   boot();
-  [250,900,2200,5000].forEach(ms=>setTimeout(boot,ms));
+  setTimeout(boot,900);
+  const loadNews=()=>load(false);
+  if('requestIdleCallback' in window)requestIdleCallback(loadNews,{timeout:2500});
+  else setTimeout(loadNews,1200);
   setInterval(()=>load(false),REFRESH_MS);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(false)});
   window.WorkhorseRankingsNews={refresh:()=>load(true),decorate};

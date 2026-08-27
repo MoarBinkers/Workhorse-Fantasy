@@ -74,7 +74,9 @@
   }
   function schedulePaint(){
     if(scheduled)return;scheduled=true;
-    requestAnimationFrame(()=>{scheduled=false;paintAll()});
+    const run=()=>{scheduled=false;paintAll()};
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:180});
+    else setTimeout(run,50);
   }
 
   // Collapse consecutive equal Sleeper ranks. Raw Supabase history can contain
@@ -151,7 +153,7 @@
   document.addEventListener('click',e=>{
     if(e.target.closest('#rankPills,[data-adp-format],#topUpdate,#connectDraft,#deDraftSlot'))setTimeout(schedulePaint,0);
   });
-  [0,350,1000,2500].forEach(ms=>setTimeout(paintAll,ms));
+  schedulePaint();
 
   window.DraftEdgeAdpMovement={paint:paintAll,collapseRankRuns};
 })();

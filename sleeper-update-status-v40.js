@@ -80,7 +80,9 @@
       if(e.target.closest?.('[data-adp-format]'))schedule(false,250);
     },true);
 
-    schedule(true,50);
+    const initial=()=>schedule(true,0);
+    if('requestIdleCallback' in window)requestIdleCallback(initial,{timeout:1800});
+    else setTimeout(initial,800);
     return true;
   }
 
