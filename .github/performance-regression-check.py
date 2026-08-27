@@ -100,4 +100,14 @@ if 'WorkhorseTrueSleeperAdpEntry' not in edge or 'searchRank' in edge:
 if 'WorkhorseTrueSleeperAdpEntry' not in movement:
     raise SystemExit('ADP Change is not locked to true Sleeper ADP.')
 
+
+if "const bundle='./app-v28.bin?v=28d';" not in index:
+    raise SystemExit('Single-request Workhorse bundle is not the primary startup path.')
+if 'loadChunkFallback' not in index or "app-v28-part-'" not in index:
+    raise SystemExit('Multi-part emergency bundle fallback is missing.')
+if 'joined=await fetchAsset(bundle,2);' not in index:
+    raise SystemExit('Combined bundle is not fetched before chunk fallback.')
+if not Path('app-v28.bin').is_file() or Path('app-v28.bin').stat().st_size != 28016:
+    raise SystemExit('Combined Workhorse bundle file is missing or incomplete.')
+
 print('Top-250 startup, on-demand search, and interaction responsiveness checks passed.')

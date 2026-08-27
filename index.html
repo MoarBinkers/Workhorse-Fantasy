@@ -72,12 +72,13 @@ html,body{margin:0;min-height:100%;background:#0b1016;color:#eef3f7;font-family:
    }
   }
   if(!("DecompressionStream" in window))throw new Error("Your browser needs an update to open Workhorse.");
+  const bundle='./app-v28.bin?v=28d';
   const files=Array.from({length:10},(_,i)=>'./app-v28-part-'+String(i).padStart(2,'0')+'.bin?v=28c');
   const retryableStatuses=new Set([408,425,429,500,502,503,504]);
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-  const fetchPart=async file=>{
+  const fetchAsset=async(file,maxAttempts=4)=>{
    let lastError=null;
-   for(let attempt=0;attempt<4;attempt++){
+   for(let attempt=0;attempt<maxAttempts;attempt++){
     try{
      const url=attempt===0?file:file+'&retry='+attempt+'-'+Date.now();
      const r=await fetch(url,{cache:attempt===0?"force-cache":"no-store"});
@@ -90,25 +91,36 @@ html,body{margin:0;min-height:100%;background:#0b1016;color:#eef3f7;font-family:
      lastError=e;
      if(e&&e.status&&!retryableStatuses.has(e.status))throw e;
     }
-    if(attempt<3)await sleep(300*(2**attempt));
+    if(attempt<maxAttempts-1)await sleep(250*(2**attempt));
    }
    throw lastError||new Error("Could not load "+file+".");
   };
-  const buffers=new Array(files.length);
-  let nextPart=0;
-  const loadWorker=async()=>{
-    while(true){
-      const i=nextPart++;
-      if(i>=files.length)return;
-      buffers[i]=await fetchPart(files[i]);
-    }
+  const loadChunkFallback=async()=>{
+    const buffers=new Array(files.length);
+    let nextPart=0;
+    const loadWorker=async()=>{
+      while(true){
+        const i=nextPart++;
+        if(i>=files.length)return;
+        buffers[i]=await fetchAsset(files[i],4);
+      }
+    };
+    await Promise.all(Array.from({length:Math.min(3,files.length)},loadWorker));
+    const total=buffers.reduce((n,b)=>n+b.length,0);
+    if(total!==28016)throw new Error("Workhorse fallback bundle was incomplete ("+total+" bytes).");
+    const joined=new Uint8Array(total);
+    let offset=0;
+    for(const b of buffers){joined.set(b,offset);offset+=b.length}
+    return joined;
   };
-  await Promise.all(Array.from({length:Math.min(3,files.length)},loadWorker));
-  const total=buffers.reduce((n,b)=>n+b.length,0);
-  if(total!==28016)throw new Error("Workhorse bundle was incomplete ("+total+" bytes).");
-  const joined=new Uint8Array(total);
-  let offset=0;
-  for(const b of buffers){joined.set(b,offset);offset+=b.length}
+  let joined;
+  try{
+    joined=await fetchAsset(bundle,2);
+    if(joined.length!==28016)throw new Error("Workhorse bundle was incomplete ("+joined.length+" bytes).");
+  }catch(bundleError){
+    console.warn('Combined Workhorse bundle unavailable; using chunk fallback.',bundleError);
+    joined=await loadChunkFallback();
+  }
   const text=await new Response(new Blob([joined]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
   const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text));
   const hash=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
