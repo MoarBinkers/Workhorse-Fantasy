@@ -16,6 +16,8 @@ edge = Path('live-draft-edge-v82.js').read_text(encoding='utf-8')
 tier = Path('tier-v33.js').read_text(encoding='utf-8')
 rank_cap = Path('rank-list-cap-v93.js').read_text(encoding='utf-8')
 sleeper_cap = Path('sleeper-rank-cap-v94.js').read_text(encoding='utf-8')
+recovery = Path('ranking-data-recovery-v95.js').read_text(encoding='utf-8')
+rounds = Path('round-bands-v61.js').read_text(encoding='utf-8')
 
 # Core Sleeper feed must stay true-format, top-250, and free of directory preload/autofill.
 required_central = [
@@ -61,7 +63,7 @@ for term in [
 
 # Critical startup stays small and cache versions must point at current hydration/matcher code.
 for term in [
-    './brand-fast-v92.js?v=921',
+    './brand-fast-v92.js?v=922',
     './patch-v29.js?v=298',
     './tier-v33.js?v=335',
     './player-detail-v34.js?v=344',
@@ -69,7 +71,7 @@ for term in [
     './mobile-touch-v75.js?v=753',
     './cloud-reliability-v41.js?v=415',
     './new-user-adp-v60.js?v=610',
-    './decision-loader-v61.js?v=643',
+    './decision-loader-v61.js?v=644',
 ]:
     if term not in index:
         raise SystemExit(f'Critical startup key missing: {term}')
@@ -91,6 +93,8 @@ for term in [
     'setTimeout(beginBackground,10000)',
     "loadOne('./rank-list-cap-v93.js?v=932')",
     "loadOne('./sleeper-rank-cap-v94.js?v=942')",
+    "loadOne('./ranking-data-recovery-v95.js?v=951')",
+    "loadOne('./round-bands-v61.js?v=616')",
 ]:
     if term not in loader:
         raise SystemExit(f'Lazy feature loading protection missing: {term}')
@@ -103,6 +107,23 @@ for forbidden in ['rank-edge-fix-v95.js','rank-edge-source-v96.js','adp-unranked
 for retired in ['rank-edge-fix-v95.js','rank-edge-source-v96.js']:
     if Path(retired).exists():
         raise SystemExit(f'Obsolete Rank/EDGE repair file still exists: {retired}')
+
+# Recovery must keep verified central ADP authoritative, preserve metadata, and
+# keep round controls available in Rankings/ADP without waiting for Draft.
+for term in [
+    'function normalizeSleeperPool()',
+    'function enrichActiveByes()',
+    'function recoverBlankActiveOnce()',
+    "window.addEventListener('workhorse:central-adp-ready'",
+    "window.addEventListener('workhorse:cloud-rankings-ready'",
+]:
+    if term not in recovery:
+        raise SystemExit(f'Ranking metadata recovery protection missing: {term}')
+for term in ['const VALID_SIZES=[10,12,14];','League Size','10 teams','12 teams','14 teams','function addStatic(kind,list)']:
+    if term not in rounds:
+        raise SystemExit(f'Ranking round-band control missing: {term}')
+if "./round-bands-v61.js?v=615" in loader:
+    raise SystemExit('Round bands must not be Draft-only anymore.')
 
 # Rank/EDGE must resolve inside marketFor with authoritative Sleeper IDs. The
 # index self-heals when central ADP replaces market objects; it must not depend on
@@ -210,4 +231,4 @@ if 'joined=await fetchAsset(bundle,2);' not in index:
 if not Path('app-v28.bin').is_file() or Path('app-v28.bin').stat().st_size != 28016:
     raise SystemExit('Combined Workhorse bundle file is missing or incomplete.')
 
-print('Production performance, cloud hydration, preserved custom data, 250-player caps, and true Sleeper Rank/EDGE checks passed.')
+print('Production performance, cloud hydration, preserved custom data, ranking round controls, 250-player caps, and true Sleeper Rank/EDGE checks passed.')
