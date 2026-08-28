@@ -1,4 +1,4 @@
-// v61.11 — keep startup lean while keeping Rankings-critical controls available immediately.
+// v61.12 — keep startup lean while keeping Rankings-critical controls available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -34,8 +34,9 @@
     './draft-current-pick-v68.js?v=683',
     './draft-recap-v65.js?v=653',
     './draft-recap-trigger-v66.js?v=662',
-    './draft-recap-all-picks-v84.js?v=842',
-    './draft-risk-v73.js?v=735'
+    './draft-risk-v73.js?v=735',
+    './live-draft-command-v99.js?v=991',
+    './draft-recap-upgrade-v100.js?v=1001'
   ];
 
   const loaded=new Map();
