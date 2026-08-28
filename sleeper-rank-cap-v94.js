@@ -1,5 +1,8 @@
-// v94 — hard-cap Sleeper Rankings / Current ADP to 250 players on every device, including stale caches.
+// v94.1 — hard-cap Sleeper Rankings / Current ADP to 250 players once per page.
 (()=>{
+  if(window.__WORKHORSE_SLEEPER_RANK_CAP_94__)return;
+  window.__WORKHORSE_SLEEPER_RANK_CAP_94__=true;
+
   const MAX=250;
   const POOL_KEY='de_sleeper_pool';
   let capping=false;
@@ -38,7 +41,7 @@
 
   function capDom(){
     const root=document.getElementById('adpList');if(!root)return 0;
-    const rows=[...root.querySelectorAll('.player.market,.player[data-market-player],.player')];
+    const rows=[...root.querySelectorAll('.player')];
     if(rows.length<=MAX)return rows.length;
     rows.slice(MAX).forEach(el=>el.remove());
     return MAX;
@@ -49,7 +52,8 @@
     try{capStoredPool();capRuntimePool();capDom()}finally{capping=false}
   }
 
-  // Wrap the actual Sleeper rankings renderer so it never receives/keeps >250 rows.
+  // Wrap the Sleeper rankings renderer once. It receives a maximum of 250 rows
+  // and the DOM is capped after its normal render without causing another render.
   try{
     const base=typeof renderAdp==='function'?renderAdp:(typeof window.renderAdp==='function'?window.renderAdp:null);
     if(base&&!base.__wh250){
@@ -65,8 +69,6 @@
     }
   }catch(_){}
 
-  // Old browsers may already have a giant cached pool by the time this patch arrives.
-  // Trim it immediately and again whenever fresh central ADP is applied/opened.
   enforce();
   window.addEventListener('workhorse:central-adp-ready',()=>setTimeout(enforce,0));
   document.addEventListener('click',e=>{
@@ -77,7 +79,7 @@
 
   const root=document.getElementById('adpList');
   if(root&&typeof MutationObserver!=='undefined'){
-    new MutationObserver(()=>{if(root.querySelectorAll('.player').length>MAX)capDom()}).observe(root,{childList:true,subtree:true});
+    new MutationObserver(()=>{if(root.children.length>MAX)capDom()}).observe(root,{childList:true});
   }
 
   window.WorkhorseSleeperRankCap={max:MAX,enforce};
