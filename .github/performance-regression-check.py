@@ -18,6 +18,7 @@ rank_cap = Path('rank-list-cap-v93.js').read_text(encoding='utf-8')
 sleeper_cap = Path('sleeper-rank-cap-v94.js').read_text(encoding='utf-8')
 recovery = Path('ranking-data-recovery-v95.js').read_text(encoding='utf-8')
 rounds = Path('round-bands-v61.js').read_text(encoding='utf-8')
+drag_scroll = Path('drag-scroll-guard-v97.js').read_text(encoding='utf-8')
 
 # Core Sleeper feed must stay true-format, top-250, and free of directory preload/autofill.
 required_central = [
@@ -71,7 +72,7 @@ for term in [
     './mobile-touch-v75.js?v=753',
     './cloud-reliability-v41.js?v=415',
     './new-user-adp-v60.js?v=610',
-    './decision-loader-v61.js?v=644',
+    './decision-loader-v61.js?v=645',
 ]:
     if term not in index:
         raise SystemExit(f'Critical startup key missing: {term}')
@@ -95,6 +96,7 @@ for term in [
     "loadOne('./sleeper-rank-cap-v94.js?v=942')",
     "loadOne('./ranking-data-recovery-v95.js?v=951')",
     "loadOne('./round-bands-v61.js?v=616')",
+    "loadOne('./drag-scroll-guard-v97.js?v=971')",
 ]:
     if term not in loader:
         raise SystemExit(f'Lazy feature loading protection missing: {term}')
@@ -107,6 +109,24 @@ for forbidden in ['rank-edge-fix-v95.js','rank-edge-source-v96.js','adp-unranked
 for retired in ['rank-edge-fix-v95.js','rank-edge-source-v96.js']:
     if Path(retired).exists():
         raise SystemExit(f'Obsolete Rank/EDGE repair file still exists: {retired}')
+
+# Ranking drop must preserve the viewport without a permanent MutationObserver or
+# scroll loop. The guard captures the drop-time scroll position and restores only
+# during the short rerender/save window.
+for term in [
+    '__WORKHORSE_DRAG_SCROLL_GUARD_97__',
+    "root.addEventListener('dragstart'",
+    "root.addEventListener('drop'",
+    'const y=window.scrollY;',
+    'queueMicrotask(()=>holdViewport(y,token));',
+    'requestAnimationFrame(()=>{',
+    'setTimeout(()=>holdViewport(y,token),120);',
+    'if(cancelRestore||token!==restoreToken)return;',
+]:
+    if term not in drag_scroll:
+        raise SystemExit(f'Drag/drop viewport protection missing: {term}')
+if 'MutationObserver' in drag_scroll:
+    raise SystemExit('Drag/drop viewport guard must not add a MutationObserver.')
 
 # Recovery must keep verified central ADP authoritative, preserve metadata, and
 # keep round controls available in Rankings/ADP without waiting for Draft.
@@ -231,4 +251,4 @@ if 'joined=await fetchAsset(bundle,2);' not in index:
 if not Path('app-v28.bin').is_file() or Path('app-v28.bin').stat().st_size != 28016:
     raise SystemExit('Combined Workhorse bundle file is missing or incomplete.')
 
-print('Production performance, cloud hydration, preserved custom data, ranking round controls, 250-player caps, and true Sleeper Rank/EDGE checks passed.')
+print('Production performance, stable ranking drag/drop viewport, cloud hydration, preserved custom data, ranking round controls, 250-player caps, and true Sleeper Rank/EDGE checks passed.')
