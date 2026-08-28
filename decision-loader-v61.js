@@ -1,4 +1,4 @@
-// v61.16 — keep startup lean while keeping Rankings-critical controls available immediately.
+// v61.17 — keep startup lean while keeping Rankings-critical controls available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -23,7 +23,8 @@
   ];
   const draftFiles=[
     './draft-room-v41.js?v=414',
-    './draft-trade-capital-v98.js?v=985',
+    './draft-trade-capital-v98.js?v=986',
+    './draft-pick-ownership-sync-v102.js?v=1021',
     './draft-help-v76.js?v=763',
     './reset-draft-v42.js?v=43',
     './sleeper-auto-draft-v44.js?v=45',
