@@ -69,7 +69,7 @@ for term in [
     './mobile-touch-v75.js?v=753',
     './cloud-reliability-v41.js?v=415',
     './new-user-adp-v60.js?v=610',
-    './decision-loader-v61.js?v=649',
+    './decision-loader-v61.js?v=650',
 ]:
     if term not in index:
         raise SystemExit(f'Critical startup key missing: {term}')
