@@ -1,9 +1,9 @@
-// v92 — fast true Sleeper ADP: validated cache first, direct REST refresh, no directory preload.
+// v92.1 — fast true Sleeper ADP: top 250 data only, no directory preload, and never auto-add players to an existing ranking list.
 (()=>{
   const HISTORY_KEY='de29_adp_history';
   const FORMAT_KEY='de36_adp_format';
   const CACHE_PREFIX='wh92_true_adp_';
-  const CACHE_VERSION=1;
+  const CACHE_VERSION=2;
   const HISTORY_TTL=5*60*1000;
   const AUTO_RANK_LIMIT=250;
   const FORMATS={
@@ -55,11 +55,11 @@
   }
 
   function validRows(rows,format=activeFormat){
-    if(!Array.isArray(rows)||rows.length<100)return false;
+    if(!Array.isArray(rows)||rows.length<100||rows.length>AUTO_RANK_LIMIT)return false;
     let valid=0;
     for(const r of rows){
       const rank=Number(r?.sleeper_rank),pos=String(r?.position||'').toUpperCase();
-      if(String(r?.format||format)!==format||!r?.player_id||!r?.full_name||!Number.isFinite(rank)||rank<=0||!['QB','RB','WR','TE'].includes(pos))continue;
+      if(String(r?.format||format)!==format||!r?.player_id||!r?.full_name||!Number.isFinite(rank)||rank<=0||rank>AUTO_RANK_LIMIT||!['QB','RB','WR','TE'].includes(pos))continue;
       valid++;
     }
     return valid>=100;
@@ -98,7 +98,7 @@
     for(const r of rows){
       const id=String(r.player_id||''),name=clean(r.full_name),pos=String(r.position||'').toUpperCase();
       const rank=Number(r.sleeper_rank);
-      if(!id||!name||!['QB','RB','WR','TE'].includes(pos)||!Number.isFinite(rank)||rank<=0)continue;
+      if(!id||!name||!['QB','RB','WR','TE'].includes(pos)||!Number.isFinite(rank)||rank<=0||rank>AUTO_RANK_LIMIT)continue;
       const entry={
         id,rank,posRank:Number(r.position_rank)||null,team:teamText(r.team),pos,
         adp:Number.isFinite(Number(r.sleeper_adp))?Number(r.sleeper_adp):null,
@@ -113,7 +113,8 @@
       if(!Object.values(target).some(x=>x&&String(x.id||'')===String(entry.id||'')))target[name]=entry;
     }
     try{sleeperPool=pool}catch(_){}
-    try{localStorage.setItem('de_sleeper_pool',JSON.stringify(pool))}catch(_){}
+    const savePool=()=>{try{localStorage.setItem('de_sleeper_pool',JSON.stringify(pool))}catch(_){}};
+    if('requestIdleCallback' in window)requestIdleCallback(savePool,{timeout:2000});else setTimeout(savePool,300);
     return true;
   }
 
@@ -137,11 +138,6 @@
   }
 
   function activeList(){try{return typeof currentList==='function'?currentList():rankingLists?.[activeListId]||null}catch(_){return null}}
-  function excludedIds(list){
-    if(!list)return new Set();
-    if(!Array.isArray(list.excludedSleeperIds))list.excludedSleeperIds=[];
-    return new Set(list.excludedSleeperIds.map(String));
-  }
   function reconcileCurrentRankings(rows=activeRows){
     if(reconciling||!validRows(rows,activeFormat))return false;
     const list=activeList();
@@ -166,6 +162,8 @@
         if(team&&String(p.team||'')!==team){p.team=team;changed=true}
       }
 
+      // Reconciliation is identity/team cleanup only. Never append missing ADP
+      // players to an existing user list; the user's saved list size is authoritative.
       const seen=new Map(),remove=new Set();
       for(const p of players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999))){
         const id=String(p?.sleeperId||'');if(!id)continue;
@@ -177,23 +175,6 @@
       }
       if(remove.size)players=players.filter(p=>!remove.has(p));
 
-      if(players.length>=100){
-        const excluded=excludedIds(list);
-        const existingIds=new Set(players.map(p=>String(p?.sleeperId||'')).filter(Boolean));
-        const existingExact=new Set(players.map(p=>exactNameKey(p?.name,p?.position)));
-        const existingAlias=new Set(players.map(p=>identityNameKey(p?.name,p?.position)));
-        let maxOverall=players.reduce((m,p)=>Math.max(m,Number(p?.overall)||0),0);
-        const posCounts={};for(const p of players){const pos=String(p.position||'');posCounts[pos]=(posCounts[pos]||0)+1}
-        for(const r of rows.slice().sort((a,b)=>Number(a.sleeper_rank)-Number(b.sleeper_rank))){
-          if(Number(r.sleeper_rank)>AUTO_RANK_LIMIT)continue;
-          const id=String(r.player_id||''),name=clean(r.full_name),pos=String(r.position||'').toUpperCase();
-          const ek=exactNameKey(name,pos),ak=identityNameKey(name,pos);
-          if(!id||!name||excluded.has(id)||existingIds.has(id)||existingExact.has(ek)||existingAlias.has(ak))continue;
-          posCounts[pos]=(posCounts[pos]||0)+1;
-          players.push({overall:++maxOverall,name,position:pos,team:teamText(r.team),bye:'—',posRank:posCounts[pos],tier:null,tags:[],note:'',drafted:false,draftedAt:null,draftedSource:null,draftedDraftId:null,draftedPickNo:null,sleeperId:id});
-          existingIds.add(id);existingExact.add(ek);existingAlias.add(ak);changed=true;
-        }
-      }
       if(changed){
         const ordered=players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999));
         const counts={};ordered.forEach((p,i)=>{p.overall=i+1;const pos=String(p.position||'');counts[pos]=(counts[pos]||0)+1;p.posRank=counts[pos]});
@@ -208,7 +189,7 @@
     const run=()=>{
       try{if(reconcileCurrentRankings(rows)&&typeof renderRankings==='function')renderRankings()}catch(e){console.warn('Workhorse ranking reconciliation unavailable',e)}
     };
-    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:1800});else setTimeout(run,500);
+    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:2200});else setTimeout(run,700);
   }
   window.WorkhorseReconcileSleeperRankings=()=>reconcileCurrentRankings(activeRows);
 
@@ -234,7 +215,7 @@
   }
   async function fetchCentralRows(format){
     const select='format,player_id,full_name,position,team,sleeper_rank,position_rank,sleeper_adp,captured_at,rank_change';
-    const path='sleeper_adp_current?select='+encodeURIComponent(select)+'&format=eq.'+encodeURIComponent(format)+'&order=sleeper_rank.asc&limit='+AUTO_RANK_LIMIT;
+    const path='sleeper_adp_current?select='+encodeURIComponent(select)+'&format=eq.'+encodeURIComponent(format)+'&sleeper_rank=lte.'+AUTO_RANK_LIMIT+'&order=sleeper_rank.asc&limit='+AUTO_RANK_LIMIT;
     const rows=await fetchJson(path,4500);
     if(!validRows(rows,format))throw new Error('Shared Sleeper '+FORMATS[format].short+' ranks are incomplete.');
     return rows;
