@@ -1,4 +1,4 @@
-// v61.8 — keep startup lean. Enforce 250 caps; optional polish/news loads later or on demand.
+// v61.9 — keep startup lean while keeping Rankings-critical controls available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -31,7 +31,6 @@
     './live-draft-tier-context-v77.js?v=772',
     './live-draft-edge-v82.js?v=823',
     './draft-current-pick-v68.js?v=683',
-    './round-bands-v61.js?v=615',
     './draft-recap-v65.js?v=653',
     './draft-recap-trigger-v66.js?v=662',
     './draft-recap-all-picks-v84.js?v=842',
@@ -63,10 +62,12 @@
     else setTimeout(fn,Math.min(1200,timeout));
   };
 
-  // Size guards only. Sleeper Rank/EDGE is resolved inside patch-v29's normal
-  // renderer path, so no extra render/repair script belongs here.
+  // Rankings-critical guards/controls stay immediate. These are small and avoid
+  // the regression where round bands only appeared after opening the Draft tab.
   loadOne('./rank-list-cap-v93.js?v=932');
   loadOne('./sleeper-rank-cap-v94.js?v=942');
+  loadOne('./ranking-data-recovery-v95.js?v=951');
+  loadOne('./round-bands-v61.js?v=616');
 
   let coreBegun=false;
   const beginCore=()=>{
