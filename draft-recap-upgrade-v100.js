@@ -1,4 +1,4 @@
-// v100.1 — authoritative Workhorse Draft Recap: grade, best/worst values,
+// v100.2 — authoritative Workhorse Draft Recap with traded-pick-number ownership.
 // roster-by-position grades, bye/tag review, trade context, and every pick.
 (()=>{
   if(window.__WORKHORSE_DRAFT_RECAP_100__)return;
@@ -80,8 +80,12 @@
       const {draft,league}=await context(),all=await sl('https://api.sleeper.app/v1/draft/'+draft.draft_id+'/picks');
       const ownership=window.DraftEdgeDraftOwnership;if(!ownership?.ownPicks)throw new Error('Draft tracking is not ready yet. Reconnect Sleeper and try again.');
       if(!ownership.selectedSlot?.())throw new Error('Choose your draft slot first.');
-      const own=ownership.ownPicks()||[],picks=Array.isArray(all)?all:[];if(!picks.length)throw new Error('No Sleeper draft picks are available yet.');
-      const acquired=new Set((window.WorkhorseDraftTradeCapital?.capital?.()?.acquired||[]).map(x=>Number(x.pickNo)));
+      const picks=Array.isArray(all)?all:[];if(!picks.length)throw new Error('No Sleeper draft picks are available yet.');
+      const capApi=window.WorkhorseDraftTradeCapital,cap=capApi?.capital?.()||null;
+      const hasTradeSchedule=!!cap&&((cap.acquired?.length||0)>0||(cap.away?.length||0)>0||(capApi?.pickOverrides?.()?.length||0)>0);
+      const ownedPickNos=hasTradeSchedule?new Set((cap.owned||[]).map(x=>Number(x.pickNo)).filter(n=>n>0)):null;
+      const own=ownedPickNos?picks.filter(pk=>ownedPickNos.has(Number(pk.pick_no)||0)):ownership.ownPicks()||[];
+      const acquired=new Set((cap?.acquired||[]).map(x=>Number(x.pickNo)));
       const rows=own.map(pk=>{const p=pForPick(pk),m=p?market(p):null,pick=Number(pk.pick_no)||0,pos=String(p?.position||pk?.metadata?.position||'').toUpperCase();return {pk,p,m,pick,pos,market:m?.rank!=null?pick-Number(m.rank):null,personal:p?.overall?pick-Number(p.overall):null,acquired:acquired.has(pick)}}).sort((a,b)=>a.pick-b.pick);
       const avgP=avg(rows,'personal')??0,avgM=avg(rows,'market')??0,targetCount=rows.filter(x=>(x.p?.tags||[]).includes('blue')).length,avoidCount=rows.filter(x=>(x.p?.tags||[]).includes('red')).length;
       const baseScore=82+clamp(avgP*.9,-12,14)+clamp(avgM*.45,-7,8)+Math.min(4,targetCount)-Math.min(10,avoidCount*3),score=Math.round(clamp(baseScore,55,99)),grade=gradeForScore(score);
