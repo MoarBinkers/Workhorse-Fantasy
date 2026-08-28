@@ -42,7 +42,7 @@ for term in [
     'Will They Make It Back?',
     "pressure.level==='high'",
     'tier.last',
-    'next decision point',
+    'Next decision point',
     'schedule.acquired',
 ]:
     require(term in command, 'trade-aware draft intelligence missing: ' + term)
