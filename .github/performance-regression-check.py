@@ -59,16 +59,16 @@ for term in [
     if term not in ondemand:
         raise SystemExit(f'On-demand full-player search protection missing: {term}')
 
-# Critical startup stays small and cache versions must point at the fixed matcher/renderer.
+# Critical startup stays small and cache versions must point at current hydration/matcher code.
 for term in [
     './brand-fast-v92.js?v=921',
-    './patch-v29.js?v=297',
+    './patch-v29.js?v=298',
     './tier-v33.js?v=335',
     './player-detail-v34.js?v=344',
     './central-adp-v92.js?v=921',
     './mobile-touch-v75.js?v=753',
-    './cloud-reliability-v41.js?v=414',
-    './new-user-adp-v60.js?v=609',
+    './cloud-reliability-v41.js?v=415',
+    './new-user-adp-v60.js?v=610',
     './decision-loader-v61.js?v=643',
 ]:
     if term not in index:
@@ -104,24 +104,51 @@ for retired in ['rank-edge-fix-v95.js','rank-edge-source-v96.js']:
     if Path(retired).exists():
         raise SystemExit(f'Obsolete Rank/EDGE repair file still exists: {retired}')
 
-# Rank/EDGE must be solved inside the original matcher with O(1) indexes and an
-# authoritative Sleeper ID. Rendering may rebuild an index, but must not trigger
-# a second render just to repair DOM values.
+# Rank/EDGE must resolve inside marketFor with authoritative Sleeper IDs. The
+# index self-heals when central ADP replaces market objects; it must not depend on
+# an extra render pass just to refresh lookup state.
 for term in [
     'let marketIdIndex=new Map();',
+    'let indexedProbeName=',
     'function rebuildMarketIndex()',
+    'function ensureMarketIndex()',
+    'market?.[indexedProbeName]!==indexedProbeEntry',
+    'ensureMarketIndex();',
     'marketIdIndex.get(String(sleeperId))',
     'marketNamePosIndex.get',
-    'wrapped=function(){rebuildMarketIndex();return base.apply(this,arguments)}',
     'WorkhorseTrueSleeperAdpEntry',
     'identityOnly!==false',
     'sleeperRank=adp?Number(adp.rank):null',
     'const edge=sleeperRank!=null?sleeperRank-p.overall:null',
 ]:
     if term not in patch:
-        raise SystemExit(f'Indexed true-ADP Rank/EDGE protection missing: {term}')
-if 'for(const [key,entry] of Object.entries(market))' in patch:
-    raise SystemExit('Per-player linear market scan was reintroduced.')
+        raise SystemExit(f'Self-healing true-ADP Rank/EDGE protection missing: {term}')
+if 'wrapRenderWithMarketIndex' in patch:
+    raise SystemExit('Sleeper index refresh must not depend on wrapping/rerunning renderers.')
+
+# Signed-in cloud data must win the startup race. Guest starter creation is
+# forbidden until Supabase has resolved the initial session.
+for term in [
+    'window.WorkhorseAuthResolved=false;',
+    'function readCachedActiveId()',
+    'let preferredActiveId=readCachedActiveId();',
+    'client.auth.getSession()',
+    'client.auth.onAuthStateChange',
+    "window.dispatchEvent(new CustomEvent('workhorse:auth-resolved'",
+    'preferredActiveId&&rankingLists[preferredActiveId]',
+    'window.WorkhorseCloudRankingsReady=true;',
+]:
+    if term not in cloud:
+        raise SystemExit(f'Cloud hydration/auth protection missing: {term}')
+for term in [
+    'const authResolved=()=>window.WorkhorseAuthResolved===true||signedInNow();',
+    'if(!authResolved()||signedInNow())return false;',
+    'if(!window.WorkhorseAuthResolved&&!signed)return;',
+    "window.addEventListener('workhorse:auth-resolved'",
+    "window.addEventListener('workhorse:cloud-rankings-ready'",
+]:
+    if term not in onboarding:
+        raise SystemExit(f'Onboarding auth-race protection missing: {term}')
 
 # Hidden pages and avatars must stay cheap. Never scan every avatar in response
 # to arbitrary body mutations.
@@ -163,8 +190,6 @@ if 'const MAX_ROWS=350;' not in news or '[250,900,2200,5000].forEach' in news:
     raise SystemExit('Rankings-news startup protection missing.')
 if "requestIdleCallback(run,{timeout:180})" not in movement or '[0,350,1000,2500].forEach' in movement:
     raise SystemExit('ADP movement idle-paint protection missing.')
-if 'attempt<20' not in cloud or 'attempt<60' in cloud:
-    raise SystemExit('Cloud startup polling protection missing.')
 if '[600,4000].forEach' not in onboarding or '[100,500,1200,2500,5000,8000].forEach' in onboarding:
     raise SystemExit('Onboarding reconciliation protection missing.')
 if 'requestIdleCallback(verifyInitialRanks,{timeout:2200})' not in rank_sync or '},350);' in rank_sync:
@@ -185,4 +210,4 @@ if 'joined=await fetchAsset(bundle,2);' not in index:
 if not Path('app-v28.bin').is_file() or Path('app-v28.bin').stat().st_size != 28016:
     raise SystemExit('Combined Workhorse bundle file is missing or incomplete.')
 
-print('Production performance, 250-player caps, and indexed true Sleeper Rank/EDGE checks passed.')
+print('Production performance, cloud hydration, preserved custom data, 250-player caps, and true Sleeper Rank/EDGE checks passed.')
