@@ -1,4 +1,4 @@
-# Production Pages deployment with performance, feature-contract, and syntax validation before publish.
+# Production Pages deployment with performance, feature-contract, Live Draft, and syntax validation before publish.
 name: Deploy static content to Pages
 
 on:
@@ -31,6 +31,9 @@ jobs:
       - name: Validate critical Workhorse feature contract
         run: python .github/release-contract-check.py
 
+      - name: Validate Live Draft contract
+        run: python .github/live-draft-release-check.py
+
       - name: Check active JavaScript syntax
         run: |
           node --check patch-v29.js
@@ -41,12 +44,14 @@ jobs:
           node --check ranking-data-recovery-v95.js
           node --check round-bands-v61.js
           node --check drag-scroll-guard-v97.js
-          node --check draft-trade-capital-v98.js
           node --check decision-loader-v61.js
           node --check cloud-reliability-v41.js
           node --check new-user-adp-v60.js
           node --check player-detail-v34.js
           node --check on-demand-player-search-v88.js
+          node --check draft-trade-capital-v98.js
+          node --check live-draft-command-v99.js
+          node --check draft-recap-upgrade-v100.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
