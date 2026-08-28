@@ -31,6 +31,7 @@ jobs:
           node --check round-bands-v61.js
           node --check drag-scroll-guard-v97.js
           node --check draft-trade-capital-v98.js
+          node --check draft-pick-ownership-sync-v102.js
           node --check draft-ownership-v45.js
           node --check live-draft-command-v99.js
           node --check draft-recap-upgrade-v100.js
