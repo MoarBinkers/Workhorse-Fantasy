@@ -1,4 +1,4 @@
-// v61.9 — keep startup lean while keeping Rankings-critical controls available immediately.
+// v61.10 — keep startup lean while keeping Rankings-critical controls available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -63,11 +63,12 @@
   };
 
   // Rankings-critical guards/controls stay immediate. These are small and avoid
-  // the regression where round bands only appeared after opening the Draft tab.
+  // regressions where controls or drag behavior depend on unrelated lazy tabs.
   loadOne('./rank-list-cap-v93.js?v=932');
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
   loadOne('./round-bands-v61.js?v=616');
+  loadOne('./drag-scroll-guard-v97.js?v=971');
 
   let coreBegun=false;
   const beginCore=()=>{
