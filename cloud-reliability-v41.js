@@ -1,10 +1,16 @@
-// v41.2 — reliable cloud saves, valid cloud-list restore, optimistic revision checks, ranking backups, and sync preferences.
+// v41.3 — reliable cloud saves plus auth-aware hydration so signed-in users never fall through to a blank starter list.
 (()=>{
   const DEVICE_KEY='de41_device_id';
   const CACHE_KEY='de41_cloud_cache';
   const deviceId=localStorage.getItem(DEVICE_KEY)||('dev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10));
   localStorage.setItem(DEVICE_KEY,deviceId);
-  let saveBusy=false,pendingSave=false,retryCount=0,statusTimer=null,cloudLoadPromise=null;
+  let saveBusy=false,pendingSave=false,retryCount=0,statusTimer=null,cloudLoadPromise=null,authSubscription=null;
+
+  function readCachedActiveId(){
+    try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')?.activeListId||null}catch(_){return null}
+  }
+  let preferredActiveId=readCachedActiveId();
+  window.WorkhorseAuthResolved=false;
 
   function syncStatus(text,tone='normal'){
     let el=document.getElementById('deCloudStatus');
@@ -25,6 +31,15 @@
   if(baseSave){
     save=function(){const out=baseSave();cacheLists();return out};
     window.save=save;
+  }
+
+  // Persist the selected cloud list whenever the normal list loader runs. Keep
+  // the boot preference separate until the first cloud response so a temporary
+  // local/starter id cannot overwrite the last real cloud selection.
+  const baseLoadActiveList=typeof loadActiveList==='function'?loadActiveList:null;
+  if(baseLoadActiveList){
+    loadActiveList=function(){const out=baseLoadActiveList.apply(this,arguments);if(window.WorkhorseCloudRankingsReady)cacheLists();return out};
+    window.loadActiveList=loadActiveList;
   }
 
   async function storeRecoveryVersion(list,source='manual'){
@@ -138,9 +153,12 @@
           createdAt:Date.parse(row.created_at)||Date.now(),updatedAt:Date.parse(row.updated_at)||Date.now(),
           _cloudRevision:Number(row.revision)||1,_cloudUpdatedAt:Date.parse(row.updated_at)||Date.now(),_lastDeviceId:row.last_device_id||null
         });
-        activeListId=(prior&&rankingLists[prior])?prior:(data?.[0]?.id||null);
-        loadActiveList();cacheLists();renderEverything();syncStatus('Cloud synced.','good');
+        const preferred=(prior&&rankingLists[prior])?prior:(preferredActiveId&&rankingLists[preferredActiveId]?preferredActiveId:null);
+        activeListId=preferred||(data?.[0]?.id||null);
+        preferredActiveId=activeListId||preferredActiveId;
+        loadActiveList();
         window.WorkhorseCloudRankingsReady=true;
+        cacheLists();renderEverything();syncStatus('Cloud synced.','good');
         try{window.dispatchEvent(new CustomEvent('workhorse:cloud-rankings-ready',{detail:{count:(data||[]).length,activeListId}}))}catch(_){}
         if(!activeListId)openNewList();
       }catch(e){
@@ -203,12 +221,40 @@
     const note=document.getElementById('accountSettingsNote');if(note)note.textContent='Signed-in ranking lists use conflict-safe cloud saves and automatic version backups across devices.';
   }
 
-  function startCloudRestore(attempt=0){
-    const signedIn=typeof currentUser!=='undefined'&&currentUser;
-    if(signedIn){loadCloudLists();return}
-    if(attempt<20)setTimeout(()=>startCloudRestore(attempt+1),250);
+  function setCurrentUserFromSession(user){
+    if(!user)return;
+    try{currentUser=user}catch(_){try{window.currentUser=user}catch(__){}}
+  }
+  function signalAuthResolved(user,event='INITIAL_SESSION'){
+    if(user)setCurrentUserFromSession(user);
+    window.WorkhorseAuthResolved=true;
+    try{window.dispatchEvent(new CustomEvent('workhorse:auth-resolved',{detail:{signedIn:!!user,event}}))}catch(_){}
+    if(user)setTimeout(()=>loadCloudLists(),0);
+  }
+  function wireAuthSession(attempt=0){
+    let client=null;try{client=supabaseClient}catch(_){}
+    if(!client?.auth){
+      if(attempt<120)setTimeout(()=>wireAuthSession(attempt+1),250);
+      return;
+    }
+    if(!authSubscription){
+      try{
+        const {data}=client.auth.onAuthStateChange((event,session)=>{
+          if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='TOKEN_REFRESHED'||event==='USER_UPDATED')signalAuthResolved(session?.user||null,event);
+          else if(event==='SIGNED_OUT')signalAuthResolved(null,event);
+        });
+        authSubscription=data?.subscription||true;
+      }catch(e){console.warn('Workhorse auth listener unavailable',e)}
+    }
+    client.auth.getSession().then(({data,error})=>{
+      if(error)throw error;
+      signalAuthResolved(data?.session?.user||null,'SESSION_CHECK');
+    }).catch(e=>{
+      console.warn('Workhorse initial auth session check failed',e);
+      if(attempt<12)setTimeout(()=>wireAuthSession(attempt+1),500);
+    });
   }
 
   ensureBackupUI();refreshSettingsCopy();
-  startCloudRestore();
+  wireAuthSession();
 })();
