@@ -50,6 +50,7 @@ jobs:
           node --check player-detail-v34.js
           node --check on-demand-player-search-v88.js
           node --check draft-trade-capital-v98.js
+          node --check draft-ownership-v45.js
           node --check live-draft-command-v99.js
           node --check draft-recap-upgrade-v100.js
 
