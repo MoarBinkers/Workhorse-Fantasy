@@ -41,6 +41,7 @@ jobs:
           node --check ranking-data-recovery-v95.js
           node --check round-bands-v61.js
           node --check drag-scroll-guard-v97.js
+          node --check draft-trade-capital-v98.js
           node --check decision-loader-v61.js
           node --check cloud-reliability-v41.js
           node --check new-user-adp-v60.js
