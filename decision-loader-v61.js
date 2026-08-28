@@ -1,22 +1,24 @@
-// v61.1 — keep noncritical features off the startup path; load draft code only when Draft is opened.
+// v61.2 — keep startup lean. Core rankings work first; optional polish/news loads later or on demand.
 (()=>{
-  const generalFiles=[
-    './logo-fix-v291.js?v=301',
+  const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
     './rank-sync-v38.js?v=395',
     './sleeper-update-status-v40.js?v=402',
     './adp-movement-v49.js?v=495',
-    './rankings-news-update-v83.js?v=834',
-    './rankings-help-v51.js?v=52',
     './player-tags-cta-v53.js?v=533',
     './tags-upgrade-v59.js?v=60',
     './list-modal-layout-v79.js?v=792',
     './list-delete-v80.js?v=803',
+    './mobile-polish-v81.js?v=812'
+  ];
+  const backgroundFiles=[
+    './logo-fix-v291.js?v=301',
+    './rankings-news-update-v83.js?v=834',
+    './rankings-help-v51.js?v=52',
     './smart-search-v62.js?v=622',
     './player-compare-v63.js?v=632',
     './edge-heat-v64.js?v=643',
     './player-fantasy-outlook-v74.js?v=748',
-    './mobile-polish-v81.js?v=812',
     './news-update-red-dot-v85.js?v=852'
   ];
   const draftFiles=[
@@ -50,27 +52,42 @@
     loaded.set(src,promise);return promise;
   };
   const yieldFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
-  async function loadBatch(files,batch=4){
+  async function loadBatch(files,batch=2){
     for(let i=0;i<files.length;i+=batch){
       await Promise.all(files.slice(i,i+batch).map(loadOne));
       await yieldFrame();
     }
   }
-
-  let generalBegun=false;
-  const beginGeneral=()=>{
-    if(generalBegun)return;generalBegun=true;
-    const run=()=>loadBatch(generalFiles,4).catch(e=>console.warn('Workhorse general feature batch error',e));
-    if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:1800});else setTimeout(run,250);
+  const idle=(fn,timeout)=>{
+    if('requestIdleCallback' in window)requestIdleCallback(fn,{timeout});
+    else setTimeout(fn,Math.min(1200,timeout));
   };
-  if(window.WorkhorseCentralAdpReady)beginGeneral();
-  else window.addEventListener('workhorse:central-adp-ready',beginGeneral,{once:true});
-  setTimeout(beginGeneral,7000);
+
+  let coreBegun=false;
+  const beginCore=()=>{
+    if(coreBegun)return;coreBegun=true;
+    // Give the browser a clean window after ADP/rankings paint before adding more JS.
+    setTimeout(()=>idle(()=>loadBatch(coreFiles,2).catch(e=>console.warn('Workhorse core extras failed',e)),4000),1800);
+  };
+  if(window.WorkhorseCentralAdpReady)beginCore();
+  else window.addEventListener('workhorse:central-adp-ready',beginCore,{once:true});
+  setTimeout(beginCore,8000);
+
+  let backgroundBegun=false;
+  const beginBackground=()=>{
+    if(backgroundBegun)return;backgroundBegun=true;
+    idle(()=>loadBatch(backgroundFiles,1).catch(e=>console.warn('Workhorse background features failed',e)),9000);
+  };
+  // Background polish/news should never compete with the first useful paint.
+  setTimeout(beginBackground,10000);
+  document.addEventListener('click',e=>{
+    if(e.target.closest('.player,.person,.name-line,[data-market-player]'))setTimeout(beginBackground,0);
+  },{passive:true});
 
   let draftBegun=false;
   const beginDraft=()=>{
     if(draftBegun)return;draftBegun=true;
-    loadBatch(draftFiles,3).catch(e=>console.warn('Workhorse draft feature batch error',e));
+    loadBatch(draftFiles,2).catch(e=>console.warn('Workhorse draft feature batch error',e));
   };
   const draftIsOpen=()=>document.getElementById('page-draft')?.classList.contains('active');
   if(draftIsOpen())beginDraft();
@@ -84,5 +101,5 @@
     new MutationObserver(()=>{if(draftIsOpen())beginDraft()}).observe(draftPage,{attributes:true,attributeFilter:['class']});
   }
 
-  window.WorkhorseFeatureLoader={loadGeneral:beginGeneral,loadDraft:beginDraft};
+  window.WorkhorseFeatureLoader={loadGeneral:beginCore,loadBackground:beginBackground,loadDraft:beginDraft};
 })();
