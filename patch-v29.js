@@ -1,4 +1,4 @@
-// v29.4 — foundational normalization, indexed market matching, list sanitation, and synced-player exclusions.
+// v29.5 — foundational normalization, self-healing indexed market matching, list sanitation, and synced-player exclusions.
 (()=>{
   function cleanPlayerName(value){
     let s=String(value||"").trim().replace(/\s+/g," ");
@@ -20,13 +20,17 @@
   let marketIdIndex=new Map();
   let marketNamePosIndex=new Map();
   let marketNameIndex=new Map();
+  let indexedProbeName='';
+  let indexedProbeEntry=null;
   const namePosKey=(name,pos)=>String(pos||'').toUpperCase()+'|'+norm(name);
 
   function rebuildMarketIndex(){
     const ids=new Map(),namePos=new Map(),names=new Map(),duplicateNames=new Set();
+    let probeName='',probeEntry=null;
     try{
       for(const [key,entry] of Object.entries(market||{})){
         if(!entry||typeof entry!=="object")continue;
+        if(!probeEntry){probeName=key;probeEntry=entry}
         const ref={name:key,entry};
         const id=String(entry.id||'');
         if(id)ids.set(id,ref);
@@ -41,10 +45,20 @@
     }catch(_){}
     duplicateNames.forEach(k=>names.delete(k));
     marketIdIndex=ids;marketNamePosIndex=namePos;marketNameIndex=names;
+    indexedProbeName=probeName;indexedProbeEntry=probeEntry;
   }
   window.WorkhorseRebuildMarketIndex=rebuildMarketIndex;
 
+  function ensureMarketIndex(){
+    let stale=!marketIdIndex.size;
+    try{
+      if(!stale&&indexedProbeName&&market?.[indexedProbeName]!==indexedProbeEntry)stale=true;
+    }catch(_){stale=true}
+    if(stale)rebuildMarketIndex();
+  }
+
   function marketMatch(value){
+    ensureMarketIndex();
     const name=typeof value==="string"?value:value?.name;
     const sleeperId=typeof value==="object"?(value?.sleeperId||value?.id):null;
     const position=typeof value==="object"?String(value?.position||value?.pos||'').toUpperCase():'';
@@ -53,7 +67,19 @@
     // when both sides explicitly disagree on position; do not require name text
     // to be identical (e.g. James Cook III vs James Cook).
     if(sleeperId){
-      const hit=marketIdIndex.get(String(sleeperId));
+      let hit=marketIdIndex.get(String(sleeperId));
+      if(!hit){
+        // Rare path: on-demand search may add one market row without replacing
+        // the probe object. Scan once on the miss, rebuild the indexes, then all
+        // subsequent rows return to O(1) lookups.
+        try{
+          for(const [key,entry] of Object.entries(market||{})){
+            if(entry&&String(entry.id||'')===String(sleeperId)){
+              rebuildMarketIndex();hit=marketIdIndex.get(String(sleeperId));break;
+            }
+          }
+        }catch(_){}
+      }
       if(hit){
         const entryPos=String(hit.entry?.pos||'').toUpperCase();
         if(!position||!entryPos||entryPos===position)return hit;
@@ -116,21 +142,6 @@
     const add=i<0?'<button class="market-add" data-market-add="'+esc(p.name)+'">＋ Add</button>':"";
     return '<div class="player market"><div class="person" data-market-player="'+encodeURIComponent(p.name)+'"><img class="avatar" src="'+imgUrl(p)+'" onerror="this.style.visibility=\'hidden\'"><div class="playertext"><div class="name-line"><span class="name">'+esc(cleanPlayerName(p.name))+'</span><span class="tags">'+(owned?tagsHtml(owned):"")+'</span>'+(owned?noteHtml(owned,i):"")+'</div><div class="meta"><span class="pos '+p.position+'">'+p.position+'</span><span>'+esc(p.team||"—")+'</span>'+add+'</div>'+(owned?notePreview(owned):"")+'</div></div><div class="metric"><div class="num">'+(sleeperRank!=null?"#"+sleeperRank:"NR")+'</div></div><div class="metric"><div class="num">'+(m?.posRank?p.position+"#"+m.posRank:"—")+'</div></div><div class="metric"><div class="move '+mv.cls+'">'+mv.text+'</div></div></div>';
   };
-
-  // Keep lookup rebuilding on the normal render path only. This adds no extra
-  // render pass: it simply refreshes three tiny indices immediately before the
-  // existing renderer loops over rows.
-  function wrapRenderWithMarketIndex(name){
-    try{
-      const base=window[name]||eval(name);
-      if(typeof base!=="function"||base.__whMarketIndex294)return;
-      const wrapped=function(){rebuildMarketIndex();return base.apply(this,arguments)};
-      wrapped.__whMarketIndex294=true;wrapped.__whMarketIndexBase=base;
-      try{window[name]=wrapped}catch(_){}
-      try{eval(name+'=wrapped')}catch(_){}
-    }catch(_){}
-  }
-  ['renderRankings','renderAdp','renderDraft'].forEach(wrapRenderWithMarketIndex);
 
   function listRef(){try{return typeof currentList==='function'?currentList():rankingLists?.[activeListId]||null}catch(_){return null}}
   function playerSleeperId(p){try{return String(p?.sleeperId||marketFor(p)?.id||'')}catch(_){return String(p?.sleeperId||'')}}
