@@ -18,6 +18,8 @@ jobs:
         run: python .github/performance-regression-check.py
       - name: Check critical release contract
         run: python .github/release-contract-check.py
+      - name: Check Live Draft contract
+        run: python .github/live-draft-release-check.py
       - name: Check active JavaScript syntax
         run: |
           node --check patch-v29.js
@@ -29,6 +31,8 @@ jobs:
           node --check round-bands-v61.js
           node --check drag-scroll-guard-v97.js
           node --check draft-trade-capital-v98.js
+          node --check live-draft-command-v99.js
+          node --check draft-recap-upgrade-v100.js
           node --check decision-loader-v61.js
           node --check cloud-reliability-v41.js
           node --check new-user-adp-v60.js
