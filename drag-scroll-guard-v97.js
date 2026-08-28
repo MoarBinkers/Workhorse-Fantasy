@@ -46,7 +46,7 @@
     dragging=false;
 
     // Cover the normal synchronous render, the next paint, and a delayed cloud/
-    // save render without installing a MutationObserver or permanent scroll loop.
+    // save render without adding any persistent DOM watcher or scroll loop.
     queueMicrotask(()=>holdViewport(y,token));
     requestAnimationFrame(()=>{
       holdViewport(y,token);
