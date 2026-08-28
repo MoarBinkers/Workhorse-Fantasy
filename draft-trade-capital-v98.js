@@ -1,11 +1,11 @@
-// v98.1 — visible Sleeper draft-pick ownership before and during the draft.
+// v98.2 — resilient Sleeper draft-pick ownership before and during the draft.
 (()=>{
   if(window.__WORKHORSE_DRAFT_TRADE_CAPITAL_98__)return;
   window.__WORKHORSE_DRAFT_TRADE_CAPITAL_98__=true;
 
   const INPUT_KEY='de34_draft_input';
   const POLL_MS=15000;
-  let state={draft:null,league:null,traded:[],lastSig:'',lastChecked:0,timer:null,busy:false};
+  let state={draft:null,league:null,rosters:[],picks:[],traded:[],lastSig:'',lastChecked:0,timer:null,busy:false,source:{draft:0,league:0,inferred:0}};
 
   const esc98=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const api=async url=>{
@@ -64,28 +64,76 @@
   function teams(){return Math.max(1,Number(state.draft?.settings?.teams)||Number(state.league?.total_rosters)||0)}
   function rounds(){return Math.max(1,Number(state.draft?.settings?.rounds)||0)}
   function season(){return String(state.draft?.season||state.league?.season||'')}
-  function selectedSlot(){return Number(document.getElementById('deDraftSlot')?.value)||0}
-  function rosterForSlot(slot){const m=state.draft?.slot_to_roster_id||{};const v=m[String(slot)]??m[slot];return v==null?'':String(v)}
+  function selectedSlot(){
+    const ui=Number(document.getElementById('deDraftSlot')?.value||0);if(ui>0)return ui;
+    const draftId=String(state.draft?.draft_id||'');
+    let listSlot=0;try{listSlot=Number(window.currentList?.()?.draftPrefs?.slot||0)}catch(_){}
+    const saved=draftId?Number(localStorage.getItem('de41_draft_slot:'+draftId)||listSlot||0):listSlot;
+    return saved>0?saved:0;
+  }
+  function userIdsForSlot(slot){
+    const order=state.draft?.draft_order||{};
+    return Object.entries(order).filter(([,s])=>Number(s)===Number(slot)).map(([uid])=>String(uid));
+  }
+  function rosterMatchesUser(r,userIds){
+    if(!r||!userIds.length)return false;
+    if(r.owner_id&&userIds.includes(String(r.owner_id)))return true;
+    return Array.isArray(r.co_owners)&&r.co_owners.some(x=>userIds.includes(String(x)));
+  }
+  function rosterForSlot(slot){
+    const m=state.draft?.slot_to_roster_id||{},direct=m[String(slot)]??m[slot];
+    if(direct!=null&&String(direct)!=='')return String(direct);
+    const users=userIdsForSlot(slot);if(users.length){
+      const hit=state.rosters.find(r=>rosterMatchesUser(r,users));
+      if(hit?.roster_id!=null)return String(hit.roster_id);
+    }
+    return '';
+  }
   function slotForRoster(roster){
+    const wanted=String(roster||'');if(!wanted)return 0;
     const m=state.draft?.slot_to_roster_id||{};
-    for(const [slot,rid] of Object.entries(m))if(String(rid)===String(roster))return Number(slot)||0;
+    for(const [slot,rid] of Object.entries(m))if(String(rid)===wanted)return Number(slot)||0;
+    const r=state.rosters.find(x=>String(x?.roster_id)===wanted);
+    if(r){
+      const ownerIds=[r.owner_id,...(Array.isArray(r.co_owners)?r.co_owners:[])].filter(Boolean).map(String);
+      const order=state.draft?.draft_order||{};
+      for(const [uid,slot] of Object.entries(order))if(ownerIds.includes(String(uid)))return Number(slot)||0;
+    }
     return 0;
   }
   function withinRoundForSlot(slot,round){const n=teams();return state.draft?.type==='snake'&&Number(round)%2===0?n-Number(slot)+1:Number(slot)}
   function pickNo(round,slot){return (Number(round)-1)*teams()+withinRoundForSlot(slot,round)}
   function pickLabel(no){const n=teams(),r=Math.floor((Number(no)-1)/n)+1,w=((Number(no)-1)%n)+1;return r+'.'+String(w).padStart(2,'0')}
 
-  function mergeTraded(draftRows,leagueRows){
-    const currentSeason=season(),map=new Map();
-    const ingest=(rows,priority)=>{
+  function mergeTraded(draftRows,leagueRows,picks){
+    const currentSeason=season(),map=new Map(),validRoster=new Set(state.rosters.map(r=>String(r?.roster_id)).filter(Boolean));
+    const ingest=(rows,priority,source,strictSeason)=>{
       for(const t of Array.isArray(rows)?rows:[]){
-        if(currentSeason&&t?.season&&String(t.season)!==currentSeason)continue;
-        const key=String(t.round)+'|'+String(t.roster_id);
-        const prev=map.get(key);if(!prev||priority>=prev._priority)map.set(key,{...t,_priority:priority});
+        const round=Number(t?.round),original=String(t?.roster_id??''),owner=String(t?.owner_id??'');
+        if(!round||!original||!owner)continue;
+        if(strictSeason&&currentSeason&&t?.season&&String(t.season)!==currentSeason)continue;
+        if(validRoster.size&&(!validRoster.has(original)||!validRoster.has(owner)))continue;
+        const key=round+'|'+original,prev=map.get(key);
+        if(!prev||priority>=prev._priority)map.set(key,{...t,round,roster_id:original,owner_id:owner,_priority:priority,_source:source});
       }
     };
-    ingest(leagueRows,1);ingest(draftRows,2);
-    return [...map.values()].map(({_priority,...x})=>x);
+    // Draft-level ownership is authoritative for this exact draft and must never
+    // be discarded because of a season-string mismatch.
+    ingest(draftRows,4,'draft',false);
+    ingest(leagueRows,2,'league',true);
+
+    // Once a traded pick has actually been made, Sleeper's pick payload is the
+    // strongest proof of ownership. Use it as a fallback/confirmation.
+    for(const p of Array.isArray(picks)?picks:[]){
+      const round=Number(p?.round),slot=Number(p?.draft_slot),owner=String(p?.roster_id??'');
+      if(!round||!slot||!owner)continue;
+      const original=rosterForSlot(slot);if(!original||original===owner)continue;
+      const key=round+'|'+original,prev=map.get(key);
+      if(!prev||5>=prev._priority)map.set(key,{season:currentSeason,round,roster_id:original,previous_owner_id:original,owner_id:owner,_priority:5,_source:'pick'});
+    }
+    const out=[...map.values()].map(({_priority,...x})=>x);
+    state.source={draft:Array.isArray(draftRows)?draftRows.length:0,league:Array.isArray(leagueRows)?leagueRows.length:0,inferred:out.filter(x=>x._source==='pick').length};
+    return out;
   }
   function ownerFor(round,originalRoster){
     let owner=String(originalRoster||'');
@@ -94,7 +142,7 @@
   }
   function capital(){
     const slot=selectedSlot(),myRoster=rosterForSlot(slot),n=teams(),rs=rounds();
-    if(!slot||!myRoster||!n||!rs)return {owned:[],acquired:[],away:[],myRoster};
+    if(!slot||!myRoster||!n||!rs)return {owned:[],acquired:[],away:[],myRoster,slot};
     const owned=[],acquired=[],away=[];
     for(let round=1;round<=rs;round++){
       for(let originalSlot=1;originalSlot<=n;originalSlot++){
@@ -106,7 +154,7 @@
       }
     }
     owned.sort((a,b)=>a.pickNo-b.pickNo);acquired.sort((a,b)=>a.pickNo-b.pickNo);away.sort((a,b)=>a.pickNo-b.pickNo);
-    return {owned,acquired,away,myRoster};
+    return {owned,acquired,away,myRoster,slot};
   }
   function tradeSig(rows){return rows.map(t=>[t.season,t.round,t.roster_id,t.owner_id].join(':')).sort().join('|')}
 
@@ -122,17 +170,17 @@
       panel.innerHTML='<div class="de98-head"><h3>Your Draft Capital</h3><button class="de98-refresh" data-de98-refresh>Refresh</button></div><div class="de98-empty">Choose <b>Your draft slot</b> above. Workhorse already has Sleeper’s current pick ownership and will identify which picks you acquired or traded away.</div><div class="de98-foot">'+esc98(state.draft?.status||'Connected')+' · '+state.traded.length+' traded-pick ownership record'+(state.traded.length===1?'':'s')+'</div>';
       return;
     }
-    const cap=capital(),current=(typeof window.DraftEdgeDraftIntelligence?.currentPick==='function'?Number(window.DraftEdgeDraftIntelligence.currentPick())||1:1);
-    const upcoming=cap.owned.filter(x=>x.pickNo>=current).slice(0,8);
-    const acquiredSet=new Set(cap.acquired.map(x=>x.pickNo));
+    const cap=capital(),intelCurrent=window.DraftEdgeDraftIntelligence?.currentPick?.(),current=Number(intelCurrent)||((state.picks||[]).reduce((m,p)=>Math.max(m,Number(p.pick_no)||0),0)+1)||1;
+    const upcoming=cap.owned.filter(x=>x.pickNo>=current).slice(0,8),acquiredSet=new Set(cap.acquired.map(x=>x.pickNo));
     const ownedRows=upcoming.length?upcoming.map(x=>'<div class="de98-row"><span class="de98-pick '+(acquiredSet.has(x.pickNo)?'de98-acquired':'')+'">'+esc98(x.label)+'</span><span class="de98-detail">'+(acquiredSet.has(x.pickNo)?'Acquired from Slot '+x.originalSlot:'Original pick')+'</span></div>').join(''):'<div class="de98-empty">No remaining picks detected.</div>';
     const moves=[...cap.acquired.map(x=>({...x,type:'in'})),...cap.away.map(x=>({...x,type:'out'}))].sort((a,b)=>a.pickNo-b.pickNo);
-    const moveRows=moves.length?moves.map(x=>'<div class="de98-row"><span class="de98-pick '+(x.type==='in'?'de98-acquired':'de98-away')+'">'+esc98(x.label)+'</span><span class="de98-detail">'+(x.type==='in'?'Acquired · from Slot '+x.originalSlot:'Traded away · now Slot '+(x.ownerSlot||'?'))+'</span></div>').join(''):'<div class="de98-empty">No traded picks for your slot.</div>';
+    const moveRows=moves.length?moves.map(x=>'<div class="de98-row"><span class="de98-pick '+(x.type==='in'?'de98-acquired':'de98-away')+'">'+esc98(x.label)+'</span><span class="de98-detail">'+(x.type==='in'?'Acquired · from Slot '+x.originalSlot:'Traded away · now Slot '+(x.ownerSlot||'?'))+'</span></div>').join(''):'<div class="de98-empty">No traded picks mapped to your slot yet.</div>';
+    const sourceText='Sleeper trade records: draft '+state.source.draft+' · league '+state.source.league+(state.source.inferred?' · '+state.source.inferred+' confirmed from live picks':'');
     panel.innerHTML='<div class="de98-head"><h3>Your Draft Capital</h3><button class="de98-refresh" data-de98-refresh '+(state.busy?'disabled':'')+'>'+(state.busy?'Checking…':'Refresh')+'</button></div>'+
       (changed?'<div class="de98-alert">Sleeper pick ownership changed — your draft capital was updated.</div>':'')+
       '<div class="de98-summary"><span class="de98-chip">'+cap.owned.length+' picks owned</span><span class="de98-chip in">+'+cap.acquired.length+' acquired</span><span class="de98-chip out">−'+cap.away.length+' traded away</span></div>'+
       '<div class="de98-grid"><div class="de98-section"><div class="de98-title">Your Upcoming Picks</div>'+ownedRows+'</div><div class="de98-section"><div class="de98-title">Pick Trades</div>'+moveRows+'</div></div>'+
-      '<div class="de98-foot">Sleeper '+esc98(state.draft?.status||'connected')+' · completed pick trades/current ownership · auto-refreshes every 15 seconds</div>';
+      '<div class="de98-foot">'+sourceText+' · auto-refreshes every 15 seconds</div>';
   }
 
   async function refresh(force=false){
@@ -143,35 +191,30 @@
       state.draft=resolved.draft||state.draft;state.league=resolved.league||state.league;
       const draftId=String(state.draft?.draft_id||'');if(!draftId)throw new Error('Draft ID unavailable.');
       const leagueId=String(state.draft?.league_id||state.league?.league_id||'');
-      const [freshDraft,draftTraded,leagueTraded]=await Promise.all([
+      const [freshDraft,draftTraded,leagueTraded,rosters,picks]=await Promise.all([
         api('https://api.sleeper.app/v1/draft/'+draftId).catch(()=>state.draft),
         api('https://api.sleeper.app/v1/draft/'+draftId+'/traded_picks').catch(()=>[]),
-        leagueId?api('https://api.sleeper.app/v1/league/'+leagueId+'/traded_picks').catch(()=>[]):Promise.resolve([])
+        leagueId?api('https://api.sleeper.app/v1/league/'+leagueId+'/traded_picks').catch(()=>[]):Promise.resolve([]),
+        leagueId?api('https://api.sleeper.app/v1/league/'+leagueId+'/rosters').catch(()=>state.rosters):Promise.resolve(state.rosters),
+        api('https://api.sleeper.app/v1/draft/'+draftId+'/picks').catch(()=>state.picks)
       ]);
-      state.draft=freshDraft||state.draft;
-      const merged=mergeTraded(draftTraded,leagueTraded),sig=tradeSig(merged),changed=!!state.lastSig&&sig!==state.lastSig;
+      state.draft=freshDraft||state.draft;state.rosters=Array.isArray(rosters)?rosters:[];state.picks=Array.isArray(picks)?picks:[];
+      const merged=mergeTraded(draftTraded,leagueTraded,state.picks),sig=tradeSig(merged),changed=!!state.lastSig&&sig!==state.lastSig;
       state.traded=merged;state.lastSig=sig;state.lastChecked=Date.now();render(changed);
     }catch(e){
       const panel=ensurePanel();if(panel)panel.innerHTML='<div class="de98-head"><h3>Your Draft Capital</h3><button class="de98-refresh" data-de98-refresh>Retry</button></div><div class="de98-empty">Could not refresh Sleeper traded picks: '+esc98(e.message)+'</div>';
     }finally{state.busy=false}
   }
 
-  function start(){
-    ensurePanel();
-    if(state.timer)clearInterval(state.timer);
-    setTimeout(()=>refresh(true),450);
-    state.timer=setInterval(()=>refresh(false),POLL_MS);
-  }
+  function start(){ensurePanel();if(state.timer)clearInterval(state.timer);setTimeout(()=>refresh(true),350);state.timer=setInterval(()=>refresh(false),POLL_MS)}
   function stop(){if(state.timer)clearInterval(state.timer);state.timer=null}
 
   document.addEventListener('click',e=>{
-    if(e.target.closest('#connectDraft'))setTimeout(start,600);
-    if(e.target.closest('#stopDraft')){stop();state={draft:null,league:null,traded:[],lastSig:'',lastChecked:0,timer:null,busy:false};setTimeout(()=>render(false),0)}
+    if(e.target.closest('#connectDraft'))setTimeout(start,550);
+    if(e.target.closest('#stopDraft')){stop();state={draft:null,league:null,rosters:[],picks:[],traded:[],lastSig:'',lastChecked:0,timer:null,busy:false,source:{draft:0,league:0,inferred:0}};setTimeout(()=>render(false),0)}
   },true);
   document.addEventListener('change',e=>{if(e.target?.id==='deDraftSlot')render(false)});
 
-  // Draft scripts load on demand. If a saved connection/input already exists,
-  // show the panel immediately and let the normal Connect action establish live polling.
   ensurePanel();render(false);
-  window.WorkhorseDraftTradeCapital={refresh:()=>refresh(true),render,capital:()=>capital()};
+  window.WorkhorseDraftTradeCapital={refresh:()=>refresh(true),render,capital:()=>capital(),selectedSlot,rosterForSlot,slotForRoster};
 })();
