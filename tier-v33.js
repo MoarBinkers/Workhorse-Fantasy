@@ -1,4 +1,4 @@
-// v33.1 — tier UI plus a lightweight render guard so hidden player pages do not build hundreds of rows at startup.
+// v33.2 — tier UI plus a lightweight render guard so hidden player pages do not build hundreds of rows at startup.
 (function tierUiV33(){
   const install=()=>{
     const rankList=document.getElementById('rankList');
@@ -80,11 +80,18 @@
     wrapped.__wh93Lazy=true;wrapped.__wh93Base=base;setFn(name,wrapped);
   });
 
-  const tuneExisting=()=>document.querySelectorAll('img.avatar').forEach(img=>{
+  const tuneImage=img=>{
+    if(!img||!img.classList?.contains('avatar'))return;
     if(!img.hasAttribute('loading'))img.loading='lazy';
     if(!img.hasAttribute('decoding'))img.decoding='async';
     try{img.fetchPriority='low'}catch(_){}
-  });
+  };
+  const tuneNode=node=>{
+    if(!node||node.nodeType!==1)return;
+    if(node.matches?.('img.avatar'))tuneImage(node);
+    node.querySelectorAll?.('img.avatar').forEach(tuneImage);
+  };
+  const tuneExisting=()=>document.querySelectorAll('img.avatar').forEach(tuneImage);
   tuneExisting();
 
   function gateRender(name,pageId,listId){
@@ -94,7 +101,7 @@
     const wrapped=function(){
       if(!active()){page.dataset.wh93Dirty='1';return}
       page.dataset.wh93Dirty='0';
-      const out=base.apply(this,arguments);tuneExisting();return out;
+      return base.apply(this,arguments);
     };
     wrapped.__wh93Gate=true;wrapped.__wh93Base=base;setFn(name,wrapped);
 
@@ -107,7 +114,7 @@
     new MutationObserver(()=>{
       if(active()&&page.dataset.wh93Dirty==='1'){
         page.dataset.wh93Dirty='0';
-        requestAnimationFrame(()=>{try{base()}catch(e){console.warn('Workhorse deferred '+name+' render failed',e)}tuneExisting()});
+        requestAnimationFrame(()=>{try{base()}catch(e){console.warn('Workhorse deferred '+name+' render failed',e)}});
       }
     }).observe(page,{attributes:true,attributeFilter:['class']});
   }
@@ -115,6 +122,13 @@
   gateRender('renderAdp','page-adp','adpList');
   gateRender('renderDraft','page-draft','draftList');
 
-  const rootObserver=new MutationObserver(tuneExisting);
+  // Only tune avatars inside newly inserted DOM. The previous body-wide observer
+  // rescanned every avatar on the page after each render mutation, multiplying
+  // the cost of a 250-row rankings render.
+  const rootObserver=new MutationObserver(mutations=>{
+    for(const mutation of mutations){
+      for(const node of mutation.addedNodes)tuneNode(node);
+    }
+  });
   rootObserver.observe(document.body,{childList:true,subtree:true});
 })();
