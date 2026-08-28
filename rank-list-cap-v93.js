@@ -1,5 +1,8 @@
-// v93.1 — hard-cap every ranking list at 250 players and bootstrap the same 250 cap for Sleeper Rankings.
+// v93.2 — hard-cap every personal ranking list at 250 players once per page.
 (()=>{
+  if(window.__WORKHORSE_RANK_LIST_CAP_93__)return;
+  window.__WORKHORSE_RANK_LIST_CAP_93__=true;
+
   const MAX_PLAYERS=250;
   let enforcing=false;
 
@@ -119,18 +122,6 @@
   document.addEventListener('click',e=>{
     if(e.target.closest('[data-restore-version]'))[700,1800].forEach(ms=>setTimeout(()=>enforceAll({persistCloud:true}),ms));
   },true);
-
-  // The old feature loader already loads this file on every site. Use it as a
-  // compatibility bootstrap so even devices with the previous loader get the
-  // new hard cap for the Sleeper Rankings / Current ADP page.
-  try{
-    if(!window.WorkhorseSleeperRankCap&&!document.querySelector('script[data-wh-sleeper-rank-cap]')){
-      const s=document.createElement('script');
-      s.src='./sleeper-rank-cap-v94.js?v=941';
-      s.async=false;s.dataset.whSleeperRankCap='1';
-      document.body.appendChild(s);
-    }
-  }catch(_){}
 
   window.WorkhorseRankingListCap={max:MAX_PLAYERS,enforce:()=>enforceAll({persistCloud:true})};
 })();
