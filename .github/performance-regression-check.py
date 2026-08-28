@@ -13,16 +13,20 @@ loader = Path('decision-loader-v61.js').read_text(encoding='utf-8')
 rank_sync = Path('rank-sync-v38.js').read_text(encoding='utf-8')
 patch = Path('patch-v29.js').read_text(encoding='utf-8')
 edge = Path('live-draft-edge-v82.js').read_text(encoding='utf-8')
+tier = Path('tier-v33.js').read_text(encoding='utf-8')
 
 required_central = [
     "const AUTO_RANK_LIMIT=250;",
     "const CACHE_PREFIX='wh92_true_adp_';",
+    "const CACHE_VERSION=2;",
     "identityOnly:false",
     "searchRank:null",
     "fetchCentralRows(format)",
     "cache:'no-store'",
-    "requestIdleCallback(run,{timeout:1800})",
+    "sleeper_rank=lte.'+AUTO_RANK_LIMIT",
+    "requestIdleCallback(run,{timeout:2200})",
     "signalReady(format,rows.length)",
+    "Never append missing ADP",
 ]
 for term in required_central:
     if term not in central:
@@ -31,11 +35,12 @@ for term in required_central:
 for forbidden in [
     '.range(from,from+999)',
     'loadPlayerDirectory',
-    '.from(\'sleeper_player_status\')',
+    ".from('sleeper_player_status')",
     'searchRank:Number',
+    'players.push({overall:++maxOverall',
 ]:
     if forbidden in central:
-        raise SystemExit(f'Blocking/generic startup behavior reintroduced: {forbidden}')
+        raise SystemExit(f'Blocking/generic/auto-fill startup behavior reintroduced: {forbidden}')
 
 for term in ['WorkhorseRefreshPlayerHistory', 'raw.length>120', 'requestIdleCallback(run,{timeout:300})']:
     if term not in detail:
@@ -58,6 +63,7 @@ for term in [
 for term in [
     './brand-fast-v92.js?v=921',
     './patch-v29.js?v=296',
+    './tier-v33.js?v=334',
     './player-detail-v34.js?v=344',
     './central-adp-v92.js?v=921',
     './mobile-touch-v75.js?v=753',
@@ -74,15 +80,32 @@ for term in ['./draft-room-v41.js','./live-draft-edge-v82.js','./rankings-news-u
     if term in index:
         raise SystemExit(f'Noncritical file moved back onto startup path: {term}')
 
-if 'const generalFiles=[' not in loader or 'const draftFiles=[' not in loader:
-    raise SystemExit('General/draft lazy loading split is missing.')
-if "window.addEventListener('workhorse:central-adp-ready',beginGeneral,{once:true})" not in loader:
-    raise SystemExit('General features can compete with critical ADP loading.')
-if 'loadBatch(generalFiles,4)' not in loader or 'loadBatch(draftFiles,3)' not in loader:
-    raise SystemExit('Optional feature batching protection missing.')
+for term in [
+    'const coreFiles=[',
+    'const backgroundFiles=[',
+    'const draftFiles=[',
+    "window.addEventListener('workhorse:central-adp-ready',beginCore,{once:true})",
+    'loadBatch(coreFiles,2)',
+    'loadBatch(backgroundFiles,1)',
+    'loadBatch(draftFiles,2)',
+    'setTimeout(beginBackground,10000)',
+]:
+    if term not in loader:
+        raise SystemExit(f'Lazy feature loading protection missing: {term}')
 for term in ['./draft-room-v41.js?v=414','./live-draft-edge-v82.js?v=823','./rankings-news-update-v83.js?v=834','./adp-movement-v49.js?v=495','./logo-fix-v291.js?v=301']:
     if term not in loader:
         raise SystemExit(f'Lazy feature missing from loader: {term}')
+
+for term in [
+    'window.__WORKHORSE_RENDER_GUARD_93__',
+    'content-visibility:auto',
+    'loading="lazy"',
+    "gateRender('renderAdp','page-adp','adpList')",
+    "gateRender('renderDraft','page-draft','draftList')",
+    'list.replaceChildren()',
+]:
+    if term not in tier:
+        raise SystemExit(f'Hidden-row/avatar render protection missing: {term}')
 
 if 'scheduleStatusLoad' in draft or "readStatusCache();\n  const input=" in draft:
     raise SystemExit('Hidden draft-status startup load was reintroduced.')
@@ -118,4 +141,4 @@ if 'joined=await fetchAsset(bundle,2);' not in index:
 if not Path('app-v28.bin').is_file() or Path('app-v28.bin').stat().st_size != 28016:
     raise SystemExit('Combined Workhorse bundle file is missing or incomplete.')
 
-print('Fast startup, true Sleeper ADP, lazy draft loading, and interaction checks passed.')
+print('Fast startup, true Sleeper ADP, hidden-row deferral, and interaction checks passed.')
