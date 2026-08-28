@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check interaction performance protections
         run: python .github/performance-regression-check.py
+      - name: Check critical release contract
+        run: python .github/release-contract-check.py
       - name: Check active JavaScript syntax
         run: |
           node --check patch-v29.js
@@ -23,6 +25,10 @@ jobs:
           node --check central-adp-v92.js
           node --check rank-list-cap-v93.js
           node --check sleeper-rank-cap-v94.js
+          node --check ranking-data-recovery-v95.js
+          node --check round-bands-v61.js
           node --check decision-loader-v61.js
+          node --check cloud-reliability-v41.js
+          node --check new-user-adp-v60.js
           node --check player-detail-v34.js
           node --check on-demand-player-search-v88.js
