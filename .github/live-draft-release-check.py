@@ -14,7 +14,7 @@ recap = Path('draft-recap-upgrade-v100.js').read_text(encoding='utf-8')
 base_recap = Path('draft-recap-v65.js').read_text(encoding='utf-8')
 
 for term in [
-    "'./draft-trade-capital-v98.js?v=983'",
+    "'./draft-trade-capital-v98.js?v=984'",
     "'./draft-ownership-v45.js?v=453'",
     "'./live-draft-command-v99.js?v=991'",
     "'./draft-recap-upgrade-v100.js?v=1001'",
@@ -25,21 +25,27 @@ require('draft-recap-all-picks-v84.js' not in loader,
         'old recap override returned and can replace the authoritative recap')
 
 # Traded-pick ownership must hydrate automatically even when Draft scripts load
-# after the user already connected Sleeper. Draft-level trades win; league rows
-# and completed pick roster ownership provide fallbacks.
+# after the user already connected Sleeper. Draft-level trades win; league rows,
+# completed pick roster ownership, and explicit saved board overrides provide fallbacks.
 for term in [
     "const INPUT_KEY='de34_draft_input',POLL_MS=15000;",
     'function savedSource()',
-    'currentList?.()?.draftPrefs',
-    "/traded_picks'",
-    "/rosters'",
-    "/picks'",
+    'function pickOverrides()',
+    'function overrideOwnerSlot(round,originalSlot)',
+    'p.pickOverrides',
+    'forcedOwnerSlot=overrideOwnerSlot(r,s)',
+    'ownerSlot=forcedOwnerSlot||apiOwnerSlot||s',
+    'overridden:!!forcedOwnerSlot',
+    '/traded_picks',
+    '/rosters',
+    '/picks',
     'function capital()',
     'function userIdsForSlot(slot)',
     "ingest(draftRows,4,'draft',false)",
     "ingest(leagueRows,2,'league',true)",
     "source:'pick'",
     'Sleeper trade records: draft ',
+    'saved ownership overrides',
     'if(extractId(savedSource()))setTimeout(start,300);',
     'acquired',
     'traded away',
@@ -97,4 +103,4 @@ for term in [
 require('deRecap65' in base_recap,
         'base recap modal/button disappeared; v100 needs the durable recap shell')
 
-print('Live Draft contract passed: automatic resilient Sleeper trade ownership, roster-aware completed picks, positional pressure, notes, make-it-back guidance, and recap are protected.')
+print('Live Draft contract passed: automatic Sleeper trade ownership plus saved board overrides, roster-aware completed picks, positional pressure, notes, make-it-back guidance, and recap are protected.')
