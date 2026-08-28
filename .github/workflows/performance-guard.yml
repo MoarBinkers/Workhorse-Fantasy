@@ -2,7 +2,7 @@ name: Validate Interaction Performance
 
 on:
   push:
-    branches: ["staging"]
+    branches: ["main", "staging"]
   pull_request:
     branches: ["main"]
 
@@ -16,8 +16,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check interaction performance protections
         run: python .github/performance-regression-check.py
-      - name: Check changed JavaScript syntax
+      - name: Check active JavaScript syntax
         run: |
-          node --check central-adp-v36.js
+          node --check patch-v29.js
+          node --check tier-v33.js
+          node --check central-adp-v92.js
+          node --check rank-list-cap-v93.js
+          node --check sleeper-rank-cap-v94.js
+          node --check decision-loader-v61.js
           node --check player-detail-v34.js
           node --check on-demand-player-search-v88.js
