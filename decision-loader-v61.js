@@ -1,4 +1,4 @@
-// v61.2 — keep startup lean. Core rankings work first; optional polish/news loads later or on demand.
+// v61.3 — keep startup lean. Enforce ranking cap first; optional polish/news loads later or on demand.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -63,10 +63,12 @@
     else setTimeout(fn,Math.min(1200,timeout));
   };
 
+  // Tiny hard-cap migration runs immediately so old 250+ lists are cleaned before optional work.
+  loadOne('./rank-list-cap-v93.js?v=931');
+
   let coreBegun=false;
   const beginCore=()=>{
     if(coreBegun)return;coreBegun=true;
-    // Give the browser a clean window after ADP/rankings paint before adding more JS.
     setTimeout(()=>idle(()=>loadBatch(coreFiles,2).catch(e=>console.warn('Workhorse core extras failed',e)),4000),1800);
   };
   if(window.WorkhorseCentralAdpReady)beginCore();
@@ -78,7 +80,6 @@
     if(backgroundBegun)return;backgroundBegun=true;
     idle(()=>loadBatch(backgroundFiles,1).catch(e=>console.warn('Workhorse background features failed',e)),9000);
   };
-  // Background polish/news should never compete with the first useful paint.
   setTimeout(beginBackground,10000);
   document.addEventListener('click',e=>{
     if(e.target.closest('.player,.person,.name-line,[data-market-player]'))setTimeout(beginBackground,0);
