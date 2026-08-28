@@ -1,4 +1,4 @@
-// v61.6 — keep startup lean. Enforce caps and repair Sleeper Rank/EDGE first; optional polish/news loads later or on demand.
+// v61.7 — keep startup lean. Enforce caps and use source-level Sleeper ID lookup; optional polish/news loads later or on demand.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -63,9 +63,10 @@
     else setTimeout(fn,Math.min(1200,timeout));
   };
 
+  // Critical size/correctness guards only. No DOM repair loop.
   loadOne('./rank-list-cap-v93.js?v=931');
   loadOne('./sleeper-rank-cap-v94.js?v=941');
-  loadOne('./rank-edge-fix-v95.js?v=952');
+  loadOne('./rank-edge-source-v96.js?v=961');
 
   let coreBegun=false;
   const beginCore=()=>{
