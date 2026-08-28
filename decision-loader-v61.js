@@ -1,4 +1,4 @@
-// v61.3 — keep startup lean. Enforce ranking cap first; optional polish/news loads later or on demand.
+// v61.4 — keep startup lean. Enforce both ranking-list and Sleeper-rank caps first; optional polish/news loads later or on demand.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -63,8 +63,9 @@
     else setTimeout(fn,Math.min(1200,timeout));
   };
 
-  // Tiny hard-cap migration runs immediately so old 250+ lists are cleaned before optional work.
+  // Hard caps run immediately so stale browser data cannot rebuild oversized lists/pages.
   loadOne('./rank-list-cap-v93.js?v=931');
+  loadOne('./sleeper-rank-cap-v94.js?v=941');
 
   let coreBegun=false;
   const beginCore=()=>{
