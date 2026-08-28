@@ -8,12 +8,14 @@ def require(ok, message):
 loader = Path('decision-loader-v61.js').read_text(encoding='utf-8')
 index = Path('index.html').read_text(encoding='utf-8')
 trade = Path('draft-trade-capital-v98.js').read_text(encoding='utf-8')
+ownership = Path('draft-ownership-v45.js').read_text(encoding='utf-8')
 command = Path('live-draft-command-v99.js').read_text(encoding='utf-8')
 recap = Path('draft-recap-upgrade-v100.js').read_text(encoding='utf-8')
 base_recap = Path('draft-recap-v65.js').read_text(encoding='utf-8')
 
 for term in [
-    "'./draft-trade-capital-v98.js?v=982'",
+    "'./draft-trade-capital-v98.js?v=983'",
+    "'./draft-ownership-v45.js?v=453'",
     "'./live-draft-command-v99.js?v=991'",
     "'./draft-recap-upgrade-v100.js?v=1001'",
 ]:
@@ -22,26 +24,37 @@ for term in [
 require('draft-recap-all-picks-v84.js' not in loader,
         'old recap override returned and can replace the authoritative recap')
 
-# Traded-pick ownership must remain automatic and resilient to incomplete Sleeper draft maps.
+# Traded-pick ownership must hydrate automatically even when Draft scripts load
+# after the user already connected Sleeper. Draft-level trades win; league rows
+# and completed pick roster ownership provide fallbacks.
 for term in [
+    "const INPUT_KEY='de34_draft_input',POLL_MS=15000;",
+    'function savedSource()',
+    'currentList?.()?.draftPrefs',
     "/traded_picks'",
     "/rosters'",
     "/picks'",
     'function capital()',
     'function userIdsForSlot(slot)',
-    'function rosterMatchesUser(r,userIds)',
-    'const ui=Number(document.getElementById(\'deDraftSlot\')?.value||0)',
-    "localStorage.getItem('de41_draft_slot:'",
     "ingest(draftRows,4,'draft',false)",
     "ingest(leagueRows,2,'league',true)",
-    "_source:'pick'",
+    "source:'pick'",
     'Sleeper trade records: draft ',
+    'if(extractId(savedSource()))setTimeout(start,300);',
     'acquired',
     'traded away',
 ]:
-    require(term in trade, 'resilient traded-pick ownership behavior missing: ' + term)
-require('if(currentSeason&&t?.season&&String(t.season)!==currentSeason)continue;' not in trade,
-        'draft-level trades are being discarded by the old strict season filter again')
+    require(term in trade, 'automatic/resilient traded-pick ownership behavior missing: ' + term)
+
+# Completed picks must use Sleeper roster_id as current ownership. draft_slot is
+# only the physical board column and is not ownership after a trade.
+for term in [
+    'const myRoster=rosterForSlot(slot),pickRoster=String(p.roster_id',
+    'if(myRoster&&pickRoster)return pickRoster===myRoster;',
+    'draft_slot is only the board column',
+    'WorkhorseDraftTradeCapital?.refresh?.()',
+]:
+    require(term in ownership, 'completed traded-pick ownership mapping missing: ' + term)
 
 for term in [
     'WorkhorseDraftTradeCapital?.capital?.()',
@@ -84,4 +97,4 @@ for term in [
 require('deRecap65' in base_recap,
         'base recap modal/button disappeared; v100 needs the durable recap shell')
 
-print('Live Draft contract passed: resilient Sleeper trade ownership, positional pressure, visible notes, make-it-back guidance, and upgraded recap are protected.')
+print('Live Draft contract passed: automatic resilient Sleeper trade ownership, roster-aware completed picks, positional pressure, notes, make-it-back guidance, and recap are protected.')
