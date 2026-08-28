@@ -1,4 +1,4 @@
-// v61.12 — keep startup lean while keeping Rankings-critical controls available immediately.
+// v61.13 — keep startup lean while keeping Rankings-critical controls available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -23,7 +23,7 @@
   ];
   const draftFiles=[
     './draft-room-v41.js?v=414',
-    './draft-trade-capital-v98.js?v=981',
+    './draft-trade-capital-v98.js?v=982',
     './draft-help-v76.js?v=763',
     './reset-draft-v42.js?v=43',
     './sleeper-auto-draft-v44.js?v=45',
@@ -64,8 +64,6 @@
     else setTimeout(fn,Math.min(1200,timeout));
   };
 
-  // Rankings-critical guards/controls stay immediate. These are small and avoid
-  // regressions where controls or drag behavior depend on unrelated lazy tabs.
   loadOne('./rank-list-cap-v93.js?v=932');
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
