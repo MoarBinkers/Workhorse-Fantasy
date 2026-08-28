@@ -1,4 +1,4 @@
-// v60.6 — guarantee guest and brand-new account My Rankings starts as an exact Sleeper Full PPR ADP mirror until customized.
+// v60.7 — starter rankings only after auth is resolved; never let a signed-in user's cloud list be masked by a guest mirror.
 (()=>{
   const MIGRATION_KEY='de60_clean_adp_onboarding';
   const STARTER_FORMAT='ppr';
@@ -8,6 +8,8 @@
   window.WorkhorseDefaultRankingsPolicy='sleeper-adp-until-customized';
 
   const allowedPos=pos=>['QB','RB','WR','TE'].includes(String(pos||'').toUpperCase());
+  const signedInNow=()=>{try{return !!currentUser}catch(_){return false}};
+  const authResolved=()=>window.WorkhorseAuthResolved===true||signedInNow();
 
   function starterClient(){
     try{return supabaseClient||null}catch(_){return null}
@@ -140,14 +142,15 @@
   }
 
   async function createLocalStarter(){
+    if(!authResolved()||signedInNow())return false;
     let count=0;try{count=Object.keys(rankingLists||{}).length}catch(_){return false}
-    if(busy||currentUser||count)return false;
+    if(busy||count)return false;
     if(activeListId&&!rankingLists?.[activeListId])activeListId=null;
     if(activeListId)return false;
     busy=true;
     try{
       const rows=await fetchStarterRows();
-      if(!rows||currentUser||activeListId||Object.keys(rankingLists||{}).length)return false;
+      if(!rows||signedInNow()||!window.WorkhorseAuthResolved||activeListId||Object.keys(rankingLists||{}).length)return false;
       const list=cleanListData('My Rankings',playersFromRows(rows));
       if(!list)return false;
       await persistNewList(list);
@@ -163,14 +166,14 @@
   }
 
   async function migrateUntouchedLocalStarter(){
-    if(currentUser)return false;
+    if(!authResolved()||signedInNow())return false;
     let ids=[];try{ids=Object.keys(rankingLists||{})}catch(_){return false}
     if(ids.length!==1)return false;
     const id=ids[0],before=rankingLists[id];
     if(!untouchedBuiltInList(before))return false;
     try{
       const rows=await fetchStarterRows();
-      if(!rows||currentUser)return false;
+      if(!rows||signedInNow()||!window.WorkhorseAuthResolved)return false;
       const list=rankingLists?.[id];
       if(!list||!untouchedBuiltInList(list))return false;
       list.players=playersFromRows(rows);
@@ -302,7 +305,9 @@
   }
 
   async function reconcile(){
-    if(currentUser){
+    const signed=signedInNow();
+    if(!window.WorkhorseAuthResolved&&!signed)return;
+    if(signed){
       if(!activeListId&&Object.keys(rankingLists||{}).length===0)await createCloudStarter();
       else await migrateUntouchedCloudStarter();
     }else{
@@ -318,6 +323,7 @@
     const modal=document.getElementById('newListModal');
     if(modal&&!modal.classList.contains('open'))setTimeout(ensureCreateConfirm,0);
   });
+  window.addEventListener('workhorse:auth-resolved',()=>setTimeout(reconcile,0));
   window.addEventListener('workhorse:cloud-rankings-ready',()=>setTimeout(reconcile,0));
   [600,4000].forEach(ms=>setTimeout(()=>{
     const run=()=>reconcile();
