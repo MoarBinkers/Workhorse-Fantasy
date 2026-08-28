@@ -1,4 +1,4 @@
-// v29.3 — foundational normalization, market matching, list sanitation, and synced-player exclusions.
+// v29.4 — foundational normalization, indexed market matching, list sanitation, and synced-player exclusions.
 (()=>{
   function cleanPlayerName(value){
     let s=String(value||"").trim().replace(/\s+/g," ");
@@ -17,26 +17,64 @@
       .replace(/[^a-z0-9]/g,"");
   };
 
+  let marketIdIndex=new Map();
+  let marketNamePosIndex=new Map();
+  let marketNameIndex=new Map();
+  const namePosKey=(name,pos)=>String(pos||'').toUpperCase()+'|'+norm(name);
+
+  function rebuildMarketIndex(){
+    const ids=new Map(),namePos=new Map(),names=new Map(),duplicateNames=new Set();
+    try{
+      for(const [key,entry] of Object.entries(market||{})){
+        if(!entry||typeof entry!=="object")continue;
+        const ref={name:key,entry};
+        const id=String(entry.id||'');
+        if(id)ids.set(id,ref);
+        const np=namePosKey(key,entry.pos);
+        if(np)namePos.set(np,ref);
+        const nk=norm(key);
+        if(nk){
+          if(names.has(nk))duplicateNames.add(nk);
+          else names.set(nk,ref);
+        }
+      }
+    }catch(_){}
+    duplicateNames.forEach(k=>names.delete(k));
+    marketIdIndex=ids;marketNamePosIndex=namePos;marketNameIndex=names;
+  }
+  window.WorkhorseRebuildMarketIndex=rebuildMarketIndex;
+
   function marketMatch(value){
     const name=typeof value==="string"?value:value?.name;
     const sleeperId=typeof value==="object"?(value?.sleeperId||value?.id):null;
     const position=typeof value==="object"?String(value?.position||value?.pos||'').toUpperCase():'';
-    const identityMatches=(key,entry)=>{
-      if(!name)return true;
-      const sameName=norm(key)===norm(name);
-      const entryPos=String(entry?.pos||'').toUpperCase();
-      return sameName&&(!position||!entryPos||entryPos===position);
-    };
+
+    // Sleeper player IDs are stable and authoritative. Only reject an ID match
+    // when both sides explicitly disagree on position; do not require name text
+    // to be identical (e.g. James Cook III vs James Cook).
     if(sleeperId){
-      for(const [key,entry] of Object.entries(market)){
-        if(entry&&typeof entry==="object"&&entry.id&&String(entry.id)===String(sleeperId)&&identityMatches(key,entry))return {name:key,entry};
+      const hit=marketIdIndex.get(String(sleeperId));
+      if(hit){
+        const entryPos=String(hit.entry?.pos||'').toUpperCase();
+        if(!position||!entryPos||entryPos===position)return hit;
       }
     }
-    if(name&&market[name]&&identityMatches(name,market[name]))return {name,entry:market[name]};
-    const n=norm(name);
-    for(const [key,entry] of Object.entries(market)){
-      if(!entry||typeof entry!=="object")continue;
-      if(n&&norm(key)===n&&identityMatches(key,entry))return {name:key,entry};
+
+    if(name){
+      if(position){
+        const byPos=marketNamePosIndex.get(namePosKey(name,position));
+        if(byPos)return byPos;
+      }
+      const exact=market?.[name];
+      if(exact&&typeof exact==="object"){
+        const entryPos=String(exact.pos||'').toUpperCase();
+        if(!position||!entryPos||entryPos===position)return {name,entry:exact};
+      }
+      const byName=marketNameIndex.get(norm(name));
+      if(byName){
+        const entryPos=String(byName.entry?.pos||'').toUpperCase();
+        if(!position||!entryPos||entryPos===position)return byName;
+      }
     }
     return null;
   }
@@ -78,6 +116,21 @@
     const add=i<0?'<button class="market-add" data-market-add="'+esc(p.name)+'">＋ Add</button>':"";
     return '<div class="player market"><div class="person" data-market-player="'+encodeURIComponent(p.name)+'"><img class="avatar" src="'+imgUrl(p)+'" onerror="this.style.visibility=\'hidden\'"><div class="playertext"><div class="name-line"><span class="name">'+esc(cleanPlayerName(p.name))+'</span><span class="tags">'+(owned?tagsHtml(owned):"")+'</span>'+(owned?noteHtml(owned,i):"")+'</div><div class="meta"><span class="pos '+p.position+'">'+p.position+'</span><span>'+esc(p.team||"—")+'</span>'+add+'</div>'+(owned?notePreview(owned):"")+'</div></div><div class="metric"><div class="num">'+(sleeperRank!=null?"#"+sleeperRank:"NR")+'</div></div><div class="metric"><div class="num">'+(m?.posRank?p.position+"#"+m.posRank:"—")+'</div></div><div class="metric"><div class="move '+mv.cls+'">'+mv.text+'</div></div></div>';
   };
+
+  // Keep lookup rebuilding on the normal render path only. This adds no extra
+  // render pass: it simply refreshes three tiny indices immediately before the
+  // existing renderer loops over rows.
+  function wrapRenderWithMarketIndex(name){
+    try{
+      const base=window[name]||eval(name);
+      if(typeof base!=="function"||base.__whMarketIndex294)return;
+      const wrapped=function(){rebuildMarketIndex();return base.apply(this,arguments)};
+      wrapped.__whMarketIndex294=true;wrapped.__whMarketIndexBase=base;
+      try{window[name]=wrapped}catch(_){}
+      try{eval(name+'=wrapped')}catch(_){}
+    }catch(_){}
+  }
+  ['renderRankings','renderAdp','renderDraft'].forEach(wrapRenderWithMarketIndex);
 
   function listRef(){try{return typeof currentList==='function'?currentList():rankingLists?.[activeListId]||null}catch(_){return null}}
   function playerSleeperId(p){try{return String(p?.sleeperId||marketFor(p)?.id||'')}catch(_){return String(p?.sleeperId||'')}}
@@ -148,6 +201,7 @@
   };
   const exportBtn=document.getElementById("exportRankings");if(exportBtn)exportBtn.onclick=exportCurrentList;
 
+  rebuildMarketIndex();
   sanitizeCurrentPlayers();
   renderEverything();
 })();
