@@ -16,10 +16,10 @@ base_recap = Path('draft-recap-v65.js').read_text(encoding='utf-8')
 
 for term in [
     "'./draft-trade-capital-v98.js?v=986'",
-    "'./draft-pick-ownership-sync-v102.js?v=1021'",
-    "'./draft-ownership-v45.js?v=453'",
+    "'./draft-pick-ownership-sync-v102.js?v=1022'",
+    "'./draft-ownership-v45.js?v=454'",
     "'./live-draft-command-v99.js?v=991'",
-    "'./draft-recap-upgrade-v100.js?v=1001'",
+    "'./draft-recap-upgrade-v100.js?v=1002'",
 ]:
     require(term in loader, 'Draft-only loader lost ' + term)
     require(term.split('?')[0].replace("'./", '') not in index, 'Live Draft feature moved onto critical startup: ' + term)
@@ -59,26 +59,32 @@ for term in [
 ]:
     require(term in trade, 'stable/profile traded-pick ownership behavior missing: ' + term)
 
-# The headline Live Draft cards must use the same authoritative capital engine;
-# otherwise the page can still show original snake picks while Draft Capital is right.
+# The headline cards and roster summary must use the same capital/ownership engine,
+# including after the final pick when there is no next selection left.
 for term in [
     'WorkhorseDraftTradeCapital?.capital?.()',
     "document.querySelectorAll('#deDraftRoomSummary .de-draft-card')",
     "v.textContent='#'+next",
-    'Pick after this:',
+    "s.textContent='Draft complete'",
+    'function compactCounts(rows)',
+    'DraftEdgeDraftOwnership?.ownPicks?.()',
+    "window.addEventListener('workhorse:draft-owned-picks-updated'",
     'window.WorkhorseSyncDraftPickOwnership=syncSummary',
 ]:
-    require(term in sync, 'main Live Draft summary is not synced to traded-pick ownership: ' + term)
+    require(term in sync, 'main Live Draft summary/roster is not synced to traded-pick ownership: ' + term)
 require('MutationObserver' not in sync,
         'draft ownership summary sync must not add a persistent DOM observer')
 
-# Completed picks must use Sleeper roster_id as current ownership. draft_slot is
-# only the physical board column and is not ownership after a trade.
+# Completed-pick ownership must use the Workhorse owned pick-number schedule when
+# a trade exists. Sleeper roster_id/picked_by are only fallback ownership signals.
 for term in [
-    'const myRoster=rosterForSlot(slot),pickRoster=String(p.roster_id',
-    'if(myRoster&&pickRoster)return pickRoster===myRoster;',
-    'draft_slot is only the board column',
-    'WorkhorseDraftTradeCapital?.refresh?.()',
+    'function tradedSchedule(slot=selectedSlot())',
+    'api?.pickOverrides?.()?.length>0',
+    'if(schedule&&pickNo)return schedule.has(pickNo);',
+    'Matched to your Workhorse traded-pick schedule.',
+    "window.dispatchEvent(new CustomEvent('workhorse:draft-owned-picks-updated'",
+    'await window.WorkhorseDraftTradeCapital?.refresh?.()',
+    'window.DraftEdgeDraftOwnership={tick,start,ownPicks:()=>ownPicks(),selectedSlot,rosterForSlot,isOwnPick,tradedSchedule}',
 ]:
     require(term in ownership, 'completed traded-pick ownership mapping missing: ' + term)
 
@@ -107,6 +113,9 @@ require('fetch(' not in command and 'sleeper(' not in command,
 require('MutationObserver' not in command,
         'command center must not add a persistent DOM observer')
 
+# The end-of-draft recap must independently filter the full Sleeper pick list by
+# Workhorse's owned pick numbers whenever a trade schedule exists. This prevents
+# original-slot roster fields from assigning traded-away selections to the user.
 for term in [
     'WORKHORSE SCORE',
     'Draft Story',
@@ -117,10 +126,13 @@ for term in [
     'Biggest Reach vs Your Board',
     'Bye Cluster',
     'ACQUIRED',
+    'hasTradeSchedule',
+    'ownedPickNos',
+    'picks.filter(pk=>ownedPickNos.has(Number(pk.pick_no)||0))',
     'api.open=open',
 ]:
-    require(term in recap, 'upgraded recap behavior missing: ' + term)
+    require(term in recap, 'upgraded/trade-correct recap behavior missing: ' + term)
 require('deRecap65' in base_recap,
         'base recap modal/button disappeared; v100 needs the durable recap shell')
 
-print('Live Draft contract passed: stable profile-scoped traded picks drive Draft Capital, headline next-pick cards, decision guidance, and recap.')
+print('Live Draft contract passed: stable traded-pick ownership drives live cards, completed picks, roster summary, and end-of-draft recap.')
