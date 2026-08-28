@@ -8,13 +8,15 @@ def require(ok, message):
 loader = Path('decision-loader-v61.js').read_text(encoding='utf-8')
 index = Path('index.html').read_text(encoding='utf-8')
 trade = Path('draft-trade-capital-v98.js').read_text(encoding='utf-8')
+sync = Path('draft-pick-ownership-sync-v102.js').read_text(encoding='utf-8')
 ownership = Path('draft-ownership-v45.js').read_text(encoding='utf-8')
 command = Path('live-draft-command-v99.js').read_text(encoding='utf-8')
 recap = Path('draft-recap-upgrade-v100.js').read_text(encoding='utf-8')
 base_recap = Path('draft-recap-v65.js').read_text(encoding='utf-8')
 
 for term in [
-    "'./draft-trade-capital-v98.js?v=985'",
+    "'./draft-trade-capital-v98.js?v=986'",
+    "'./draft-pick-ownership-sync-v102.js?v=1021'",
     "'./draft-ownership-v45.js?v=453'",
     "'./live-draft-command-v99.js?v=991'",
     "'./draft-recap-upgrade-v100.js?v=1001'",
@@ -24,18 +26,19 @@ for term in [
 require('draft-recap-all-picks-v84.js' not in loader,
         'old recap override returned and can replace the authoritative recap')
 
-# Traded-pick ownership must hydrate automatically even when Draft scripts load
-# after the user already connected Sleeper. Draft-level trades win; league rows,
-# completed pick roster ownership, and durable Workhorse overrides provide fallbacks.
+# Traded-pick ownership must survive changing Sleeper/mock draft IDs. Exact-draft
+# rows win, while list-scoped profile rows provide a stable fallback.
 for term in [
-    "const INPUT_KEY='de34_draft_input';",
-    'const POLL_MS=15000;',
-    'function savedSource()',
+    "const INPUT_KEY='de34_draft_input',POLL_MS=15000;",
+    'function listId()',
     'function pickOverrides()',
     'function loadDurableOverrides(draftId)',
     "client.from('draft_pick_overrides')",
-    ".select('round,original_slot,owner_slot')",
-    'state.durableOverrides=normalizeOverrides(data);',
+    ".eq('draft_id',did)",
+    ".eq('draft_id','*').eq('list_id',lid)",
+    "scope:'profile'",
+    "scope:'exact'",
+    'state.source.profile=profile.length',
     'function overrideOwnerSlot(round,originalSlot)',
     'forcedOwnerSlot=overrideOwnerSlot(r,s)',
     'ownerSlot=forcedOwnerSlot||apiOwnerSlot||s',
@@ -48,13 +51,26 @@ for term in [
     "ingest(draftRows,4,'draft',false)",
     "ingest(leagueRows,2,'league',true)",
     "source:'pick'",
-    'durable Workhorse overrides',
+    'Workhorse profile ',
     'loadDurableOverrides(did)',
-    'if(extractId(savedSource()))setTimeout(start,300);',
+    "window.addEventListener('workhorse:cloud-rankings-ready'",
     'acquired',
     'traded away',
 ]:
-    require(term in trade, 'automatic/durable traded-pick ownership behavior missing: ' + term)
+    require(term in trade, 'stable/profile traded-pick ownership behavior missing: ' + term)
+
+# The headline Live Draft cards must use the same authoritative capital engine;
+# otherwise the page can still show original snake picks while Draft Capital is right.
+for term in [
+    'WorkhorseDraftTradeCapital?.capital?.()',
+    "document.querySelectorAll('#deDraftRoomSummary .de-draft-card')",
+    "v.textContent='#'+next",
+    'Pick after this:',
+    'window.WorkhorseSyncDraftPickOwnership=syncSummary',
+]:
+    require(term in sync, 'main Live Draft summary is not synced to traded-pick ownership: ' + term)
+require('MutationObserver' not in sync,
+        'draft ownership summary sync must not add a persistent DOM observer')
 
 # Completed picks must use Sleeper roster_id as current ownership. draft_slot is
 # only the physical board column and is not ownership after a trade.
@@ -107,4 +123,4 @@ for term in [
 require('deRecap65' in base_recap,
         'base recap modal/button disappeared; v100 needs the durable recap shell')
 
-print('Live Draft contract passed: durable draft-specific trade overrides, Sleeper ownership, roster-aware completed picks, positional pressure, notes, make-it-back guidance, and recap are protected.')
+print('Live Draft contract passed: stable profile-scoped traded picks drive Draft Capital, headline next-pick cards, decision guidance, and recap.')
