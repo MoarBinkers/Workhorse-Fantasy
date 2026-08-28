@@ -14,7 +14,7 @@ recap = Path('draft-recap-upgrade-v100.js').read_text(encoding='utf-8')
 base_recap = Path('draft-recap-v65.js').read_text(encoding='utf-8')
 
 for term in [
-    "'./draft-trade-capital-v98.js?v=984'",
+    "'./draft-trade-capital-v98.js?v=985'",
     "'./draft-ownership-v45.js?v=453'",
     "'./live-draft-command-v99.js?v=991'",
     "'./draft-recap-upgrade-v100.js?v=1001'",
@@ -26,13 +26,17 @@ require('draft-recap-all-picks-v84.js' not in loader,
 
 # Traded-pick ownership must hydrate automatically even when Draft scripts load
 # after the user already connected Sleeper. Draft-level trades win; league rows,
-# completed pick roster ownership, and explicit saved board overrides provide fallbacks.
+# completed pick roster ownership, and durable Workhorse overrides provide fallbacks.
 for term in [
-    "const INPUT_KEY='de34_draft_input',POLL_MS=15000;",
+    "const INPUT_KEY='de34_draft_input';",
+    'const POLL_MS=15000;',
     'function savedSource()',
     'function pickOverrides()',
+    'function loadDurableOverrides(draftId)',
+    "client.from('draft_pick_overrides')",
+    ".select('round,original_slot,owner_slot')",
+    'state.durableOverrides=normalizeOverrides(data);',
     'function overrideOwnerSlot(round,originalSlot)',
-    'p.pickOverrides',
     'forcedOwnerSlot=overrideOwnerSlot(r,s)',
     'ownerSlot=forcedOwnerSlot||apiOwnerSlot||s',
     'overridden:!!forcedOwnerSlot',
@@ -44,13 +48,13 @@ for term in [
     "ingest(draftRows,4,'draft',false)",
     "ingest(leagueRows,2,'league',true)",
     "source:'pick'",
-    'Sleeper trade records: draft ',
-    'saved ownership overrides',
+    'durable Workhorse overrides',
+    'loadDurableOverrides(did)',
     'if(extractId(savedSource()))setTimeout(start,300);',
     'acquired',
     'traded away',
 ]:
-    require(term in trade, 'automatic/resilient traded-pick ownership behavior missing: ' + term)
+    require(term in trade, 'automatic/durable traded-pick ownership behavior missing: ' + term)
 
 # Completed picks must use Sleeper roster_id as current ownership. draft_slot is
 # only the physical board column and is not ownership after a trade.
@@ -103,4 +107,4 @@ for term in [
 require('deRecap65' in base_recap,
         'base recap modal/button disappeared; v100 needs the durable recap shell')
 
-print('Live Draft contract passed: automatic Sleeper trade ownership plus saved board overrides, roster-aware completed picks, positional pressure, notes, make-it-back guidance, and recap are protected.')
+print('Live Draft contract passed: durable draft-specific trade overrides, Sleeper ownership, roster-aware completed picks, positional pressure, notes, make-it-back guidance, and recap are protected.')
