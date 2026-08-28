@@ -23,6 +23,7 @@
   ];
   const draftFiles=[
     './draft-room-v41.js?v=414',
+    './draft-trade-capital-v98.js?v=981',
     './draft-help-v76.js?v=763',
     './reset-draft-v42.js?v=43',
     './sleeper-auto-draft-v44.js?v=45',
