@@ -20,7 +20,6 @@ recovery = Path('ranking-data-recovery-v95.js').read_text(encoding='utf-8')
 rounds = Path('round-bands-v61.js').read_text(encoding='utf-8')
 drag_scroll = Path('drag-scroll-guard-v97.js').read_text(encoding='utf-8')
 
-# Core Sleeper feed must stay true-format, top-250, and free of directory preload/autofill.
 required_central = [
     "const AUTO_RANK_LIMIT=250;",
     "const CACHE_PREFIX='wh92_true_adp_';",
@@ -47,7 +46,6 @@ for forbidden in [
     if forbidden in central:
         raise SystemExit(f'Blocking/generic/auto-fill startup behavior reintroduced: {forbidden}')
 
-# Full directory access is allowed only after explicit Add Player search.
 for term in [
     'const REMOTE_LIMIT=40;',
     'const MIN_QUERY=2;',
@@ -62,7 +60,6 @@ for term in [
     if term not in ondemand:
         raise SystemExit(f'On-demand full-player search protection missing: {term}')
 
-# Critical startup stays small and cache versions must point at current hydration/matcher code.
 for term in [
     './brand-fast-v92.js?v=922',
     './patch-v29.js?v=298',
@@ -72,7 +69,7 @@ for term in [
     './mobile-touch-v75.js?v=753',
     './cloud-reliability-v41.js?v=415',
     './new-user-adp-v60.js?v=610',
-    './decision-loader-v61.js?v=647',
+    './decision-loader-v61.js?v=648',
 ]:
     if term not in index:
         raise SystemExit(f'Critical startup key missing: {term}')
@@ -82,7 +79,6 @@ for term in ['./draft-room-v41.js','./live-draft-edge-v82.js','./rankings-news-u
     if term in index:
         raise SystemExit(f'Noncritical file moved back onto startup path: {term}')
 
-# Lazy feature loader: no Rank/EDGE repair layer is allowed on startup.
 for term in [
     'const coreFiles=[',
     'const backgroundFiles=[',
@@ -110,9 +106,6 @@ for retired in ['rank-edge-fix-v95.js','rank-edge-source-v96.js']:
     if Path(retired).exists():
         raise SystemExit(f'Obsolete Rank/EDGE repair file still exists: {retired}')
 
-# Ranking drop must preserve the viewport without a permanent DOM watcher or
-# scroll loop. ALL rankings can hold absolute scroll; filtered WR/RB/QB/TE views
-# must preserve a visible player row because reordering can change layout above it.
 for term in [
     '__WORKHORSE_DRAG_SCROLL_GUARD_97__',
     "root.addEventListener('dragstart'",
@@ -130,8 +123,6 @@ for term in [
 if 'new MutationObserver(' in drag_scroll:
     raise SystemExit('Drag/drop viewport guard must not add a persistent DOM watcher.')
 
-# Recovery must keep verified central ADP authoritative, preserve metadata, and
-# keep round controls available in Rankings/ADP without waiting for Draft.
 for term in [
     'function normalizeSleeperPool()',
     'function enrichActiveByes()',
@@ -147,9 +138,6 @@ for term in ['const VALID_SIZES=[10,12,14];','League Size','10 teams','12 teams'
 if "./round-bands-v61.js?v=615" in loader:
     raise SystemExit('Round bands must not be Draft-only anymore.')
 
-# Rank/EDGE must resolve inside marketFor with authoritative Sleeper IDs. The
-# index self-heals when central ADP replaces market objects; it must not depend on
-# an extra render pass just to refresh lookup state.
 for term in [
     'let marketIdIndex=new Map();',
     'let indexedProbeName=',
@@ -169,8 +157,6 @@ for term in [
 if 'wrapRenderWithMarketIndex' in patch:
     raise SystemExit('Sleeper index refresh must not depend on wrapping/rerunning renderers.')
 
-# Signed-in cloud data must win the startup race. Guest starter creation is
-# forbidden until Supabase has resolved the initial session.
 for term in [
     'window.WorkhorseAuthResolved=false;',
     'function readCachedActiveId()',
@@ -193,8 +179,6 @@ for term in [
     if term not in onboarding:
         raise SystemExit(f'Onboarding auth-race protection missing: {term}')
 
-# Hidden pages and avatars must stay cheap. Never scan every avatar in response
-# to arbitrary body mutations.
 for term in [
     'window.__WORKHORSE_RENDER_GUARD_93__',
     'content-visibility:auto',
@@ -210,8 +194,6 @@ for term in [
 if 'new MutationObserver(tuneExisting)' in tier:
     raise SystemExit('Whole-page avatar rescan observer was reintroduced.')
 
-# Cap scripts must install only once; personal cap must not bootstrap a second
-# Sleeper cap script and create duplicate listeners/observers.
 if '__WORKHORSE_RANK_LIST_CAP_93__' not in rank_cap:
     raise SystemExit('Personal ranking cap one-time guard missing.')
 if 'sleeper-rank-cap-v94.js' in rank_cap:
@@ -221,7 +203,6 @@ if '__WORKHORSE_SLEEPER_RANK_CAP_94__' not in sleeper_cap:
 if 'root.children.length>MAX' not in sleeper_cap:
     raise SystemExit('Sleeper cap observer is not using the lightweight size check.')
 
-# Existing delayed-work protections.
 for term in ['WorkhorseRefreshPlayerHistory', 'raw.length>120', 'requestIdleCallback(run,{timeout:300})']:
     if term not in detail:
         raise SystemExit(f'Player drawer performance protection missing: {term}')
@@ -243,7 +224,6 @@ if 'WorkhorseTrueSleeperAdpEntry' not in edge or 'searchRank' in edge:
 if 'WorkhorseTrueSleeperAdpEntry' not in movement:
     raise SystemExit('ADP Change is not locked to true Sleeper ADP.')
 
-# Single compressed bundle remains the only base-app request in normal startup.
 if "const bundle='./app-v28.bin?v=28d';" not in index:
     raise SystemExit('Single-request Workhorse bundle is not the primary startup path.')
 if 'loadChunkFallback' not in index or "app-v28-part-'" not in index:
