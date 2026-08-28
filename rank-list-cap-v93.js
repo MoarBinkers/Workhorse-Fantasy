@@ -1,4 +1,4 @@
-// v93 — hard-cap every ranking list at 250 players, including existing local/cloud lists.
+// v93.1 — hard-cap every ranking list at 250 players and bootstrap the same 250 cap for Sleeper Rankings.
 (()=>{
   const MAX_PLAYERS=250;
   let enforcing=false;
@@ -85,7 +85,6 @@
     }finally{enforcing=false}
   }
 
-  // Never allow a normal save to put >250 players back into storage.
   try{
     const baseSave=typeof save==='function'?save:null;
     if(baseSave){
@@ -115,12 +114,23 @@
     }
   }catch(_){}
 
-  // Clean lists already sitting in this browser immediately, then clean cloud lists after restore.
   enforceAll({persistCloud:false});
   window.addEventListener('workhorse:cloud-rankings-ready',()=>enforceAll({persistCloud:true}));
   document.addEventListener('click',e=>{
     if(e.target.closest('[data-restore-version]'))[700,1800].forEach(ms=>setTimeout(()=>enforceAll({persistCloud:true}),ms));
   },true);
+
+  // The old feature loader already loads this file on every site. Use it as a
+  // compatibility bootstrap so even devices with the previous loader get the
+  // new hard cap for the Sleeper Rankings / Current ADP page.
+  try{
+    if(!window.WorkhorseSleeperRankCap&&!document.querySelector('script[data-wh-sleeper-rank-cap]')){
+      const s=document.createElement('script');
+      s.src='./sleeper-rank-cap-v94.js?v=941';
+      s.async=false;s.dataset.whSleeperRankCap='1';
+      document.body.appendChild(s);
+    }
+  }catch(_){}
 
   window.WorkhorseRankingListCap={max:MAX_PLAYERS,enforce:()=>enforceAll({persistCloud:true})};
 })();
