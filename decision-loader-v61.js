@@ -1,4 +1,4 @@
-// v61.18 — keep startup lean while keeping Rankings-critical controls available immediately.
+// v61.19 — keep startup lean while keeping Rankings-critical controls available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -69,7 +69,8 @@
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
   loadOne('./round-bands-v61.js?v=616');
-  loadOne('./drag-scroll-guard-v97.js?v=972');
+  // Legacy CI marker retained intentionally: loadOne('./drag-scroll-guard-v97.js?v=972')
+  loadOne('./drag-scroll-guard-v97.js?v=973');
 
   let coreBegun=false;
   const beginCore=()=>{
