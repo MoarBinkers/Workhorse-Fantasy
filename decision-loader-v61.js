@@ -1,8 +1,7 @@
-// v61.19 — keep startup lean while keeping Rankings-critical controls available immediately.
+// v61.20 — keep startup lean while making canonical ranking sync available immediately.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
-    './rank-sync-v38.js?v=395',
     './sleeper-update-status-v40.js?v=402',
     './adp-movement-v49.js?v=495',
     './player-tags-cta-v53.js?v=533',
@@ -69,6 +68,9 @@
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
   loadOne('./round-bands-v61.js?v=616');
+  // Ranking order is not optional/lazy: position views must share the same
+  // canonical overall order from the moment Rankings becomes interactive.
+  loadOne('./rank-sync-v38.js?v=396');
   // Legacy CI marker retained intentionally: loadOne('./drag-scroll-guard-v97.js?v=972')
   loadOne('./drag-scroll-guard-v97.js?v=973');
 
