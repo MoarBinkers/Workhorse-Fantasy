@@ -1,4 +1,4 @@
-// v29.6 — foundational normalization, self-healing indexed market matching, list sanitation, synced-player exclusions, and canonical position ranks.
+// v29.7 — foundational normalization, self-healing indexed market matching, list sanitation, synced-player exclusions, and canonical position ranks.
 (()=>{
   function cleanPlayerName(value){
     let s=String(value||"").trim().replace(/\s+/g," ");
@@ -117,10 +117,11 @@
     return {text:m>0?"+"+m:String(m),cls:m>0?"up":m<0?"down":"flat"};
   };
 
+  const personalOverallOrder=()=>Array.isArray(players)?players.slice().sort((a,b)=>(Number(a.overall)||999999)-(Number(b.overall)||999999)):[];
   function syncPersonalPosRanksFromOverall(){
     if(!Array.isArray(players))return false;
     const counts={};let changed=false;
-    players.slice().sort((a,b)=>(Number(a.overall)||999999)-(Number(b.overall)||999999)).forEach(p=>{
+    personalOverallOrder().forEach(p=>{
       const pos=String(p.position||'');
       counts[pos]=(counts[pos]||0)+1;
       if(Number(p.posRank)!==counts[pos]){p.posRank=counts[pos];changed=true}
@@ -128,6 +129,16 @@
     return changed;
   }
   window.WorkhorseSyncPosRanksFromOverall=syncPersonalPosRanksFromOverall;
+
+  // OVERALL is the one source of truth. Position tabs are just filtered views of
+  // that same order; posRank is derived metadata, never an independent ranking.
+  orderedPos=function(pos){
+    syncPersonalPosRanksFromOverall();
+    return personalOverallOrder().filter(p=>String(p.position||'')===String(pos));
+  };
+  resequencePos=function(){syncPersonalPosRanksFromOverall()};
+  window.orderedPos=orderedPos;
+  window.resequencePos=resequencePos;
 
   marketHeads=function(){return '<div class="colheads market"><div>Player</div><div>Sleeper Rank</div><div>Pos Rank</div><div>ADP Change</div></div>'};
 
@@ -167,7 +178,7 @@
     if(!confirm('Remove "'+cleanPlayerName(p.name)+'" from this ranking list?'))return;
     excludeFromAutoSync(p);
     players.splice(i,1);
-    players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999)).forEach((x,n)=>x.overall=n+1);
+    personalOverallOrder().forEach((x,n)=>x.overall=n+1);
     syncPersonalPosRanksFromOverall();
     save();document.getElementById("drawer")?.classList.remove("open");renderEverything();
   }
@@ -196,15 +207,24 @@
       seen.add(key);next.push(p);
     }
     if(next.length!==players.length){players=next;changed=true}
-    players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999)).forEach((p,i)=>{
+    personalOverallOrder().forEach((p,i)=>{
       if(Number(p.overall)!==i+1){p.overall=i+1;changed=true}
     });
     if(syncPersonalPosRanksFromOverall())changed=true;
     if(changed)save();
+    return changed;
   }
 
   const oldLoadActiveList=loadActiveList;
-  loadActiveList=function(){oldLoadActiveList();sanitizeCurrentPlayers();setTimeout(()=>window.WorkhorseReconcileSleeperRankings?.(),0)};
+  loadActiveList=function(){
+    const out=oldLoadActiveList.apply(this,arguments);
+    const repaired=sanitizeCurrentPlayers();
+    if(repaired){
+      try{renderRankings()}catch(_){try{renderEverything()}catch(__){}}
+    }
+    setTimeout(()=>window.WorkhorseReconcileSleeperRankings?.(),0);
+    return out;
+  };
 
   const oldConfirmImportList=confirmImportList;
   confirmImportList=async function(){
