@@ -1,4 +1,4 @@
-// v29.5 — foundational normalization, self-healing indexed market matching, list sanitation, and synced-player exclusions.
+// v29.6 — foundational normalization, self-healing indexed market matching, list sanitation, synced-player exclusions, and canonical position ranks.
 (()=>{
   function cleanPlayerName(value){
     let s=String(value||"").trim().replace(/\s+/g," ");
@@ -63,15 +63,9 @@
     const sleeperId=typeof value==="object"?(value?.sleeperId||value?.id):null;
     const position=typeof value==="object"?String(value?.position||value?.pos||'').toUpperCase():'';
 
-    // Sleeper player IDs are stable and authoritative. Only reject an ID match
-    // when both sides explicitly disagree on position; do not require name text
-    // to be identical (e.g. James Cook III vs James Cook).
     if(sleeperId){
       let hit=marketIdIndex.get(String(sleeperId));
       if(!hit){
-        // Rare path: on-demand search may add one market row without replacing
-        // the probe object. Scan once on the miss, rebuild the indexes, then all
-        // subsequent rows return to O(1) lookups.
         try{
           for(const [key,entry] of Object.entries(market||{})){
             if(entry&&String(entry.id||'')===String(sleeperId)){
@@ -123,6 +117,18 @@
     return {text:m>0?"+"+m:String(m),cls:m>0?"up":m<0?"down":"flat"};
   };
 
+  function syncPersonalPosRanksFromOverall(){
+    if(!Array.isArray(players))return false;
+    const counts={};let changed=false;
+    players.slice().sort((a,b)=>(Number(a.overall)||999999)-(Number(b.overall)||999999)).forEach(p=>{
+      const pos=String(p.position||'');
+      counts[pos]=(counts[pos]||0)+1;
+      if(Number(p.posRank)!==counts[pos]){p.posRank=counts[pos];changed=true}
+    });
+    return changed;
+  }
+  window.WorkhorseSyncPosRanksFromOverall=syncPersonalPosRanksFromOverall;
+
   marketHeads=function(){return '<div class="colheads market"><div>Player</div><div>Sleeper Rank</div><div>Pos Rank</div><div>ADP Change</div></div>'};
 
   rankRow=function(p,mode="rankings"){
@@ -160,14 +166,13 @@
     const p=players[i];if(!p)return;
     if(!confirm('Remove "'+cleanPlayerName(p.name)+'" from this ranking list?'))return;
     excludeFromAutoSync(p);
-    const pos=p.position;players.splice(i,1);
+    players.splice(i,1);
     players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999)).forEach((x,n)=>x.overall=n+1);
-    players.filter(x=>x.position===pos).sort((a,b)=>(Number(a.posRank)||9999)-(Number(b.posRank)||9999)).forEach((x,n)=>x.posRank=n+1);
+    syncPersonalPosRanksFromOverall();
     save();document.getElementById("drawer")?.classList.remove("open");renderEverything();
   }
   window.removePlayer=removePlayer;
 
-  // Market rows delegate to the current player-detail implementation at click time.
   const adpList=document.getElementById("adpList");
   if(adpList&&!adpList.dataset.v29Click){
     adpList.dataset.v29Click="1";
@@ -190,9 +195,11 @@
       if(seen.has(key)){changed=true;continue}
       seen.add(key);next.push(p);
     }
-    if(next.length!==players.length)players=next;
-    players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999)).forEach((p,i)=>p.overall=i+1);
-    POS.forEach(pos=>players.filter(p=>p.position===pos).sort((a,b)=>(Number(a.posRank)||9999)-(Number(b.posRank)||9999)).forEach((p,i)=>p.posRank=i+1));
+    if(next.length!==players.length){players=next;changed=true}
+    players.slice().sort((a,b)=>(Number(a.overall)||99999)-(Number(b.overall)||99999)).forEach((p,i)=>{
+      if(Number(p.overall)!==i+1){p.overall=i+1;changed=true}
+    });
+    if(syncPersonalPosRanksFromOverall())changed=true;
     if(changed)save();
   }
 
@@ -208,6 +215,7 @@
   const oldExportCurrentList=exportCurrentList;
   exportCurrentList=function(){
     players.forEach(p=>p.name=cleanPlayerName(p.name));
+    syncPersonalPosRanksFromOverall();
     return oldExportCurrentList();
   };
   const exportBtn=document.getElementById("exportRankings");if(exportBtn)exportBtn.onclick=exportCurrentList;
