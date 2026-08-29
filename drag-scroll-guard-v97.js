@@ -146,6 +146,9 @@
     captureSnapshot(e);
   }
   function finishCustom(e){
+    // A quick desktop drag can activate and release before a second pointermove.
+    // If the engine is visibly dragging at release, take the snapshot right here.
+    if(!tracking&&customDragActive())startTracking(e);
     if(!tracking)return;
     // If this listener runs before the drag engine's pointerup/touchend handler,
     // capture the final pre-render viewport. If it runs after, keep the last move/
