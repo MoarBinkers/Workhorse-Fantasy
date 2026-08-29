@@ -1,7 +1,7 @@
-// v97.2 — preserve the user's viewport across Rankings drag/drop rerenders.
-// ALL rankings keeps the simple scroll lock. Position views (WR/RB/QB/TE)
-// preserve a visible player row in the same viewport location, because moving a
-// filtered row can change the amount/height of content above the drop point.
+// v97.3 — preserve the user's viewport across the real custom pointer/touch ranking reorder paths.
+// Desktop Rankings no longer use native HTML5 drag/drop, and mobile uses its own
+// touch engine, so this guard tracks both custom drag systems and keeps a stable
+// visible player anchored through the synchronous render and short save rerender window.
 (()=>{
   if(window.__WORKHORSE_DRAG_SCROLL_GUARD_97__)return;
   window.__WORKHORSE_DRAG_SCROLL_GUARD_97__=true;
@@ -9,92 +9,108 @@
   const root=document.getElementById('rankList');
   if(!root)return;
 
-  let dragging=false;
+  let tracking=false;
+  let restoring=false;
   let restoreToken=0;
   let cancelRestore=false;
   let unlockTimer=0;
+  let scrollRaf=0;
+  let draggedIndex='';
+  let snapshot=null;
 
   const style=document.createElement('style');
   style.id='whDragScrollGuard97Css';
-  style.textContent='#rankList.wh97-drag-lock{overflow-anchor:none!important}';
+  style.textContent=`
+    html.wh97-drag-lock,html.wh97-drag-lock body,#rankList.wh97-drag-lock{
+      overflow-anchor:none!important;
+      scroll-behavior:auto!important;
+    }
+  `;
   document.head.appendChild(style);
-
-  const userInterrupt=()=>{if(!dragging)cancelRestore=true};
-  window.addEventListener('wheel',userInterrupt,{passive:true,capture:true});
-  window.addEventListener('touchstart',userInterrupt,{passive:true,capture:true});
-  window.addEventListener('pointerdown',userInterrupt,{passive:true,capture:true});
-  window.addEventListener('keydown',userInterrupt,true);
 
   function currentPos(){
     try{return String(rankPos||'ALL').toUpperCase()}catch(_){return 'ALL'}
   }
-  function rowName(row){return row?.querySelector?.('.name')?.textContent?.trim()||''}
-  function findRowByName(name){
-    if(!name)return null;
-    for(const row of root.querySelectorAll(':scope .player.rankings')){
-      if(rowName(row)===name)return row;
-    }
-    return null;
-  }
-  function firstVisibleRow(){
+  const rowIndex=row=>String(row?.dataset?.index??'');
+  const isVisible=row=>{
+    if(!row||!row.isConnected||row.offsetParent===null)return false;
+    const r=row.getBoundingClientRect();
+    return r.bottom>0&&r.top<window.innerHeight;
+  };
+  function firstVisibleRow(excludeIndex=''){
     const top=Math.max(0,document.querySelector('header')?.getBoundingClientRect?.().bottom||0);
     let best=null,bestDist=Infinity;
-    for(const row of root.querySelectorAll(':scope .player.rankings')){
+    for(const row of root.querySelectorAll('.player[data-index]')){
+      if(rowIndex(row)===excludeIndex||!isVisible(row))continue;
       const r=row.getBoundingClientRect();
-      if(r.bottom<=top||r.top>=window.innerHeight)continue;
+      if(r.bottom<=top)continue;
       const dist=Math.abs(r.top-top);
       if(dist<bestDist){best=row;bestDist=dist}
     }
     return best;
   }
+  function findRowByIndex(index){
+    if(index==='')return null;
+    for(const row of root.querySelectorAll('.player[data-index]')){
+      if(rowIndex(row)===String(index))return row;
+    }
+    return null;
+  }
   function captureAnchor(e){
-    // Prefer the actual row under the drop pointer. If the pointer lands in a
-    // gap, preserve the first visible player instead.
-    const row=e?.target?.closest?.('.player.rankings')||firstVisibleRow();
+    let row=e?.target?.closest?.('#rankList .player[data-index]')||null;
+    if(!row||rowIndex(row)===draggedIndex||!isVisible(row))row=firstVisibleRow(draggedIndex);
     if(!row)return null;
-    const name=rowName(row);if(!name)return null;
-    return {name,top:row.getBoundingClientRect().top};
+    return {index:rowIndex(row),top:row.getBoundingClientRect().top};
+  }
+  function captureSnapshot(e){
+    snapshot={
+      x:window.scrollX,
+      y:window.scrollY,
+      anchor:captureAnchor(e),
+      filtered:currentPos()!=='ALL'
+    };
+    return snapshot;
+  }
+  function lock(){
+    document.documentElement.classList.add('wh97-drag-lock');
+    root.classList.add('wh97-drag-lock');
+  }
+  function unlock(){
+    document.documentElement.classList.remove('wh97-drag-lock');
+    root.classList.remove('wh97-drag-lock');
   }
   function holdAbsolute(y,token){
     if(cancelRestore||token!==restoreToken)return;
     const maxY=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
-    const target=Math.min(y,maxY);
+    const target=Math.max(0,Math.min(y,maxY));
     if(Math.abs(window.scrollY-target)>1)window.scrollTo({top:target,left:window.scrollX,behavior:'auto'});
   }
   function holdAnchor(anchor,fallbackY,token){
     if(cancelRestore||token!==restoreToken)return;
-    const row=findRowByName(anchor?.name);
+    const row=findRowByIndex(anchor?.index);
     if(!row){holdAbsolute(fallbackY,token);return}
     const delta=row.getBoundingClientRect().top-anchor.top;
-    if(Math.abs(delta)>1)window.scrollBy({top:delta,left:0,behavior:'auto'});
+    if(Math.abs(delta)>1){
+      const maxY=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
+      const target=Math.max(0,Math.min(window.scrollY+delta,maxY));
+      window.scrollTo({top:target,left:window.scrollX,behavior:'auto'});
+    }
   }
   function restore(anchor,y,token,filtered){
-    if(filtered&&anchor)holdAnchor(anchor,y,token);
+    // Preserve a stable visible row whenever possible. This avoids the subtle
+    // one-row jump that absolute scrollY alone can still show after reordering.
+    if(anchor)holdAnchor(anchor,y,token);
     else holdAbsolute(y,token);
   }
-  function releaseLock(token){
-    if(token!==restoreToken)return;
-    root.classList.remove('wh97-drag-lock');
-  }
-
-  root.addEventListener('dragstart',e=>{
-    if(!e.target.closest('.player[draggable="true"]'))return;
-    dragging=true;cancelRestore=false;restoreToken++;
-    clearTimeout(unlockTimer);
-    root.classList.add('wh97-drag-lock');
-  },true);
-
-  root.addEventListener('drop',e=>{
-    if(!dragging)return;
-    const y=window.scrollY;
-    const filtered=currentPos()!=='ALL';
-    const anchor=filtered?captureAnchor(e):null;
+  function scheduleRestore(snap){
+    if(!snap)return;
+    const {anchor,y,filtered}=snap;
     const token=++restoreToken;
-    cancelRestore=false;dragging=false;
+    cancelRestore=false;
+    restoring=true;
+    clearTimeout(unlockTimer);
+    lock();
 
-    // Position views need row anchoring because reordering a filtered player can
-    // change layout above the viewport. Keep the anchor stable through the normal
-    // synchronous render plus the short save/cloud rerender window.
     queueMicrotask(()=>restore(anchor,y,token,filtered));
     requestAnimationFrame(()=>{
       restore(anchor,y,token,filtered);
@@ -103,13 +119,109 @@
     setTimeout(()=>restore(anchor,y,token,filtered),40);
     setTimeout(()=>restore(anchor,y,token,filtered),120);
     setTimeout(()=>restore(anchor,y,token,filtered),220);
-    unlockTimer=setTimeout(()=>releaseLock(token),260);
-  },true);
+    unlockTimer=setTimeout(()=>{
+      if(token!==restoreToken)return;
+      restore(anchor,y,token,filtered);
+      restoring=false;
+      unlock();
+    },280);
+  }
 
-  root.addEventListener('dragend',()=>{
-    dragging=false;
-    if(!unlockTimer)unlockTimer=setTimeout(()=>root.classList.remove('wh97-drag-lock'),260);
-  },true);
+  const customDragActive=()=>
+    document.body.classList.contains('wh-ranking-dragging')||
+    !!root.querySelector('.player.mobile-touch-dragging');
 
-  window.WorkhorseDragScrollGuard={version:97.2};
+  function startTracking(e){
+    if(tracking)return;
+    const dragged=root.querySelector('.player.wh-pointer-dragging,.player.mobile-touch-dragging');
+    draggedIndex=rowIndex(dragged);
+    tracking=true;
+    cancelRestore=false;
+    lock();
+    captureSnapshot(e);
+  }
+  function trackMove(e){
+    if(!customDragActive())return;
+    if(!tracking)startTracking(e);
+    captureSnapshot(e);
+  }
+  function finishCustom(e){
+    if(!tracking)return;
+    // If this listener runs before the drag engine's pointerup/touchend handler,
+    // capture the final pre-render viewport. If it runs after, keep the last move/
+    // scroll snapshot rather than accidentally anchoring the already-rebuilt list.
+    if(customDragActive())captureSnapshot(e);
+    const snap=snapshot;
+    tracking=false;
+    draggedIndex='';
+    scheduleRestore(snap);
+  }
+  function cancelTracking(){
+    if(!tracking)return;
+    tracking=false;
+    draggedIndex='';
+    snapshot=null;
+    if(!restoring)unlock();
+  }
+
+  document.addEventListener('pointermove',trackMove,{capture:true,passive:true});
+  document.addEventListener('touchmove',trackMove,{capture:true,passive:true});
+  window.addEventListener('scroll',()=>{
+    if(!tracking||scrollRaf)return;
+    scrollRaf=requestAnimationFrame(()=>{scrollRaf=0;if(tracking)captureSnapshot()});
+  },{passive:true});
+  document.addEventListener('pointerup',finishCustom,true);
+  document.addEventListener('touchend',finishCustom,true);
+  document.addEventListener('pointercancel',cancelTracking,true);
+  document.addEventListener('touchcancel',cancelTracking,true);
+  window.addEventListener('blur',cancelTracking);
+
+  const userInterrupt=()=>{
+    if(!restoring)return;
+    cancelRestore=true;
+    restoring=false;
+    clearTimeout(unlockTimer);
+    unlock();
+  };
+  window.addEventListener('wheel',userInterrupt,{passive:true,capture:true});
+  window.addEventListener('touchstart',userInterrupt,{passive:true,capture:true});
+  window.addEventListener('pointerdown',userInterrupt,{passive:true,capture:true});
+  window.addEventListener('keydown',userInterrupt,true);
+
+  // Keep the legacy native path as a fallback for any older renderer that still
+  // emits HTML5 drag events. The current desktop/mobile engines are handled above.
+  root.addEventListener('dragstart',e=>{
+    const row=e.target.closest?.('.player[data-index]');
+    if(!row)return;
+    draggedIndex=rowIndex(row);
+    tracking=true;
+    cancelRestore=false;
+    lock();
+    captureSnapshot(e);
+  },true);
+  root.addEventListener('drop',e=>{
+    if(!tracking)return;
+    captureSnapshot(e);
+    const y=window.scrollY;
+    const filtered=currentPos()!=='ALL';
+    const anchor=captureAnchor(e);
+    const token=++restoreToken;
+    cancelRestore=false;
+    tracking=false;
+    restoring=true;
+    draggedIndex='';
+    queueMicrotask(()=>restore(anchor,y,token,filtered));
+    requestAnimationFrame(()=>{
+      restore(anchor,y,token,filtered);
+      requestAnimationFrame(()=>restore(anchor,y,token,filtered));
+    });
+    setTimeout(()=>restore(anchor,y,token,filtered),40);
+    setTimeout(()=>restore(anchor,y,token,filtered),120);
+    setTimeout(()=>restore(anchor,y,token,filtered),220);
+    clearTimeout(unlockTimer);
+    unlockTimer=setTimeout(()=>{if(token===restoreToken){restoring=false;unlock()}},280);
+  },true);
+  root.addEventListener('dragend',()=>{if(tracking)cancelTracking()},true);
+
+  window.WorkhorseDragScrollGuard={version:97.3,mode:'pointer-touch-anchor'};
 })();
