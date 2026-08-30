@@ -1,16 +1,16 @@
-// v75.3 — mobile tier dragging shares the exact same canonical Overall ranking order.
+// v75.4 — mobile position ranks stay synced to Overall while tiers remain visual-only.
 (()=>{
-  if(window.__WORKHORSE_MOBILE_TOUCH_753__)return;
-  window.__WORKHORSE_MOBILE_TOUCH_753__=true;
+  if(window.__WORKHORSE_MOBILE_TOUCH_754__)return;
+  window.__WORKHORSE_MOBILE_TOUCH_754__=true;
 
   const MOBILE_QUERY='(max-width: 820px)';
   const HOLD_MS=280,MOVE_CANCEL=12;
   const isMobileTouch=()=>window.matchMedia?.(MOBILE_QUERY).matches&&(navigator.maxTouchPoints||0)>0;
   if(!isMobileTouch())return;
 
-  const oldStyle=document.getElementById('workhorse-mobile-touch-v752');oldStyle?.remove();
+  const oldStyle=document.getElementById('workhorse-mobile-touch-v753');oldStyle?.remove();
   const style=document.createElement('style');
-  style.id='workhorse-mobile-touch-v753';
+  style.id='workhorse-mobile-touch-v754';
   style.textContent=`
     @media (max-width:820px){
       html,body{overflow-x:hidden}
@@ -111,40 +111,20 @@
     ordered.forEach((p,i)=>p.overall=slots[i]??i+1);
     syncPosRanks();return true;
   }
-  function tierConfigIndex(pos,tier){
-    if(tier==null)return 999999;
-    try{
-      const cfg=Array.isArray(tiers?.[pos])?tiers[pos]:[];
-      const i=cfg.findIndex(t=>tierVal(t?.id)===tierVal(tier));
-      return i<0?999998:i;
-    }catch(_){return 999998}
-  }
-  function tierBoundaryIndex(order,pos,destTier){
-    if(destTier==null)return order.length;
-    const same=order.map((p,i)=>({p,i})).filter(x=>tierVal(x.p.tier)===destTier);
-    if(same.length)return same[same.length-1].i+1;
-    const destIdx=tierConfigIndex(pos,destTier);
-    for(let i=0;i<order.length;i++){
-      const t=tierVal(order[i].tier);
-      if(t==null||tierConfigIndex(pos,t)>destIdx)return i;
-    }
-    return order.length;
-  }
-  function reorderPosition(dragged,target,after,destTier){
+  function reorderPositionSameTier(dragged,target,after,sourceTier){
     const pos=String(dragged.position||'');
+    if(!target||String(target.position||'')!==pos||tierVal(target.tier)!==tierVal(sourceTier))return false;
     const posOrder=overallOrder().filter(p=>String(p.position||'')===pos);
     const slots=posOrder.map(p=>num(p.overall)).sort((a,b)=>a-b);
-    if(!posOrder.includes(dragged))return false;
-    const next=posOrder.filter(p=>p!==dragged);
-    let at=-1;
-    if(target&&String(target.position||'')===pos){
-      at=next.indexOf(target);
-      if(at>=0&&after)at+=1;
-    }
-    if(at<0)at=tierBoundaryIndex(next,pos,destTier);
-    at=Math.max(0,Math.min(at,next.length));
-    dragged.tier=destTier;next.splice(at,0,dragged);
-    next.forEach((p,i)=>p.overall=slots[i]??p.overall);
+    const members=posOrder.filter(p=>tierVal(p.tier)===tierVal(sourceTier));
+    if(members.length<2)return false;
+    const moved=members.filter(p=>p!==dragged);
+    let at=moved.indexOf(target);if(at<0)return false;
+    if(after)at+=1;
+    moved.splice(at,0,dragged);
+    const memberSet=new Set(members);let j=0;
+    const desired=posOrder.map(p=>memberSet.has(p)?moved[j++]:p);
+    desired.forEach((p,i)=>p.overall=slots[i]);
     syncPosRanks();return true;
   }
 
@@ -154,8 +134,14 @@
     const mode=typeof rankPos==='string'?rankPos:'ALL';
     if(mode==='ALL')reorderAll(dragged,target,state.after);
     else{
-      const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):state.sourceTier);
-      reorderPosition(dragged,target,state.after,destTier);
+      const sourceTier=state.sourceTier;
+      const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):sourceTier);
+      if(tierVal(sourceTier)!==tierVal(destTier)){
+        dragged.tier=destTier;
+        syncPosRanks();
+      }else{
+        reorderPositionSameTier(dragged,target,state.after,sourceTier);
+      }
     }
     saveAndRender();
   }
