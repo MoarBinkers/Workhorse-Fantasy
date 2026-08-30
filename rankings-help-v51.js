@@ -1,9 +1,9 @@
-// v75.5 — rankings helper copy reflects canonical Overall/position/tier syncing.
+// v75.6 — helper copy matches canonical Overall ranks and visual-only tiers.
 (()=>{
   const mobileTouch=()=>window.matchMedia?.('(max-width: 820px)').matches&&(navigator.maxTouchPoints||0)>0;
   const copy=mobileTouch()
-    ? 'ALL is your overall ranking list. Position ranks are automatically derived from that same order. On mobile, press and hold a player card, then drag it up or down. Moving or reordering a player in a position tier also updates their Overall ranking position.'
-    : 'ALL is your overall ranking list and the source of truth. Position ranks are automatically derived from that same order. Dragging a player within or between position tiers also updates Overall, so the two views always stay connected.';
+    ? 'ALL is your overall ranking list and the source of truth. Position ranks are automatically derived from that same order. On mobile, press and hold a player card to reorder. Reordering changes rank; moving a player between tiers only changes the visual tier and does not change their rank.'
+    : 'ALL is your overall ranking list and the source of truth. Position ranks are automatically derived from that same order. Reordering players changes their rank; moving a player between tiers only changes the visual tier and does not change their rank.';
   const hint=mobileTouch()?'Tap any player card to see more details.':'Click any player card to see more details.';
 
   function addHint(target,key){
@@ -30,9 +30,9 @@
   apply();
   [250,900,2200,5000].forEach(ms=>setTimeout(apply,ms));
 
-  if(mobileTouch()&&!window.__WORKHORSE_MOBILE_TOUCH_753__&&!document.querySelector('script[data-mobile-touch-v75]')){
+  if(mobileTouch()&&!window.__WORKHORSE_MOBILE_TOUCH_754__&&!document.querySelector('script[data-mobile-touch-v75]')){
     const s=document.createElement('script');
-    s.src='./mobile-touch-v75.js?v=754';
+    s.src='./mobile-touch-v75.js?v=755';
     s.async=false;
     s.dataset.mobileTouchV75='1';
     document.head.appendChild(s);
