@@ -1,13 +1,16 @@
-// v75.2 — deliberate long-press mobile ranking reorder using the same row identity as desktop.
+// v75.3 — mobile tier dragging shares the exact same canonical Overall ranking order.
 (()=>{
-  const MOBILE_QUERY='(max-width: 820px)';
-  const HOLD_MS=280;
-  const MOVE_CANCEL=12;
-  const isMobileTouch=()=>window.matchMedia?.(MOBILE_QUERY).matches && (navigator.maxTouchPoints||0)>0;
-  if(!isMobileTouch()) return;
+  if(window.__WORKHORSE_MOBILE_TOUCH_753__)return;
+  window.__WORKHORSE_MOBILE_TOUCH_753__=true;
 
+  const MOBILE_QUERY='(max-width: 820px)';
+  const HOLD_MS=280,MOVE_CANCEL=12;
+  const isMobileTouch=()=>window.matchMedia?.(MOBILE_QUERY).matches&&(navigator.maxTouchPoints||0)>0;
+  if(!isMobileTouch())return;
+
+  const oldStyle=document.getElementById('workhorse-mobile-touch-v752');oldStyle?.remove();
   const style=document.createElement('style');
-  style.id='workhorse-mobile-touch-v752';
+  style.id='workhorse-mobile-touch-v753';
   style.textContent=`
     @media (max-width:820px){
       html,body{overflow-x:hidden}
@@ -18,30 +21,29 @@
       #rankList .player.mobile-drop-before{box-shadow:inset 0 3px 0 #60a5fa!important}
       #rankList .player.mobile-drop-after{box-shadow:inset 0 -3px 0 #60a5fa!important}
       #rankList .tier-drop.mobile-tier-drop{outline:2px solid rgba(96,165,250,.72);outline-offset:-2px}
-    }
-  `;
+    }`;
   document.head.appendChild(style);
 
-  let state=null;
-  let suppressClickUntil=0;
-
+  let state=null,suppressClickUntil=0;
   const num=(v,f=999999)=>Number.isFinite(Number(v))?Number(v):f;
   const tierVal=v=>v==null||v===''||Number(v)===0?null:Number(v);
-  const sameTier=(a,b)=>tierVal(a)===tierVal(b);
   const overallOrder=()=>Array.isArray(players)?players.slice().sort((a,b)=>num(a.overall)-num(b.overall)):[];
   const playerFromRow=row=>{
     const i=Number(row?.dataset?.index);
-    return Number.isInteger(i)&&Array.isArray(players)?players[i]:null;
+    return Number.isInteger(i)&&Array.isArray(players)?players[i]||null:null;
   };
   const syncPosRanks=()=>{
+    if(typeof window.WorkhorseSyncPosRanksFromOverall==='function'){
+      window.WorkhorseSyncPosRanksFromOverall();return;
+    }
     const counts={};
     overallOrder().forEach(p=>{
       const pos=String(p.position||'');
-      counts[pos]=(counts[pos]||0)+1;
-      p.posRank=counts[pos];
+      counts[pos]=(counts[pos]||0)+1;p.posRank=counts[pos];
     });
   };
   const saveAndRender=()=>{
+    syncPosRanks();
     try{save()}catch(_){}
     try{renderRankings()}catch(_){try{renderEverything()}catch(__){}}
   };
@@ -55,40 +57,30 @@
   };
 
   function makeGhost(row,x,y){
-    const rect=row.getBoundingClientRect();
-    const ghost=row.cloneNode(true);
+    const rect=row.getBoundingClientRect(),ghost=row.cloneNode(true);
     ghost.classList.add('mobile-touch-ghost');
     ghost.classList.remove('mobile-touch-dragging','mobile-drop-before','mobile-drop-after');
     ghost.removeAttribute('draggable');
     ghost.querySelectorAll?.('[id]').forEach(el=>el.removeAttribute('id'));
-    ghost.style.width=rect.width+'px';
-    ghost.style.height=rect.height+'px';
-    ghost.style.left=rect.left+'px';
-    ghost.style.top=(y-rect.height/2)+'px';
+    ghost.style.width=rect.width+'px';ghost.style.height=rect.height+'px';
+    ghost.style.left=rect.left+'px';ghost.style.top=(y-rect.height/2)+'px';
     document.body.appendChild(ghost);
     return {ghost,rect,grabX:x-rect.left};
   }
-
   function activateDrag(touch){
     if(!state||state.active||!state.row.isConnected)return;
-    state.active=true;
-    state.row.classList.add('mobile-touch-dragging');
+    state.active=true;state.row.classList.add('mobile-touch-dragging');
     const g=makeGhost(state.row,touch.clientX,touch.clientY);
-    state.ghost=g.ghost;
-    state.ghostHeight=g.rect.height;
-    state.grabX=g.grabX;
+    state.ghost=g.ghost;state.ghostHeight=g.rect.height;state.grabX=g.grabX;
     suppressClickUntil=Date.now()+500;
     try{navigator.vibrate?.(8)}catch(_){}
   }
-
   function moveGhost(touch){
     if(!state?.ghost)return;
     const width=state.ghost.getBoundingClientRect().width;
-    const left=Math.max(6,Math.min(window.innerWidth-width-6,touch.clientX-state.grabX));
-    state.ghost.style.left=left+'px';
+    state.ghost.style.left=Math.max(6,Math.min(window.innerWidth-width-6,touch.clientX-state.grabX))+'px';
     state.ghost.style.top=(touch.clientY-state.ghostHeight/2)+'px';
   }
-
   function markTarget(touch){
     clearMarks();
     const hit=document.elementFromPoint(touch.clientX,touch.clientY);
@@ -101,11 +93,8 @@
       const r=state.targetRow.getBoundingClientRect();
       state.after=touch.clientY>r.top+r.height/2;
       state.targetRow.classList.add(state.after?'mobile-drop-after':'mobile-drop-before');
-    }else if(state.targetTier){
-      state.targetTier.classList.add('mobile-tier-drop');
-    }
+    }else if(state.targetTier)state.targetTier.classList.add('mobile-tier-drop');
   }
-
   function autoScroll(y){
     const edge=72;
     if(y<edge)window.scrollBy(0,-Math.max(6,(edge-y)*.26));
@@ -113,83 +102,86 @@
   }
 
   function reorderAll(dragged,target,after){
-    const ordered=overallOrder();
-    const slots=ordered.map(p=>num(p.overall)).sort((a,b)=>a-b);
+    const ordered=overallOrder(),slots=ordered.map(p=>num(p.overall)).sort((a,b)=>a-b);
     const from=ordered.indexOf(dragged);if(from<0)return false;
     ordered.splice(from,1);
     let at=target?ordered.indexOf(target):-1;
     if(at<0)at=ordered.length;else if(after)at+=1;
     ordered.splice(Math.max(0,Math.min(at,ordered.length)),0,dragged);
-    ordered.forEach((p,i)=>p.overall=slots[i]??(i+1));
-    syncPosRanks();
-    return true;
+    ordered.forEach((p,i)=>p.overall=slots[i]??i+1);
+    syncPosRanks();return true;
   }
-
-  function reorderPositionSameTier(dragged,target,after,sourceTier){
+  function tierConfigIndex(pos,tier){
+    if(tier==null)return 999999;
+    try{
+      const cfg=Array.isArray(tiers?.[pos])?tiers[pos]:[];
+      const i=cfg.findIndex(t=>tierVal(t?.id)===tierVal(tier));
+      return i<0?999998:i;
+    }catch(_){return 999998}
+  }
+  function tierBoundaryIndex(order,pos,destTier){
+    if(destTier==null)return order.length;
+    const same=order.map((p,i)=>({p,i})).filter(x=>tierVal(x.p.tier)===destTier);
+    if(same.length)return same[same.length-1].i+1;
+    const destIdx=tierConfigIndex(pos,destTier);
+    for(let i=0;i<order.length;i++){
+      const t=tierVal(order[i].tier);
+      if(t==null||tierConfigIndex(pos,t)>destIdx)return i;
+    }
+    return order.length;
+  }
+  function reorderPosition(dragged,target,after,destTier){
     const pos=String(dragged.position||'');
     const posOrder=overallOrder().filter(p=>String(p.position||'')===pos);
     const slots=posOrder.map(p=>num(p.overall)).sort((a,b)=>a-b);
-    const members=posOrder.filter(p=>sameTier(p.tier,sourceTier));
-    if(members.length<2||!target||String(target.position||'')!==pos||!sameTier(target.tier,sourceTier))return false;
-    const reordered=members.filter(p=>p!==dragged);
-    let at=reordered.indexOf(target);if(at<0)return false;
-    if(after)at+=1;
-    reordered.splice(at,0,dragged);
-    const memberSet=new Set(members);let j=0;
-    const desired=posOrder.map(p=>memberSet.has(p)?reordered[j++]:p);
-    desired.forEach((p,i)=>p.overall=slots[i]);
-    syncPosRanks();
-    return true;
+    if(!posOrder.includes(dragged))return false;
+    const next=posOrder.filter(p=>p!==dragged);
+    let at=-1;
+    if(target&&String(target.position||'')===pos){
+      at=next.indexOf(target);
+      if(at>=0&&after)at+=1;
+    }
+    if(at<0)at=tierBoundaryIndex(next,pos,destTier);
+    at=Math.max(0,Math.min(at,next.length));
+    dragged.tier=destTier;next.splice(at,0,dragged);
+    next.forEach((p,i)=>p.overall=slots[i]??p.overall);
+    syncPosRanks();return true;
   }
 
   function commitDrop(){
     if(!state?.active)return;
-    const dragged=state.player;
-    const target=playerFromRow(state.targetRow);
-    const sourceTier=tierVal(state.sourceTier);
-    const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):sourceTier);
+    const dragged=state.player,target=playerFromRow(state.targetRow);
     const mode=typeof rankPos==='string'?rankPos:'ALL';
-    if(mode==='ALL'){
-      reorderAll(dragged,target,state.after);
-    }else if(!sameTier(sourceTier,destTier)){
-      dragged.tier=destTier;
-      syncPosRanks();
-    }else{
-      reorderPositionSameTier(dragged,target,state.after,sourceTier);
+    if(mode==='ALL')reorderAll(dragged,target,state.after);
+    else{
+      const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):state.sourceTier);
+      reorderPosition(dragged,target,state.after,destTier);
     }
     saveAndRender();
   }
-
   function finish(commit){
     if(!state)return;
-    const current=state;
-    clearTimeout(current.holdTimer);
+    const current=state;clearTimeout(current.holdTimer);
     if(current.active&&commit)commitDrop();
     if(current.row?.isConnected)current.row.classList.remove('mobile-touch-dragging');
-    current.ghost?.remove();
-    clearMarks();
+    current.ghost?.remove();clearMarks();
     if(current.active)suppressClickUntil=Date.now()+450;
     state=null;
   }
 
   document.addEventListener('touchstart',e=>{
     if(!isMobileTouch()||e.touches.length!==1||state)return;
-    const row=e.target.closest?.('#rankList .player[data-index]');
-    if(!row)return;
+    const row=e.target.closest?.('#rankList .player[data-index]');if(!row)return;
     if(e.target.closest?.('button,input,textarea,select,a,[contenteditable="true"]'))return;
     const player=playerFromRow(row);if(!player)return;
     const t=e.touches[0];
-    state={
-      row,player,active:false,startX:t.clientX,startY:t.clientY,lastX:t.clientX,lastY:t.clientY,
-      sourceTier:tierVal(player.tier),targetRow:null,targetTier:null,after:false,ghost:null,ghostHeight:0,grabX:0,holdTimer:null
-    };
+    state={row,player,active:false,startX:t.clientX,startY:t.clientY,lastX:t.clientX,lastY:t.clientY,
+      sourceTier:tierVal(player.tier),targetRow:null,targetTier:null,after:false,ghost:null,ghostHeight:0,grabX:0,holdTimer:null};
     state.holdTimer=setTimeout(()=>{
       if(!state)return;
-      const fake={clientX:state.lastX,clientY:state.lastY};
-      activateDrag(fake);markTarget(fake);
+      const fake={clientX:state.lastX,clientY:state.lastY};activateDrag(fake);markTarget(fake);
     },HOLD_MS);
   },{capture:true,passive:true});
-
   document.addEventListener('touchmove',e=>{
     if(!state||e.touches.length!==1)return;
     const t=e.touches[0];state.lastX=t.clientX;state.lastY=t.clientY;
@@ -197,19 +189,15 @@
       if(Math.hypot(t.clientX-state.startX,t.clientY-state.startY)>MOVE_CANCEL){clearTimeout(state.holdTimer);state=null}
       return;
     }
-    e.preventDefault();
-    moveGhost(t);markTarget(t);autoScroll(t.clientY);
+    e.preventDefault();moveGhost(t);markTarget(t);autoScroll(t.clientY);
   },{capture:true,passive:false});
-
   document.addEventListener('touchend',e=>{
     if(!state)return;
-    if(state.active)e.preventDefault();
-    finish(true);
+    if(state.active)e.preventDefault();finish(true);
   },{capture:true,passive:false});
   document.addEventListener('touchcancel',()=>finish(false),{capture:true,passive:true});
   window.addEventListener('blur',()=>finish(false));
   document.addEventListener('visibilitychange',()=>{if(document.hidden)finish(false)});
-
   document.addEventListener('dragstart',e=>{
     if(isMobileTouch()&&e.target.closest?.('#rankList .player[data-index]'))e.preventDefault();
   },true);
