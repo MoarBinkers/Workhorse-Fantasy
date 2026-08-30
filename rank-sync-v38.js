@@ -1,7 +1,7 @@
-// v39.4 — one canonical ranking order across Overall, position tabs, and tiers.
+// v39.5 — Overall is canonical; position ranks stay synced while tiers remain visual-only.
 (()=>{
-  if(window.__WORKHORSE_RANK_SYNC_394__)return;
-  window.__WORKHORSE_RANK_SYNC_394__=true;
+  if(window.__WORKHORSE_RANK_SYNC_395__)return;
+  window.__WORKHORSE_RANK_SYNC_395__=true;
 
   let fixing=false,state=null,suppressClickUntil=0,renderWrapping=false;
   const DESKTOP_QUERY='(min-width: 821px)';
@@ -51,7 +51,7 @@
   function installRenderSync(){
     if(renderWrapping)return;
     let base=null;try{base=renderRankings}catch(_){}
-    if(typeof base!=='function'||base.__whCanonical394)return;
+    if(typeof base!=='function'||base.__whCanonical395)return;
     renderWrapping=true;
     const wrapped=function(){
       syncPosRanksFromOverall();
@@ -59,17 +59,17 @@
       canonicalizeRenderedTierRows();
       return out;
     };
-    wrapped.__whCanonical394=true;wrapped.__whCanonicalBase=base;
+    wrapped.__whCanonical395=true;wrapped.__whCanonicalBase=base;
     try{renderRankings=wrapped}catch(_){}
     try{window.renderRankings=wrapped}catch(_){}
     renderWrapping=false;
   }
 
   function installCss(){
-    if(document.getElementById('workhorse-rank-pointer-v394'))return;
-    document.getElementById('workhorse-rank-pointer-v393')?.remove();
+    if(document.getElementById('workhorse-rank-pointer-v395'))return;
+    document.getElementById('workhorse-rank-pointer-v394')?.remove();
     const s=document.createElement('style');
-    s.id='workhorse-rank-pointer-v394';
+    s.id='workhorse-rank-pointer-v395';
     s.textContent=`
       @media (min-width:821px){
         #rankList .player[data-index]{-webkit-user-select:none;user-select:none;cursor:grab}
@@ -94,7 +94,7 @@
   function installRowGuard(){
     installCss();installRenderSync();disableNativeRows();canonicalizeRenderedTierRows();
     const list=document.getElementById('rankList');
-    if(!list||list.__whPointerObserver394)return;
+    if(!list||list.__whPointerObserver395)return;
     const mo=new MutationObserver(muts=>{
       if(isDesktop()){
         for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)disableNativeRows(n.matches?.('.player[data-index]')?n.parentElement||n:n);
@@ -102,7 +102,7 @@
       if(!fixing)queueMicrotask(()=>{syncPosRanksFromOverall();canonicalizeRenderedTierRows()});
     });
     mo.observe(list,{childList:true,subtree:true});
-    list.__whPointerObserver394=mo;
+    list.__whPointerObserver395=mo;
   }
 
   function clearMarks(){
@@ -168,43 +168,20 @@
     syncPosRanksFromOverall();return true;
   }
 
-  function tierConfigIndex(pos,tier){
-    if(tier==null)return 999999;
-    try{
-      const cfg=Array.isArray(tiers?.[pos])?tiers[pos]:[];
-      const i=cfg.findIndex(t=>tierVal(t?.id)===tierVal(tier));
-      return i<0?999998:i;
-    }catch(_){return 999998}
-  }
-
-  function tierBoundaryIndex(order,pos,destTier){
-    if(destTier==null)return order.length;
-    const same=order.map((p,i)=>({p,i})).filter(x=>tierVal(x.p.tier)===destTier);
-    if(same.length)return same[same.length-1].i+1;
-    const destIdx=tierConfigIndex(pos,destTier);
-    for(let i=0;i<order.length;i++){
-      const t=tierVal(order[i].tier);
-      if(t==null||tierConfigIndex(pos,t)>destIdx)return i;
-    }
-    return order.length;
-  }
-
-  function reorderPosition(dragged,target,after,destTier){
+  function reorderPositionSameTier(dragged,target,after,sourceTier){
     const pos=String(dragged.position||'');
+    if(!target||String(target.position||'')!==pos||tierVal(target.tier)!==tierVal(sourceTier))return false;
     const posOrder=overallOrder().filter(p=>String(p.position||'')===pos);
     const slots=posOrder.map(p=>num(p.overall)).sort((a,b)=>a-b);
-    const from=posOrder.indexOf(dragged);if(from<0)return false;
-    const next=posOrder.filter(p=>p!==dragged);
-    let at=-1;
-    if(target&&String(target.position||'')===pos){
-      at=next.indexOf(target);
-      if(at>=0&&after)at+=1;
-    }
-    if(at<0)at=tierBoundaryIndex(next,pos,destTier);
-    at=Math.max(0,Math.min(at,next.length));
-    dragged.tier=destTier;
-    next.splice(at,0,dragged);
-    next.forEach((p,i)=>p.overall=slots[i]??p.overall);
+    const members=posOrder.filter(p=>tierVal(p.tier)===tierVal(sourceTier));
+    if(members.length<2)return false;
+    const moved=members.filter(p=>p!==dragged);
+    let at=moved.indexOf(target);if(at<0)return false;
+    if(after)at+=1;
+    moved.splice(at,0,dragged);
+    const memberSet=new Set(members);let j=0;
+    const desired=posOrder.map(p=>memberSet.has(p)?moved[j++]:p);
+    desired.forEach((p,i)=>p.overall=slots[i]);
     syncPosRanksFromOverall();return true;
   }
 
@@ -216,8 +193,14 @@
       const mode=typeof rankPos==='string'?rankPos:'ALL';
       if(mode==='ALL')reorderAll(dragged,target,state.after);
       else{
-        const destTier=state.targetTier?tierFromSection(state.targetTier):(target?tierVal(target.tier):state.sourceTier);
-        reorderPosition(dragged,target,state.after,destTier);
+        const sourceTier=state.sourceTier;
+        const destTier=state.targetTier?tierFromSection(state.targetTier):(target?tierVal(target.tier):sourceTier);
+        if(tierVal(sourceTier)!==tierVal(destTier)){
+          dragged.tier=destTier;
+          syncPosRanksFromOverall();
+        }else{
+          reorderPositionSameTier(dragged,target,state.after,sourceTier);
+        }
       }
       syncPosRanksFromOverall();
       try{save()}catch(_){}
