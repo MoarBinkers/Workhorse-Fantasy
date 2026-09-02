@@ -1,16 +1,16 @@
-// v75.4 — mobile position ranks stay synced to Overall while tiers remain visual-only.
+// v75.5 — mobile position-tier reorders write back to canonical Overall slots.
 (()=>{
-  if(window.__WORKHORSE_MOBILE_TOUCH_754__)return;
-  window.__WORKHORSE_MOBILE_TOUCH_754__=true;
+  if(window.__WORKHORSE_MOBILE_TOUCH_755__)return;
+  window.__WORKHORSE_MOBILE_TOUCH_755__=true;
 
   const MOBILE_QUERY='(max-width: 820px)';
   const HOLD_MS=280,MOVE_CANCEL=12;
   const isMobileTouch=()=>window.matchMedia?.(MOBILE_QUERY).matches&&(navigator.maxTouchPoints||0)>0;
   if(!isMobileTouch())return;
 
-  const oldStyle=document.getElementById('workhorse-mobile-touch-v753');oldStyle?.remove();
+  document.getElementById('workhorse-mobile-touch-v754')?.remove();
   const style=document.createElement('style');
-  style.id='workhorse-mobile-touch-v754';
+  style.id='workhorse-mobile-touch-v755';
   style.textContent=`
     @media (max-width:820px){
       html,body{overflow-x:hidden}
@@ -111,20 +111,35 @@
     ordered.forEach((p,i)=>p.overall=slots[i]??i+1);
     syncPosRanks();return true;
   }
-  function reorderPositionSameTier(dragged,target,after,sourceTier){
+
+  function tierBoundaryIndex(order,destTier){
+    const same=[];
+    order.forEach((p,i)=>{if(tierVal(p.tier)===tierVal(destTier))same.push(i)});
+    if(same.length)return same[same.length-1]+1;
+    const sections=[...document.querySelectorAll('#rankList > .tier-drop[data-tier]')];
+    const destIndex=sections.findIndex(s=>tierVal(s.dataset.tier)===tierVal(destTier));
+    if(destIndex<0)return order.length;
+    const later=new Set(sections.slice(destIndex+1).map(s=>tierVal(s.dataset.tier)));
+    const at=order.findIndex(p=>later.has(tierVal(p.tier)));
+    return at<0?order.length:at;
+  }
+
+  function reorderPosition(dragged,target,after,destTier){
     const pos=String(dragged.position||'');
-    if(!target||String(target.position||'')!==pos||tierVal(target.tier)!==tierVal(sourceTier))return false;
     const posOrder=overallOrder().filter(p=>String(p.position||'')===pos);
     const slots=posOrder.map(p=>num(p.overall)).sort((a,b)=>a-b);
-    const members=posOrder.filter(p=>tierVal(p.tier)===tierVal(sourceTier));
-    if(members.length<2)return false;
-    const moved=members.filter(p=>p!==dragged);
-    let at=moved.indexOf(target);if(at<0)return false;
-    if(after)at+=1;
-    moved.splice(at,0,dragged);
-    const memberSet=new Set(members);let j=0;
-    const desired=posOrder.map(p=>memberSet.has(p)?moved[j++]:p);
-    desired.forEach((p,i)=>p.overall=slots[i]);
+    const from=posOrder.indexOf(dragged);if(from<0)return false;
+    const next=posOrder.filter(p=>p!==dragged);
+    let at=-1;
+    if(target&&String(target.position||'')===pos){
+      at=next.indexOf(target);
+      if(at>=0&&after)at+=1;
+    }
+    if(at<0)at=tierBoundaryIndex(next,destTier);
+    at=Math.max(0,Math.min(at,next.length));
+    dragged.tier=destTier;
+    next.splice(at,0,dragged);
+    next.forEach((p,i)=>p.overall=slots[i]??p.overall);
     syncPosRanks();return true;
   }
 
@@ -134,14 +149,8 @@
     const mode=typeof rankPos==='string'?rankPos:'ALL';
     if(mode==='ALL')reorderAll(dragged,target,state.after);
     else{
-      const sourceTier=state.sourceTier;
-      const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):sourceTier);
-      if(tierVal(sourceTier)!==tierVal(destTier)){
-        dragged.tier=destTier;
-        syncPosRanks();
-      }else{
-        reorderPositionSameTier(dragged,target,state.after,sourceTier);
-      }
+      const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):state.sourceTier);
+      reorderPosition(dragged,target,state.after,destTier);
     }
     saveAndRender();
   }
