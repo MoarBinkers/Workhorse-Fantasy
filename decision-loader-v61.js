@@ -1,4 +1,4 @@
-// v61.22 — keep startup lean while making canonical Overall/position ranking sync immediate.
+// v61.23 — keep startup lean while making fully connected Overall/position ranking sync immediate.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -13,7 +13,7 @@
   const backgroundFiles=[
     './logo-fix-v291.js?v=301',
     './rankings-news-update-v83.js?v=834',
-    './rankings-help-v51.js?v=54',
+    './rankings-help-v51.js?v=55',
     './smart-search-v62.js?v=622',
     './player-compare-v63.js?v=632',
     './edge-heat-v64.js?v=643',
@@ -68,9 +68,9 @@
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
   loadOne('./round-bands-v61.js?v=616');
-  // Ranking order is not optional/lazy: Overall is canonical and position ranks
-  // must derive from it from the moment Rankings becomes interactive.
-  loadOne('./rank-sync-v38.js?v=398');
+  // Ranking order is not optional/lazy: Overall is canonical and every position
+  // reorder, including cross-tier moves, must write back into Overall immediately.
+  loadOne('./rank-sync-v38.js?v=399');
   // Legacy CI marker retained intentionally: loadOne('./drag-scroll-guard-v97.js?v=972')
   loadOne('./drag-scroll-guard-v97.js?v=973');
 
