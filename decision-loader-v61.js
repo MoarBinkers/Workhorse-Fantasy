@@ -1,4 +1,4 @@
-// v61.23 — keep startup lean while making fully connected Overall/position ranking sync immediate.
+// v61.24 — unified ranking model loads before interaction; optional features remain deferred.
 (()=>{
   const coreFiles=[
     './on-demand-player-search-v88.js?v=882',
@@ -68,9 +68,10 @@
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
   loadOne('./round-bands-v61.js?v=616');
-  // Ranking order is not optional/lazy: Overall is canonical and every position
-  // reorder, including cross-tier moves, must write back into Overall immediately.
-  loadOne('./rank-sync-v38.js?v=399');
+  // rank-sync-v38 is now loaded directly in index before tier/mobile scripts.
+  // Keep a fallback for older cached index shells and a stable CI marker.
+  // Legacy ranking loader marker: loadOne('./rank-sync-v38.js?v=399')
+  if(!window.__WORKHORSE_RANK_SYNC_397__)loadOne('./rank-sync-v38.js?v=400');
   // Legacy CI marker retained intentionally: loadOne('./drag-scroll-guard-v97.js?v=972')
   loadOne('./drag-scroll-guard-v97.js?v=973');
 
