@@ -1,16 +1,16 @@
-// v75.5 — mobile position-tier reorders write back to canonical Overall slots.
+// v75.6 — mobile uses the same canonical Overall/position/tier ranking model as desktop.
 (()=>{
-  if(window.__WORKHORSE_MOBILE_TOUCH_755__)return;
-  window.__WORKHORSE_MOBILE_TOUCH_755__=true;
+  if(window.__WORKHORSE_MOBILE_TOUCH_756__)return;
+  window.__WORKHORSE_MOBILE_TOUCH_756__=true;
 
   const MOBILE_QUERY='(max-width: 820px)';
   const HOLD_MS=280,MOVE_CANCEL=12;
   const isMobileTouch=()=>window.matchMedia?.(MOBILE_QUERY).matches&&(navigator.maxTouchPoints||0)>0;
   if(!isMobileTouch())return;
 
-  document.getElementById('workhorse-mobile-touch-v754')?.remove();
+  document.getElementById('workhorse-mobile-touch-v755')?.remove();
   const style=document.createElement('style');
-  style.id='workhorse-mobile-touch-v755';
+  style.id='workhorse-mobile-touch-v756';
   style.textContent=`
     @media (max-width:820px){
       html,body{overflow-x:hidden}
@@ -33,13 +33,14 @@
     return Number.isInteger(i)&&Array.isArray(players)?players[i]||null:null;
   };
   const syncPosRanks=()=>{
+    const model=window.WorkhorseRankingModel;
+    if(typeof model?.repair==='function'){model.repair();return}
     if(typeof window.WorkhorseSyncPosRanksFromOverall==='function'){
       window.WorkhorseSyncPosRanksFromOverall();return;
     }
     const counts={};
     overallOrder().forEach(p=>{
-      const pos=String(p.position||'');
-      counts[pos]=(counts[pos]||0)+1;p.posRank=counts[pos];
+      const pos=String(p.position||'');counts[pos]=(counts[pos]||0)+1;p.posRank=counts[pos];
     });
   };
   const saveAndRender=()=>{
@@ -69,6 +70,7 @@
   }
   function activateDrag(touch){
     if(!state||state.active||!state.row.isConnected)return;
+    try{window.WorkhorseRankingModel?.repair?.()}catch(_){}
     state.active=true;state.row.classList.add('mobile-touch-dragging');
     const g=makeGhost(state.row,touch.clientX,touch.clientY);
     state.ghost=g.ghost;state.ghostHeight=g.rect.height;state.grabX=g.grabX;
@@ -101,56 +103,37 @@
     else if(y>window.innerHeight-edge)window.scrollBy(0,Math.max(6,(y-(window.innerHeight-edge))*.26));
   }
 
-  function reorderAll(dragged,target,after){
+  // Fallbacks are retained for an old cached page, but the normal path below
+  // delegates to WorkhorseRankingModel so mobile and desktop cannot diverge.
+  function reorderAllFallback(dragged,target,after){
     const ordered=overallOrder(),slots=ordered.map(p=>num(p.overall)).sort((a,b)=>a-b);
     const from=ordered.indexOf(dragged);if(from<0)return false;
     ordered.splice(from,1);
     let at=target?ordered.indexOf(target):-1;
     if(at<0)at=ordered.length;else if(after)at+=1;
     ordered.splice(Math.max(0,Math.min(at,ordered.length)),0,dragged);
-    ordered.forEach((p,i)=>p.overall=slots[i]??i+1);
-    syncPosRanks();return true;
+    ordered.forEach((p,i)=>p.overall=slots[i]??i+1);syncPosRanks();return true;
   }
-
-  function tierBoundaryIndex(order,destTier){
-    const same=[];
-    order.forEach((p,i)=>{if(tierVal(p.tier)===tierVal(destTier))same.push(i)});
-    if(same.length)return same[same.length-1]+1;
-    const sections=[...document.querySelectorAll('#rankList > .tier-drop[data-tier]')];
-    const destIndex=sections.findIndex(s=>tierVal(s.dataset.tier)===tierVal(destTier));
-    if(destIndex<0)return order.length;
-    const later=new Set(sections.slice(destIndex+1).map(s=>tierVal(s.dataset.tier)));
-    const at=order.findIndex(p=>later.has(tierVal(p.tier)));
-    return at<0?order.length:at;
-  }
-
-  function reorderPosition(dragged,target,after,destTier){
-    const pos=String(dragged.position||'');
-    const posOrder=overallOrder().filter(p=>String(p.position||'')===pos);
-    const slots=posOrder.map(p=>num(p.overall)).sort((a,b)=>a-b);
-    const from=posOrder.indexOf(dragged);if(from<0)return false;
-    const next=posOrder.filter(p=>p!==dragged);
-    let at=-1;
-    if(target&&String(target.position||'')===pos){
-      at=next.indexOf(target);
-      if(at>=0&&after)at+=1;
-    }
-    if(at<0)at=tierBoundaryIndex(next,destTier);
-    at=Math.max(0,Math.min(at,next.length));
-    dragged.tier=destTier;
-    next.splice(at,0,dragged);
-    next.forEach((p,i)=>p.overall=slots[i]??p.overall);
-    syncPosRanks();return true;
+  function reorderPositionFallback(dragged,target,after,destTier){
+    const pos=String(dragged.position||''),posOrder=overallOrder().filter(p=>String(p.position||'')===pos);
+    const slots=posOrder.map(p=>num(p.overall)).sort((a,b)=>a-b),next=posOrder.filter(p=>p!==dragged);
+    let at=target&&String(target.position||'')===pos?next.indexOf(target):-1;
+    if(at>=0&&after)at+=1;if(at<0)at=next.length;
+    dragged.tier=tierVal(destTier);next.splice(at,0,dragged);next.forEach((p,i)=>p.overall=slots[i]??p.overall);syncPosRanks();return true;
   }
 
   function commitDrop(){
     if(!state?.active)return;
     const dragged=state.player,target=playerFromRow(state.targetRow);
     const mode=typeof rankPos==='string'?rankPos:'ALL';
-    if(mode==='ALL')reorderAll(dragged,target,state.after);
-    else{
+    const model=window.WorkhorseRankingModel;
+    if(mode==='ALL'){
+      if(typeof model?.reorderAll==='function')model.reorderAll(dragged,target,state.after);
+      else reorderAllFallback(dragged,target,state.after);
+    }else{
       const destTier=state.targetTier?tierFromEl(state.targetTier):(target?tierVal(target.tier):state.sourceTier);
-      reorderPosition(dragged,target,state.after,destTier);
+      if(typeof model?.reorderPosition==='function')model.reorderPosition(dragged,target,state.after,destTier);
+      else reorderPositionFallback(dragged,target,state.after,destTier);
     }
     saveAndRender();
   }
@@ -187,8 +170,7 @@
     e.preventDefault();moveGhost(t);markTarget(t);autoScroll(t.clientY);
   },{capture:true,passive:false});
   document.addEventListener('touchend',e=>{
-    if(!state)return;
-    if(state.active)e.preventDefault();finish(true);
+    if(!state)return;if(state.active)e.preventDefault();finish(true);
   },{capture:true,passive:false});
   document.addEventListener('touchcancel',()=>finish(false),{capture:true,passive:true});
   window.addEventListener('blur',()=>finish(false));
