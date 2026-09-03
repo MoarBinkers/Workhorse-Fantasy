@@ -23,6 +23,8 @@ jobs:
       - name: Check active JavaScript syntax
         run: |
           node --check patch-v29.js
+          node --check rank-sync-v38.js
+          node --check mobile-touch-v75.js
           node --check tier-v33.js
           node --check central-adp-v92.js
           node --check rank-list-cap-v93.js
