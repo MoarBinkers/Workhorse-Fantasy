@@ -1,6 +1,7 @@
-// v61.24 — unified ranking model loads before interaction; optional features remain deferred.
+// v61.25 — unified ranking model stays critical; non-ranking enhancements remain deferred.
 (()=>{
   const coreFiles=[
+    './player-detail-v34.js?v=344',
     './on-demand-player-search-v88.js?v=882',
     './sleeper-update-status-v40.js?v=402',
     './adp-movement-v49.js?v=495',
@@ -13,7 +14,7 @@
   const backgroundFiles=[
     './logo-fix-v291.js?v=301',
     './rankings-news-update-v83.js?v=834',
-    './rankings-help-v51.js?v=55',
+    './rankings-help-v51.js?v=56',
     './smart-search-v62.js?v=622',
     './player-compare-v63.js?v=632',
     './edge-heat-v64.js?v=643',
@@ -68,7 +69,7 @@
   loadOne('./sleeper-rank-cap-v94.js?v=942');
   loadOne('./ranking-data-recovery-v95.js?v=951');
   loadOne('./round-bands-v61.js?v=616');
-  // rank-sync-v38 is now loaded directly in index before tier/mobile scripts.
+  // rank-sync-v38 is loaded directly in index before tier/mobile scripts.
   // Keep a fallback for older cached index shells and a stable CI marker.
   // Legacy ranking loader marker: loadOne('./rank-sync-v38.js?v=399')
   if(!window.__WORKHORSE_RANK_SYNC_397__)loadOne('./rank-sync-v38.js?v=400');
