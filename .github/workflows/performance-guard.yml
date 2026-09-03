@@ -42,3 +42,5 @@ jobs:
           node --check new-user-adp-v60.js
           node --check player-detail-v34.js
           node --check on-demand-player-search-v88.js
+      - name: Check connected ranking behavior
+        run: node .github/rank-sync-regression-test.js
