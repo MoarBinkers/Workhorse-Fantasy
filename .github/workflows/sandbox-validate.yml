@@ -31,11 +31,13 @@ jobs:
           node --check sandbox-guard-v1.js
           node --check sandbox-admin-v1.js
           node --check season-home-v1.js
-          node --check season-rankings-v2.js
-          node --check sandbox-rankings-loader-v1.js
-          node --check sandbox-return-home-v1.js
+          node --check season-rankings-v3.js
+          node --check sandbox-tools-v1.js
+          node --check sandbox-rankings-loader-v2.js
+          node --check sandbox-open-tool-v1.js
+          node --check sandbox-return-home-v2.js
 
-      - name: Verify sandbox safety and PPR in-season product split
+      - name: Verify sandbox safety and premium in-season product split
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -43,22 +45,27 @@ jobs:
           guard=Path('sandbox-guard-v1.js').read_text()
           admin=Path('sandbox-admin-v1.js').read_text()
           home=Path('season-home-v1.js').read_text()
-          season=Path('season-rankings-v2.js').read_text()
-          preseason=Path('sandbox-rankings-loader-v1.js').read_text()
+          season=Path('season-rankings-v3.js').read_text()
+          tools=Path('sandbox-tools-v1.js').read_text()
+          legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
             'sandbox page is noindex':'noindex,nofollow,noarchive' in page,
             'guard loads before sandbox app':'sandbox-guard-v1.js' in page,
             'season home remains default':'IN-SEASON MODE' in page and 'Latest fantasy news' in page,
-            'PPR-only product language':'PPR' in page and 'format=eq.ppr' in season,
-            'ROS route exists':'view=ros' in page and 'ROS Rankings' in page,
-            'weekly route exists':'view=weekly' in page and 'Weekly Rankings' in page,
-            'weekly boards are separated by week':'wh_week_master_v2::' in season and 'Week ${i+1}' in season,
-            'personal ROS and weekly stores are distinct':'wh_my_ros_v2' in season and 'wh_my_week_v2::' in season,
-            'My Rankings has ROS and weekly modes':'My ROS' in season and 'My Weekly' in season,
+            'PPR ROS route exists':'view=ros' in page,
+            'PPR weekly route exists':'view=weekly' in page,
+            'personal rankings route exists':'view=my-rankings' in page,
+            'tools opens a hub first':'view=tools' in page and 'sandbox-tools-v1.js' in page,
+            'home does not load legacy bundle':'app-v28.bin' not in page,
+            'legacy bundle is click-gated':'app-v28.bin' in legacy,
+            'tools hub offers specific utilities':'ADP & Draft Board' in tools and 'Live Draft' in tools and 'Preseason Rankings & Tiers' in tools,
+            'rankings have Sleeper headshots':'sleepercdn.com/content/nfl/players/thumb/' in season,
+            'rankings fetch actual season stats':'/stats/nfl/regular/' in season and 'pts_ppr' in season,
+            'rankings support mouse drag':'dragstart' in season and 'dropBefore' in season,
+            'rankings support touch drag':'pointerdown' in season and 'drag-handle' in season,
+            'master and personal stores are separate':'wh_ros_master_v3' in season and 'wh_my_ros_v3' in season,
+            'weekly boards are separated by week':'wh_week_master_v3::' in season and 'wh_my_week_v3::' in season,
             'owner verification protects master editing':'workhorse_role' in season and "==='owner'" in season,
-            'preseason tools remain tucked away':'view=preseason' in page and '>Tools<' in page,
-            'home itself does not load old ranking bundle':'app-v28.bin' not in page,
-            'preseason bundle is click-gated':'sandbox-rankings-loader-v1.js' in page and 'app-v28.bin' in preseason,
             'live season feed exists':'player_news' in home and 'sleeper_player_status' in home,
             'owner-only site editor remains':'workhorse_role' in admin and "==='owner'" in admin,
             'production write block exists':'sandbox_write_blocked' in guard,
