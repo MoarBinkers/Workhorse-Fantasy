@@ -2,7 +2,7 @@
   'use strict';
   if(window.__WORKHORSE_SANDBOX_GUARD__) return;
   window.__WORKHORSE_SANDBOX__=true;
-  window.__WORKHORSE_SANDBOX_GUARD__={version:1,storageNamespace:'wh_sandbox_v1::',productionWritesBlocked:true};
+  window.__WORKHORSE_SANDBOX_GUARD__={version:2,storageNamespace:'wh_sandbox_v1::',productionWritesBlocked:true,editorBootstrap:true};
 
   const NS='wh_sandbox_v1::';
   const proto=Storage.prototype;
@@ -73,6 +73,15 @@
         }
         return nativeBeacon(url,data);
       };
+    }
+  }catch(_){ }
+
+  // Load the owner editor during initial parsing so route scripts cannot skip it.
+  try{
+    if(document.readyState==='loading'){
+      document.write('<script defer src="./sandbox-admin-v1.js?v=7" data-wh-admin-bootstrap><\/script>');
+    }else if(!document.querySelector('script[data-wh-admin-bootstrap]')){
+      const s=document.createElement('script');s.src='./sandbox-admin-v1.js?v=7';s.dataset.whAdminBootstrap='1';document.head.appendChild(s);
     }
   }catch(_){ }
 })();
