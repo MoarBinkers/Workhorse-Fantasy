@@ -71,7 +71,7 @@
   }
 
   function markEditable(){document.querySelectorAll('h1,h2,h3,h4,p,span,button,a,label,.brand-title,.brand-tagline,.pagehead *,.nav button,.btn,.small,.notice').forEach(el=>{if(eligible(el))el.dataset.whEditable='1'})}
-  function applyEdits(){Object.entries(edits).forEach(([key,value])=>{try{const el=document.querySelector(key);if(el&&typeof value==='string'&&eligible(el))el.textContent=value}catch(_){}})}
+  function applyEdits(){Object.entries(edits).forEach(([key,value])=>{try{const el=document.querySelector(key);if(el&&typeof value==='string'&&eligible(el)&&(el.textContent||'')!==value)el.textContent=value}catch(_){}})}
 
   function setMode(next){
     mode=next;document.documentElement.classList.toggle('wh-sb-edit',mode==='edit');document.documentElement.classList.toggle('wh-sb-preview',mode==='preview');shadow.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));panel.classList.remove('open');selected=null;const old=document.getElementById('wh-sandbox-selected');if(old)old.removeAttribute('id');status.textContent=mode==='edit'?'Click outlined text to edit':mode==='preview'?'Previewing sandbox changes':'Production writes blocked';
