@@ -1,0 +1,55 @@
+name: Validate Workhorse Sandbox
+
+on:
+  push:
+    branches: ["sandbox"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-workhorse-sandbox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sandbox
+        uses: actions/checkout@v4
+
+      - name: Validate production contracts remain intact
+        run: |
+          python .github/performance-regression-check.py
+          python .github/release-contract-check.py
+          python .github/live-draft-release-check.py
+          node .github/rank-sync-regression-test.js
+
+      - name: Check sandbox JavaScript syntax
+        run: |
+          node --check sandbox-guard-v1.js
+          node --check sandbox-admin-v1.js
+
+      - name: Verify sandbox safety contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          page = Path('sandbox.html').read_text()
+          guard = Path('sandbox-guard-v1.js').read_text()
+          admin = Path('sandbox-admin-v1.js').read_text()
+          checks = {
+              'sandbox page is noindex': 'noindex,nofollow,noarchive' in page,
+              'guard loads before sandbox app': 'sandbox-guard-v1.js' in page,
+              'editor is loaded': 'sandbox-admin-v1.js' in page,
+              'production write block exists': 'sandbox_write_blocked' in guard,
+              'storage is namespaced': 'wh_sandbox_v1::' in guard,
+              'publish remains locked': 'Publish locked' in admin,
+              'main deploy workflow still targets main': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          for name, ok in checks.items():
+              print(('PASS' if ok else 'FAIL') + ': ' + name)
+          if failed:
+              raise SystemExit('Sandbox safety checks failed: ' + ', '.join(failed))
+          PY
