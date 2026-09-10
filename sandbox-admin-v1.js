@@ -1,98 +1,29 @@
-(()=>{
-  'use strict';
-  if(window.__WORKHORSE_SANDBOX_ADMIN__) return;
-  window.__WORKHORSE_SANDBOX_ADMIN__=true;
-
-  const STORE='wh_editor_edits_v1';
-  let mode='view';
-  let edits={};
-  let undoStack=[];
-  let redoStack=[];
-  let selected=null;
-
-  try{edits=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(_){edits={}}
-  const save=()=>{try{localStorage.setItem(STORE,JSON.stringify(edits))}catch(_){}};
-
-  const style=document.createElement('style');
-  style.id='wh-sandbox-editor-css';
-  style.textContent=`
-    html{scroll-padding-top:58px}
-    body{padding-top:52px!important}
-    html.wh-sb-edit [data-wh-editable="1"]{outline:1px dashed rgba(83,177,255,.58);outline-offset:2px;cursor:pointer}
-    html.wh-sb-edit [data-wh-editable="1"]:hover{outline:2px solid #62b8ff;background:rgba(98,184,255,.06)}
-    html.wh-sb-preview [data-wh-editable="1"]{outline:none!important}
-    #wh-sandbox-selected{outline:2px solid #f2c96d!important;background:rgba(242,201,109,.08)!important}
-  `;
-  document.head.appendChild(style);
-
-  const host=document.createElement('div');
-  host.id='wh-sandbox-admin-host';
-  host.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;height:52px';
-  const shadow=host.attachShadow({mode:'open'});
-  shadow.innerHTML=`
-    <style>
-      *{box-sizing:border-box}.bar{height:52px;background:#07111b;color:#edf5fb;border-bottom:1px solid #26415a;display:flex;align-items:center;gap:8px;padding:7px 10px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.28)}
-      .badge{font-size:11px;font-weight:900;letter-spacing:.08em;color:#06111b;background:#f2c96d;border-radius:999px;padding:7px 10px;white-space:nowrap}.spacer{flex:1}.group{display:flex;gap:5px}.btn{border:1px solid #344d63;background:#10202d;color:#dce8f1;border-radius:8px;padding:7px 10px;font-weight:750;font-size:12px;cursor:pointer}.btn:hover{background:#172b3b}.btn.active{background:#e8f3fb;color:#07111b;border-color:#e8f3fb}.btn.danger{border-color:#784551;color:#f0b7c0}.btn.publish{border-color:#715b2a;color:#f2c96d}.status{font-size:11px;color:#94a9b9;white-space:nowrap}.panel{display:none;position:fixed;top:60px;right:12px;width:min(390px,calc(100vw - 24px));background:#0d1721;color:#edf5fb;border:1px solid #385169;border-radius:12px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.48)}.panel.open{display:block}.label{font-size:11px;color:#91a6b6;margin-bottom:6px}.target{font-size:12px;font-weight:800;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.input{width:100%;min-height:92px;resize:vertical;border:1px solid #3a5268;background:#08121b;color:#fff;border-radius:9px;padding:10px;font:13px/1.4 system-ui}.row{display:flex;gap:7px;justify-content:flex-end;margin-top:10px}.hint{font-size:11px;color:#7f94a5;line-height:1.45;margin-top:8px}@media(max-width:780px){.status{display:none}.btn{padding:7px 8px}.hide-sm{display:none}.bar{gap:5px;padding:7px 6px}}
-    </style>
-    <div class="bar">
-      <div class="badge">SANDBOX · NOT LIVE</div>
-      <div class="group"><button class="btn active" data-mode="view">View</button><button class="btn" data-mode="edit">Edit</button><button class="btn" data-mode="preview">Preview</button></div>
-      <div class="group"><button class="btn hide-sm" id="undo">Undo</button><button class="btn hide-sm" id="redo">Redo</button></div>
-      <div class="status" id="status">Production writes blocked</div><div class="spacer"></div>
-      <button class="btn danger" id="reset">Reset edits</button><button class="btn publish" id="publish">Publish locked</button>
-    </div>
-    <div class="panel" id="panel"><div class="label">EDITING</div><div class="target" id="target"></div><textarea class="input" id="input"></textarea><div class="row"><button class="btn" id="cancel">Cancel</button><button class="btn active" id="save">Save change</button></div><div class="hint">This saves only to the sandbox. It does not edit production or push to main.</div></div>`;
-  document.documentElement.appendChild(host);
-
-  const $=q=>shadow.querySelector(q);
-  const status=$('#status'),panel=$('#panel'),input=$('#input'),targetLabel=$('#target');
-
-  function stableKey(el){
-    if(el.id&&el.id!=='wh-sandbox-selected')return '#'+CSS.escape(el.id);
-    if(el.dataset&&el.dataset.page)return el.tagName.toLowerCase()+'[data-page="'+CSS.escape(el.dataset.page)+'"]';
-    const parts=[];let node=el;
-    while(node&&node!==document.body&&parts.length<6){
-      let part=node.tagName.toLowerCase();
-      if(node.classList&&node.classList.length){const cls=[...node.classList].filter(c=>!c.startsWith('active')&&!c.startsWith('wh-')).slice(0,2);if(cls.length)part+='.'+cls.map(CSS.escape).join('.')}
-      const parent=node.parentElement;
-      if(parent){const same=[...parent.children].filter(x=>x.tagName===node.tagName);if(same.length>1)part+=`:nth-of-type(${same.indexOf(node)+1})`}
-      parts.unshift(part);node=parent;
-    }
-    return parts.join('>');
-  }
-
-  function eligible(el){
-    if(!el||!el.matches||el.closest('#wh-sandbox-admin-host'))return false;
-    if(el.closest('.rank-list,.player,.player-row,.draft-list,[id*="rankList"],[id*="draftList"],table,tbody'))return false;
-    if(el.matches('input,textarea,select,option,svg,path,img,video,canvas'))return false;
-    const text=(el.textContent||'').trim();
-    if(!text||text.length>220||el.children.length>3)return false;
-    return el.matches('h1,h2,h3,h4,p,span,button,a,label,.brand-title,.brand-tagline,.pagehead *,.nav button,.btn,.small,.notice');
-  }
-
-  function markEditable(){document.querySelectorAll('h1,h2,h3,h4,p,span,button,a,label,.brand-title,.brand-tagline,.pagehead *,.nav button,.btn,.small,.notice').forEach(el=>{if(eligible(el))el.dataset.whEditable='1'})}
-  function applyEdits(){Object.entries(edits).forEach(([key,value])=>{try{const el=document.querySelector(key);if(el&&typeof value==='string'&&eligible(el)&&(el.textContent||'')!==value)el.textContent=value}catch(_){}})}
-
-  function setMode(next){
-    mode=next;document.documentElement.classList.toggle('wh-sb-edit',mode==='edit');document.documentElement.classList.toggle('wh-sb-preview',mode==='preview');shadow.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));panel.classList.remove('open');selected=null;const old=document.getElementById('wh-sandbox-selected');if(old)old.removeAttribute('id');status.textContent=mode==='edit'?'Click outlined text to edit':mode==='preview'?'Previewing sandbox changes':'Production writes blocked';
-  }
-
-  function openEditor(el){
-    const old=document.getElementById('wh-sandbox-selected');if(old)old.removeAttribute('id');selected=el;if(!selected.id)selected.id='wh-sandbox-selected';targetLabel.textContent=stableKey(el);input.value=(el.textContent||'').trim();panel.classList.add('open');setTimeout(()=>{input.focus();input.select()},0);
-  }
-
-  function commitEdit(){
-    if(!selected)return;const key=stableKey(selected),before=(selected.textContent||'').trim(),after=input.value.trim();if(after!==before){undoStack.push({key,before,after});redoStack=[];edits[key]=after;save();selected.textContent=after;status.textContent='Sandbox change saved'}panel.classList.remove('open');selected=null;const old=document.getElementById('wh-sandbox-selected');if(old)old.removeAttribute('id');
-  }
-
-  function history(item,toValue,stack){if(!item)return;try{const el=document.querySelector(item.key);if(el)el.textContent=toValue;edits[item.key]=toValue;save();stack.push(item);status.textContent='Sandbox edit history updated'}catch(_){}}
-
-  shadow.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
-  $('#save').addEventListener('click',commitEdit);$('#cancel').addEventListener('click',()=>{panel.classList.remove('open');selected=null;const old=document.getElementById('wh-sandbox-selected');if(old)old.removeAttribute('id')});
-  $('#undo').addEventListener('click',()=>{const i=undoStack.pop();if(i)history(i,i.before,redoStack)});$('#redo').addEventListener('click',()=>{const i=redoStack.pop();if(i)history(i,i.after,undoStack)});
-  $('#reset').addEventListener('click',()=>{if(!confirm('Reset all click-to-edit sandbox text changes? Production will not be affected.'))return;edits={};undoStack=[];redoStack=[];save();location.reload()});
-  $('#publish').addEventListener('click',()=>alert('Publish is intentionally locked. Sandbox changes cannot reach main until you explicitly approve a production release.'));
-
-  document.addEventListener('click',e=>{if(mode!=='edit')return;const el=e.target&&e.target.closest?e.target.closest('[data-wh-editable="1"]'):null;if(!el||!eligible(el))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();openEditor(el)},true);
-  const observer=new MutationObserver(()=>{markEditable();applyEdits()});observer.observe(document.documentElement,{childList:true,subtree:true});markEditable();applyEdits();setMode('view');
+(async()=>{
+'use strict';
+const S=window.__WORKHORSE_SANDBOX_ADMIN__={version:2,authorized:false,loaded:false};
+const REF='ytfwbvdzhrebupcftmhs',URL='https://ytfwbvdzhrebupcftmhs.supabase.co',KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k',AUTH='sb-'+REF+'-auth-token',STORE='wh_editor_edits_v1';
+let token='',seq=0,mode='view',edits={},undo=[],redo=[],sel=null,host=null,shadow=null,style=null,obs=null,clicker=null;
+function find(v,d=0){if(d>5||v==null)return'';if(typeof v==='string'){if(v.startsWith('eyJ')&&v.split('.').length===3)return v;try{return find(JSON.parse(v),d+1)}catch(_){return''}}if(Array.isArray(v)){for(const x of v){const t=find(x,d+1);if(t)return t}return''}if(typeof v==='object'){if(typeof v.access_token==='string')return v.access_token;for(const k of ['currentSession','session','data','value'])if(k in v){const t=find(v[k],d+1);if(t)return t}}return''}
+function authToken(){try{return find(localStorage.getItem(AUTH))}catch(_){return''}}
+async function owner(t){try{const r=await fetch(URL+'/auth/v1/user',{headers:{apikey:KEY,Authorization:'Bearer '+t,Accept:'application/json'},cache:'no-store'});if(!r.ok)return false;const u=await r.json();return u?.app_metadata?.workhorse_role==='owner'}catch(_){return false}}
+function load(){try{edits=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(_){edits={}}}
+function save(){try{localStorage.setItem(STORE,JSON.stringify(edits))}catch(_){}}
+function key(el){if(el.id&&el.id!=='wh-sandbox-selected')return'#'+CSS.escape(el.id);if(el.dataset?.page)return el.tagName.toLowerCase()+'[data-page="'+CSS.escape(el.dataset.page)+'"]';const a=[];let n=el;while(n&&n!==document.body&&a.length<6){let p=n.tagName.toLowerCase();const c=[...n.classList].filter(x=>!x.startsWith('active')&&!x.startsWith('wh-')).slice(0,2);if(c.length)p+='.'+c.map(CSS.escape).join('.');const par=n.parentElement;if(par){const same=[...par.children].filter(x=>x.tagName===n.tagName);if(same.length>1)p+=`:nth-of-type(${same.indexOf(n)+1})`}a.unshift(p);n=par}return a.join('>')}
+function ok(el){if(!el?.matches||host?.contains(el)||el.closest('.rank-list,.player,.player-row,.draft-list,[id*="rankList"],[id*="draftList"],table,tbody')||el.matches('input,textarea,select,option,svg,path,img,video,canvas'))return false;const t=(el.textContent||'').trim();return !!t&&t.length<=220&&el.children.length<=3&&el.matches('h1,h2,h3,h4,p,span,button,a,label,.brand-title,.brand-tagline,.pagehead *,.nav button,.btn,.small,.notice')}
+function mark(){document.querySelectorAll('h1,h2,h3,h4,p,span,button,a,label,.brand-title,.brand-tagline,.pagehead *,.nav button,.btn,.small,.notice').forEach(e=>{if(ok(e))e.dataset.whEditable='1'})}
+function apply(){for(const [k,v] of Object.entries(edits))try{const e=document.querySelector(k);if(e&&ok(e)&&typeof v==='string'&&e.textContent!==v)e.textContent=v}catch(_){}}
+function clear(){sel=null;document.getElementById('wh-sandbox-selected')?.removeAttribute('id')}
+function status(t){if(shadow)shadow.querySelector('#status').textContent=t}
+function setMode(m){if(!shadow)return;mode=m;document.documentElement.classList.toggle('wh-sb-edit',m==='edit');document.documentElement.classList.toggle('wh-sb-preview',m==='preview');shadow.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));shadow.querySelector('#panel').classList.remove('open');clear();status(m==='edit'?'Click outlined text to edit':m==='preview'?'Previewing sandbox changes':'Owner mode · production writes blocked')}
+function open(e){clear();sel=e;if(!e.id)e.id='wh-sandbox-selected';shadow.querySelector('#target').textContent=key(e);const i=shadow.querySelector('#input');i.value=(e.textContent||'').trim();shadow.querySelector('#panel').classList.add('open');i.focus();i.select()}
+function commit(){if(!sel)return;const k=key(sel),before=(sel.textContent||'').trim(),after=shadow.querySelector('#input').value.trim();if(before!==after){undo.push({k,before,after});redo=[];edits[k]=after;save();sel.textContent=after;status('Sandbox change saved')}shadow.querySelector('#panel').classList.remove('open');clear()}
+function hist(x,val,to){if(!x)return;try{const e=document.querySelector(x.k);if(e)e.textContent=val;edits[x.k]=val;save();to.push(x);status('Sandbox edit history updated')}catch(_){}}
+function boot(){if(S.loaded||!S.authorized||!document.body)return;S.loaded=true;load();
+style=document.createElement('style');style.id='wh-sandbox-editor-css';style.textContent='html{scroll-padding-top:58px}body{padding-top:52px!important}html.wh-sb-edit [data-wh-editable="1"]{outline:1px dashed rgba(83,177,255,.58);outline-offset:2px;cursor:pointer}html.wh-sb-edit [data-wh-editable="1"]:hover{outline:2px solid #62b8ff;background:rgba(98,184,255,.06)}#wh-sandbox-selected{outline:2px solid #f2c96d!important;background:rgba(242,201,109,.08)!important}';document.head.appendChild(style);
+host=document.createElement('div');host.id='wh-sandbox-admin-host';host.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;height:52px';shadow=host.attachShadow({mode:'open'});shadow.innerHTML=`<style>*{box-sizing:border-box}.bar{height:52px;background:#07111b;color:#edf5fb;border-bottom:1px solid #26415a;display:flex;align-items:center;gap:7px;padding:7px 9px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 24px #0005}.badge{font-size:11px;font-weight:900;letter-spacing:.08em;color:#06111b;background:#f2c96d;border-radius:99px;padding:7px 10px;white-space:nowrap}.owner{font-size:10px;font-weight:850;color:#9ed7ff;border:1px solid #315a77;border-radius:99px;padding:6px 8px}.spacer{flex:1}.group{display:flex;gap:5px}.btn{border:1px solid #344d63;background:#10202d;color:#dce8f1;border-radius:8px;padding:7px 9px;font-weight:750;font-size:12px;cursor:pointer}.btn.active{background:#e8f3fb;color:#07111b}.danger{border-color:#784551;color:#f0b7c0}.publish{border-color:#715b2a;color:#f2c96d}.status{font-size:11px;color:#94a9b9}.panel{display:none;position:fixed;top:60px;right:12px;width:min(390px,calc(100vw - 24px));background:#0d1721;color:#edf5fb;border:1px solid #385169;border-radius:12px;padding:14px;box-shadow:0 24px 70px #0008}.panel.open{display:block}.label{font-size:11px;color:#91a6b6;margin-bottom:6px}.target{font-size:12px;font-weight:800;margin-bottom:8px;overflow:hidden;text-overflow:ellipsis}.input{width:100%;min-height:92px;resize:vertical;border:1px solid #3a5268;background:#08121b;color:#fff;border-radius:9px;padding:10px}.row{display:flex;gap:7px;justify-content:flex-end;margin-top:10px}.hint{font-size:11px;color:#7f94a5;margin-top:8px}@media(max-width:860px){.status,.owner{display:none}.hide-sm{display:none}.btn{padding:7px}}</style><div class="bar"><div class="badge">SANDBOX · NOT LIVE</div><div class="owner">OWNER VERIFIED</div><div class="group"><button class="btn active" data-mode="view">View</button><button class="btn" data-mode="edit">Edit</button><button class="btn" data-mode="preview">Preview</button></div><div class="group"><button class="btn hide-sm" id="undo">Undo</button><button class="btn hide-sm" id="redo">Redo</button></div><div class="status" id="status">Owner mode · production writes blocked</div><div class="spacer"></div><button class="btn danger" id="reset">Reset edits</button><button class="btn publish" id="publish">Publish locked</button></div><div class="panel" id="panel"><div class="label">OWNER EDITING</div><div class="target" id="target"></div><textarea class="input" id="input"></textarea><div class="row"><button class="btn" id="cancel">Cancel</button><button class="btn active" id="save">Save change</button></div><div class="hint">Owner-only sandbox edit. This cannot edit production or push to main.</div></div>`;document.documentElement.appendChild(host);
+shadow.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));shadow.querySelector('#save').onclick=commit;shadow.querySelector('#cancel').onclick=()=>{shadow.querySelector('#panel').classList.remove('open');clear()};shadow.querySelector('#undo').onclick=()=>{const x=undo.pop();if(x)hist(x,x.before,redo)};shadow.querySelector('#redo').onclick=()=>{const x=redo.pop();if(x)hist(x,x.after,undo)};shadow.querySelector('#reset').onclick=()=>{if(confirm('Reset all owner sandbox text changes? Production will not be affected.')){edits={};undo=[];redo=[];save();location.reload()}};shadow.querySelector('#publish').onclick=()=>alert('Publish is intentionally locked. Even the owner cannot reach main until a production release is explicitly approved.');
+clicker=e=>{if(mode!=='edit'||!S.authorized)return;const el=e.target?.closest?.('[data-wh-editable="1"]');if(!el||!ok(el))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open(el)};document.addEventListener('click',clicker,true);obs=new MutationObserver(()=>{mark();apply()});obs.observe(document.documentElement,{childList:true,subtree:true});mark();apply();setMode('view')}
+function off(){S.loaded=false;S.authorized=false;obs?.disconnect();obs=null;if(clicker)document.removeEventListener('click',clicker,true);clicker=null;document.documentElement.classList.remove('wh-sb-edit','wh-sb-preview');document.querySelectorAll('[data-wh-editable="1"]').forEach(e=>delete e.dataset.whEditable);clear();host?.remove();style?.remove();host=shadow=style=null}
+async function check(){const t=authToken();if(t===token)return;token=t;const n=++seq;if(!t){if(S.loaded)off();return}const yes=await owner(t);if(n!==seq)return;if(yes){S.authorized=true;boot()}else if(S.loaded||S.authorized)off()}
+check();setInterval(check,1200);
 })();
