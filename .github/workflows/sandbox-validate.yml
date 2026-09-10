@@ -68,14 +68,13 @@ jobs:
             'owner verification protects master editing':'workhorse_role' in season and "==='owner'" in season,
             'live season feed exists':'player_news' in home and 'sleeper_player_status' in home,
             'owner-only site editor remains':'workhorse_role' in admin and "==='owner'" in admin,
-            'site editor loader is available on modern routes':'const loadAdmin=' in page and 'sandbox-admin-v1.js?v=5' in page,
-            'tools route restores owner editor':"sandbox-tools-v1.js?v=1';document.body.appendChild(s);loadAdmin()" in page,
-            'ranking routes restore owner editor':"season-rankings-v3.js?v=2'" in page and 'document.body.appendChild(s);loadAdmin();return' in page,
+            'editor bootstraps before route loading':'sandbox-admin-v1.js?v=7' in guard and 'editorBootstrap' in guard,
+            'original editor toolbar restored':all(x in admin for x in ['AUTO-SAVED','VIEW','EDIT','PREVIEW','deUndo','deRedo','deTools','dePublish']),
+            'floating text editor restored':'Edit selected text' in admin and 'deEditorInput' in admin and 'data-site-edit' in admin,
             'editor protects live ranking player data':'#rank-rows' in admin and '.rank-card' in admin and '.stats' in admin,
-            'legacy tools use current owner editor':'sandbox-admin-v1.js?v=5' in legacy,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
-            'publish remains locked':'Publish locked' in admin,
+            'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
             'main deploy workflow still targets main':'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
           }
           failed=[n for n,v in checks.items() if not v]
