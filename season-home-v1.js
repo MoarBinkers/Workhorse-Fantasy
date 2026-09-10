@@ -1,0 +1,18 @@
+(()=>{
+'use strict';
+const SB_URL='https://ytfwbvdzhrebupcftmhs.supabase.co';
+const SB_KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k';
+const $=q=>document.querySelector(q);
+const headers={apikey:SB_KEY,Accept:'application/json'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ago=iso=>{if(!iso)return'';const d=new Date(iso),ms=Date.now()-d.getTime();if(!Number.isFinite(ms))return'';const m=Math.max(0,Math.floor(ms/60000));if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';const day=Math.floor(h/24);return day+'d ago'};
+async function get(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers,cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+function newsCard(n){return `<article class="wh-news-card" data-wh-no-edit><div class="wh-news-meta"><b>${esc(n.player_name||'Player')}</b><i>${esc(n.team||'NFL')}</i><time>${esc(ago(n.published_at))}</time></div><div class="wh-news-head">${esc(n.headline||'Player update')}</div><div class="wh-news-copy">${esc(n.summary||'')}</div>${n.fantasy_impact?`<div class="wh-impact"><strong>Fantasy impact</strong>${esc(n.fantasy_impact)}</div>`:''}</article>`}
+function injuryCard(p){const tag=p.injury_status||p.status||'Update';const part=p.injury_body_part?` · ${p.injury_body_part}`:'';return `<article class="wh-injury-row" data-wh-no-edit><div><div class="wh-injury-name">${esc(p.full_name||'Player')}</div><div class="wh-injury-sub">${esc([p.position,p.team].filter(Boolean).join(' · '))}</div></div><div class="wh-injury-right"><span>${esc(tag+part)}</span><time>${esc(ago(p.updated_at))}</time></div></article>`}
+function uniqueDirect(rows){const seen=new Set(),out=[];for(const n of rows||[]){if(Array.isArray(n.categories)&&n.categories.includes('indirect'))continue;const k=(n.provider_news_id||n.headline||'')+'|'+(n.player_name||'');if(seen.has(k))continue;seen.add(k);out.push(n);if(out.length===8)break}return out}
+async function loadNews(){const box=$('#wh-home-news');try{box.innerHTML='<div class="wh-feed-loading">Refreshing live news…</div>';const rows=await get('player_news?select=provider_news_id,player_name,team,headline,summary,fantasy_impact,categories,published_at&order=published_at.desc&limit=40');const clean=uniqueDirect(rows);box.innerHTML=clean.length?clean.map(newsCard).join(''):'<div class="wh-empty">No fresh player news yet.</div>';const t=clean[0]?.published_at;if(t){$('#wh-live-time').textContent='Updated '+ago(t);$('#wh-pulse-dot').classList.add('live')}}catch(e){console.warn('[Workhorse Home] news',e);box.innerHTML='<div class="wh-empty">Live news is temporarily unavailable. Try refresh.</div>';$('#wh-live-time').textContent='Feed unavailable'}}
+async function loadInjuries(){const box=$('#wh-home-injuries');try{box.innerHTML='<div class="wh-feed-loading">Checking injury statuses…</div>';const rows=await get('sleeper_player_status?select=full_name,position,team,status,injury_status,injury_body_part,updated_at&injury_status=not.is.null&order=updated_at.desc&limit=24');const clean=(rows||[]).filter(x=>x.injury_status&&String(x.injury_status).toLowerCase()!=='none').slice(0,8);box.innerHTML=clean.length?clean.map(injuryCard).join(''):'<div class="wh-empty">No current injury statuses in the feed.</div>'}catch(e){console.warn('[Workhorse Home] injuries',e);box.innerHTML='<div class="wh-empty">Injury watch is temporarily unavailable.</div>'}}
+function refresh(){loadNews();loadInjuries()}
+document.addEventListener('click',e=>{const a=e.target.closest('[data-wh-refresh]');if(a)refresh()});
+refresh();
+})();

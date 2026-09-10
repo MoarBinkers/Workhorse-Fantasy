@@ -30,26 +30,34 @@ jobs:
         run: |
           node --check sandbox-guard-v1.js
           node --check sandbox-admin-v1.js
+          node --check season-home-v1.js
+          node --check sandbox-rankings-loader-v1.js
+          node --check sandbox-return-home-v1.js
 
-      - name: Verify sandbox safety contract
+      - name: Verify sandbox safety and lazy-load contract
         run: |
           python - <<'PY'
           from pathlib import Path
-          page = Path('sandbox.html').read_text()
-          guard = Path('sandbox-guard-v1.js').read_text()
-          admin = Path('sandbox-admin-v1.js').read_text()
-          checks = {
-              'sandbox page is noindex': 'noindex,nofollow,noarchive' in page,
-              'guard loads before sandbox app': 'sandbox-guard-v1.js' in page,
-              'editor is loaded': 'sandbox-admin-v1.js' in page,
-              'production write block exists': 'sandbox_write_blocked' in guard,
-              'storage is namespaced': 'wh_sandbox_v1::' in guard,
-              'publish remains locked': 'Publish locked' in admin,
-              'main deploy workflow still targets main': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
+          page=Path('sandbox.html').read_text()
+          guard=Path('sandbox-guard-v1.js').read_text()
+          admin=Path('sandbox-admin-v1.js').read_text()
+          home=Path('season-home-v1.js').read_text()
+          ranks=Path('sandbox-rankings-loader-v1.js').read_text()
+          checks={
+            'sandbox page is noindex':'noindex,nofollow,noarchive' in page,
+            'guard loads before sandbox app':'sandbox-guard-v1.js' in page,
+            'new season home exists':'IN-SEASON MODE' in page and 'Latest fantasy news' in page,
+            'home itself does not load ranking bundle':'app-v28.bin' not in page,
+            'ranking workspace is click-gated':'view=rankings' in page and 'sandbox-rankings-loader-v1.js' in page,
+            'ranking bundle lives behind loader':'app-v28.bin' in ranks,
+            'live season feed exists':'player_news' in home and 'sleeper_player_status' in home,
+            'owner-only editor remains':'workhorse_role' in admin and "==='owner'" in admin,
+            'production write block exists':'sandbox_write_blocked' in guard,
+            'storage is namespaced':'wh_sandbox_v1::' in guard,
+            'publish remains locked':'Publish locked' in admin,
+            'main deploy workflow still targets main':'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
           }
-          failed = [name for name, ok in checks.items() if not ok]
-          for name, ok in checks.items():
-              print(('PASS' if ok else 'FAIL') + ': ' + name)
-          if failed:
-              raise SystemExit('Sandbox safety checks failed: ' + ', '.join(failed))
+          failed=[n for n,v in checks.items() if not v]
+          for n,v in checks.items():print(('PASS' if v else 'FAIL')+': '+n)
+          if failed:raise SystemExit('Sandbox checks failed: '+', '.join(failed))
           PY
