@@ -14,6 +14,10 @@ function loadUi(){
  if(window.__WH_SEASON_UI_V5__||document.querySelector('script[data-wh-ui-v5]'))return;
  const s=document.createElement('script');s.src='./season-rankings-ui-v5.js?v=1';s.async=false;s.dataset.whUiV5='1';document.body.appendChild(s);
 }
+function loadDetail(){
+ if(window.__WH_PLAYER_DETAIL_V1__||document.querySelector('script[data-wh-player-detail]'))return;
+ const s=document.createElement('script');s.src='./season-player-detail-v1.js?v=1';s.async=false;s.dataset.whPlayerDetail='1';document.body.appendChild(s);
+}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
@@ -22,6 +26,7 @@ function seed(){
    if(ids.length)try{localStorage.setItem(key,JSON.stringify(ids))}catch(_){ }
  }
  loadUi();
+ loadDetail();
  return true;
 }
 if(!seed()){
