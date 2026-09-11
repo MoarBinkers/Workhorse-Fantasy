@@ -13,7 +13,8 @@ const orderKey=isMine?(isWeekly?`wh_my_week_v3::${week}`:'wh_my_ros_v3'):(isWeek
 let drag=null,raf=0;
 
 function loadOrder(){try{const x=JSON.parse(localStorage.getItem(orderKey)||'[]');return Array.isArray(x)?x.map(String):[]}catch(_){return[]}}
-function visibleRows(){return [...document.querySelectorAll('#rank-rows .rank-row.editable')].filter(r=>r.style.display!=='none'&&r.offsetParent!==null)}
+function ownerMode(){return document.documentElement.classList.contains('wh-owner-control')}
+function visibleRows(){return [...document.querySelectorAll('#rank-rows .rank-row')].filter(r=>(r.classList.contains('editable')||ownerMode())&&r.style.display!=='none'&&r.offsetParent!==null)}
 function neutralize(){document.querySelectorAll('#rank-rows .rank-row').forEach(r=>{if(r.draggable)r.draggable=false;r.removeAttribute('draggable')})}
 function styles(){if(document.querySelector('#wh-smooth-drag-css'))return;const s=document.createElement('style');s.id='wh-smooth-drag-css';s.textContent=`
 #rank-rows .rank-row.editable{cursor:default!important;transition:border-color .12s ease,background .12s ease,box-shadow .12s ease,opacity .12s ease!important}
@@ -38,7 +39,7 @@ function invokeMove(sourceId,finalIndex){const arr=loadOrder();const i=arr.index
 function finish(commit=true){if(!drag)return;const d=drag;drag=null;cancelAnimationFrame(raf);raf=0;document.documentElement.classList.remove('wh-sorting');d.source?.classList.remove('wh-drag-source');d.ghost?.remove();const l=document.querySelector('#wh-drop-line');if(l)l.style.display='none';try{d.handle?.releasePointerCapture?.(d.pid)}catch(_){ }
  if(commit&&d.target){const arr=loadOrder();const sourceIndex=arr.indexOf(d.id);if(sourceIndex>=0){const remaining=arr.filter(x=>x!==d.id);const ti=remaining.indexOf(d.target);if(ti>=0){const finalIndex=ti+(d.after?1:0);invokeMove(d.id,Math.max(0,Math.min(arr.length-1,finalIndex)))}}}}
 function begin(e,handle,row){const id=String(row.dataset.id||'');if(!id)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();neutralize();const ghost=makeGhost(row);drag={pid:e.pointerId,id,source:row,handle,ghost,target:null,after:false,x:e.clientX,y:e.clientY};row.classList.add('wh-drag-source');document.documentElement.classList.add('wh-sorting');try{handle.setPointerCapture(e.pointerId)}catch(_){ }placeGhost(e.clientX,e.clientY);chooseTarget(e.clientY);if(!raf)raf=requestAnimationFrame(scrollLoop)}
-function onDown(e){const handle=e.target.closest?.('.drag-handle');if(!handle)return;const row=handle.closest('.rank-row.editable');if(!row)return;begin(e,handle,row)}
+function onDown(e){const handle=e.target.closest?.('.drag-handle');if(!handle)return;const row=handle.closest('.rank-row');if(!row||(!row.classList.contains('editable')&&!ownerMode()))return;begin(e,handle,row)}
 function onMove(e){if(!drag||e.pointerId!==drag.pid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();drag.x=e.clientX;drag.y=e.clientY;placeGhost(e.clientX,e.clientY);chooseTarget(e.clientY)}
 function onUp(e){if(!drag||e.pointerId!==drag.pid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();finish(true)}
 function onCancel(e){if(!drag||e.pointerId!==drag.pid)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();finish(false)}
