@@ -28,7 +28,7 @@ jobs:
 
       - name: Check sandbox JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js sandbox-tools-v1.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js season-league-intelligence-v1.js season-league-power-model-v2.js season-league-power-bars-v2.js season-league-card-details-v1.js season-league-power-audit-v1.js sandbox-tools-v1.js; do node --check "$f"; done
 
       - name: Verify current Workhorse contracts
         run: |
@@ -42,6 +42,9 @@ jobs:
           polish=Path('season-trade-ui-polish-v1.js').read_text()
           league=Path('season-league-overview-v1.js').read_text()
           league_page=Path('sandbox-league.html').read_text()
+          model=Path('season-league-power-model-v2.js').read_text()
+          bars=Path('season-league-power-bars-v2.js').read_text()
+          audit=Path('season-league-power-audit-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           static=Path('.github/workflows/static.yml').read_text()
           checks={
@@ -56,15 +59,20 @@ jobs:
             'fairness colors and animation remain': all(x in trade for x in ['favor-a','favor-b','fairSettle','--win:#6fdfa0','--lose:#ef727c','--close:#e3c561']),
             'ROS rank is promoted': '.ros{font-size:13px!important' in polish and 'ROS #' in trade,
             'league overview page loads': 'season-league-overview-v1.js?v=1' in league_page and 'sandbox-guard-v1.js?v=2' in league_page,
+            'league canonical model loads': 'season-league-power-model-v2.js?v=2' in league_page and 'season-league-power-bars-v2.js?v=2' in league_page and 'season-league-power-bars-v1.js' not in league_page,
             'league overview uses Sleeper': all(x in league for x in ['/user/${encodeURIComponent(v)}','/leagues/nfl/${SEASON}','/league/${id}/rosters','/league/${id}/users']),
             'league overview saves user context': 'wh_sleeper_context_v1' in league and 'my_roster_id' in league and 'SET AS MY TEAM' in league,
             'league teams stack in one column': '.teams{display:grid;grid-template-columns:1fr' in league,
             'league full roster expands on team click': all(x in league for x in ['data-toggle-team','roster-panel','STARTERS','BENCH / DEPTH','VIEW FULL ROSTER']),
-            'league power bar is relative to leader': all(x in league for x in ['power-bar','power-fill','maxPower','t.m.overall/maxPower*100','--w:']),
-            'whole roster contributes to power': 'bench.reduce((n,x)=>n+x.score*.58,0)' in league and 'rosterScore=starterScore+depthScore' in league,
-            'position strength contributes to power': 'positionBonus' in league and "['QB','RB','WR','TE'].reduce" in league,
-            'power ranking remains ordered best first': 'return teams.sort((a,b)=>a.ranks.overall-b.ranks.overall)' in league,
-            'league breakdown exists': all(x in league for x in ['League Power Rankings','starterScore','depthScore',"['QB','RB','WR','TE']",'FULL ROSTER']),
+            'canonical power uses historical curves': 'const HIST=' in model and 'historicalPpg' in model and 'rosPremium' in model,
+            'canonical power builds best legal lineup': 'function bestLegalLineup' in model and "['RB','WR','TE']" in model and 'lineupRole' in model,
+            'canonical power ignores current lineup': 'r.starters' not in model and '(r.players||[])' in model,
+            'canonical power has diminishing depth': "[.30,.18,.10,.06,.04,.03]" in model and "p.posRank<=n?.03:.01" in model,
+            'old explosive rank curve removed': '210*Math.exp(-.022' not in model and '100*Math.exp(-.085' not in model,
+            'position bonus double count removed': 'const cap={QB:' not in model,
+            'canonical bars are absolute and stable': 'state.scale.overall' in bars and 'max-width:96%!important' in bars and 'observe(teams,{childList:true,subtree:true})' not in bars,
+            'canonical bars order best first': 'parent.appendChild(card)' in bars and 't.ranks.overall' in bars,
+            'league audit exposes exact math': 'M.buildTeams(ctx())' in audit and 'HIST' in audit and 'ROLE' in audit and 'no separate position-rank bonus' in audit,
             'league is linked from tools': 'sandbox-league.html' in tools and 'League Overview' in tools,
             'trade links back to league': 'sandbox-league.html' in polish,
           }
