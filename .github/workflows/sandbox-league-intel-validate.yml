@@ -1,0 +1,57 @@
+name: Validate League Intelligence
+
+on:
+  push:
+    branches: ["sandbox"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-workhorse-league-intel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sandbox
+        uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check season-league-intelligence-v1.js
+          node --check season-trade-league-mode-v1.js
+          node --check season-trade-ui-polish-v1.js
+
+      - name: Verify league intelligence contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          league=Path('season-league-intelligence-v1.js').read_text()
+          trade=Path('season-trade-league-mode-v1.js').read_text()
+          polish=Path('season-trade-ui-polish-v1.js').read_text()
+          page=Path('sandbox-league.html').read_text()
+          static=Path('.github/workflows/static.yml').read_text()
+          checks={
+            'production remains main only': 'branches: ["main"]' in static,
+            'league intelligence loads': 'season-league-intelligence-v1.js?v=1' in page,
+            'multiple saved leagues exist': 'wh_sleeper_leagues_v2' in league and 'SAVED LEAGUES' in league and 'wh-saved-league' in league,
+            'username can discover several leagues': '/leagues/nfl/${SEASON}' in league and 'for(const l of leagues)upsertLeague' in league,
+            'needs and surpluses are league relative': 'needCut=Math.floor(n*2/3)+1' in league and 'surplusCut=Math.ceil(n/3)' in league and 'NEEDS ${p}' in league and '${p} SURPLUS' in league,
+            'position power views exist': "['OVERALL',...POS]" in league and 'data-power-view' in league and 'state.view' in league,
+            'position view reorders league teams': "view==='OVERALL'?a.ranks.overall-b.ranks.overall:a.ranks[view]-b.ranks[view]" in league,
+            'best trade partners exist': 'Best Trade Partners' in league and 'partnerFit' in league and 'teamA=' in league and 'teamB=' in league,
+            'league snapshots are saved': 'wh_league_intel_v1::' in league and 'saveSnapshot' in league,
+            'trade league mode is loaded': 'season-trade-league-mode-v1.js?v=1' in polish,
+            'trade league mode supports saved leagues': 'wh_sleeper_leagues_v2' in trade and 'wh-lm-league' in trade,
+            'trade league mode uses real Sleeper rosters': '/league/${id}/rosters' in trade and 'r?.players||[]' in trade and 'rosterPlayers' in trade,
+            'league mode restricts add flow to roster picker': 'wh-roster-modal' in trade and 'data-league-pick' in trade and 'openPicker(add.dataset.add)' in trade,
+            'league mode shows team needs': 'buildNeeds' in trade and 'Needs ${x.needs.join' in trade,
+            'generic trade mode remains available': "setActive(!state.active)" in trade and "btn.textContent=state.active?'ON':'OFF'" in trade,
+          }
+          failed=[k for k,v in checks.items() if not v]
+          for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
+          if failed: raise SystemExit('League intelligence checks failed: '+', '.join(failed))
+          PY
