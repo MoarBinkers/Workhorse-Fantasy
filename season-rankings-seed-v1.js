@@ -18,6 +18,10 @@ function loadDetail(){
  if(window.__WH_PLAYER_DETAIL_V1__||document.querySelector('script[data-wh-player-detail]'))return;
  const s=document.createElement('script');s.src='./season-player-detail-v1.js?v=1';s.async=false;s.dataset.whPlayerDetail='1';document.body.appendChild(s);
 }
+function loadMatchupReference(){
+ if(!isWeekly||window.__WH_MATCHUP_REFERENCE_V1__||document.querySelector('script[data-wh-matchup-reference]'))return;
+ const s=document.createElement('script');s.src='./season-matchup-reference-v1.js?v=1';s.async=false;s.dataset.whMatchupReference='1';document.body.appendChild(s);
+}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
@@ -27,6 +31,7 @@ function seed(){
  }
  loadUi();
  loadDetail();
+ loadMatchupReference();
  return true;
 }
 if(!seed()){
