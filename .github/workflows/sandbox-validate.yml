@@ -32,6 +32,7 @@ jobs:
           node --check sandbox-admin-v1.js
           node --check season-home-v1.js
           node --check season-rankings-v3.js
+          node --check season-rankings-enhance-v4.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -46,6 +47,7 @@ jobs:
           admin=Path('sandbox-admin-v1.js').read_text()
           home=Path('season-home-v1.js').read_text()
           season=Path('season-rankings-v3.js').read_text()
+          enhance=Path('season-rankings-enhance-v4.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -72,6 +74,13 @@ jobs:
             'original editor toolbar restored':all(x in admin for x in ['AUTO-SAVED','VIEW','EDIT','PREVIEW','deUndo','deRedo','deTools','dePublish']),
             'floating text editor restored':'Edit selected text' in admin and 'deEditorInput' in admin and 'data-site-edit' in admin,
             'editor protects live ranking player data':'#rank-rows' in admin and '.rank-card' in admin and '.stats' in admin,
+            'ranking enhancement loads on in-season routes':'season-rankings-enhance-v4.js?v=1' in page,
+            'weekly caps are 75 WR and 50 RB':"if(pos==='WR')return 75" in enhance and "if(pos==='RB')return 50" in enhance,
+            'ROS caps are 100 WR and 75 RB':"if(pos==='WR')return 100" in enhance and "if(pos==='RB')return 75" in enhance,
+            'ROS movement says Change and weekly suppresses it':'Change ▲' in enhance and "if(isWeekly)return''" in enhance,
+            'add player exists for editable boards':'+ Add Player' in enhance and 'wh-add-modal' in enhance,
+            'weekly start tiers exist':all(x in enhance for x in ['Must Start','Great Start','Comfortable Flex','Shaky Flex']),
+            'market wording is replaced in enhanced rows':'Market #' not in enhance and 'not based on ADP' in enhance,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
             'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
