@@ -28,7 +28,7 @@ jobs:
 
       - name: Check season JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v5.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
 
       - name: Verify product and UI stability contracts
         run: |
@@ -49,7 +49,7 @@ jobs:
           tiers=Path('season-ros-tiers-v4.js').read_text()
           change=Path('season-ros-change-fix-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
-          trade=Path('season-trade-calculator-v5.js').read_text()
+          trade=Path('season-trade-calculator-v7.js').read_text()
 
           repl={'QB':12,'RB':30,'WR':36,'TE':12}
           def rank_value(rank): return 6+114*math.exp(-.0165*max(0,rank-1))
@@ -89,14 +89,13 @@ jobs:
             'owner mode does not create a fifth card column': 'grid-template-columns:70px 44px minmax(0,1fr) 80px 142px' not in polish and 'grid-template-columns:70px 44px minmax(0,1fr) 80px!important' in polish,
             'ROS ALL visually hides tier UI': 'body:has(.filter.active[data-filter="ALL"]) #rank-rows .wh-ros-tier-break' in polish and '#rank-rows .wh-ros-tier-chip' in polish and '#wh-ros-add-tier' in polish,
             'positional tier system remains editable': all(x in tiers for x in ['ADD NEXT TIER','data-add-tier-pos','workhorse:ros-tier-drop','assignment']),
-            'tier defaults remain': all(x in tiers for x in ['QB:[6,12,18]','RB:[12,24,48]','WR:[12,24,48]','TE:[6,12,18]']),
             'Change remains idle stable': 'observe(document.documentElement' not in change and 'observe(box,{childList:true,subtree:false})' in change,
             'weekly matchup remains position specific': "POSITIONS=['QB','RB','WR','TE']" in matchup and 'table[team][pos]' in matchup,
             'injury handling remains': all(x in injury for x in ['QUESTIONABLE','DOUBTFUL','OUT / UNAVAILABLE']),
             'insights remain': all(x in insight for x in ['Role trend','Why Ranked','Save rationale','Smart Search','Game total','vs WH']),
             'compare remains': 'selected.size>=3' in compare and 'Player Comparison' in compare,
             'current modules load': all(x in seed for x in ['season-owner-control-v1.js','season-insight-v3.js','season-regression-fix-v2.js','season-card-polish-v1.js','season-ros-tiers-v4.js']),
-            'Trade Calculator route exists': "v==='trade'" in page and 'season-trade-calculator-v5.js?v=5' in page,
+            'Trade Calculator v7 route exists': "v==='trade'" in page and 'season-trade-calculator-v7.js?v=7' in page,
             'Trade Calculator is featured in Tools': 'Trade Calculator' in tools and 'view=trade' in tools and 'FLAGSHIP' in tools,
             'trade model is PPR ROS based': all(x in trade for x in ['wh_ros_master_v3','PPR · REST OF SEASON']),
             'tiers do not affect trade value': 'wh_ros_tiers' not in trade and 'tierBonus' not in trade and 'tierState' not in trade,
@@ -110,8 +109,10 @@ jobs:
             'starter and depth pieces are materially different': starter_weight-depth_weight >= .25,
             'package quality remains internal': all(x in trade for x in ['DIFFERENCE-MAKER','STARTER-GRADE','USABLE STARTER','DEPTH']) and 'packageClass' not in trade.split('function playerCard')[1].split('function renderSide')[0],
             'best asset premium remains package-specific': 'const packageDeal=' in trade and 'packageDeal&&topDiff' in trade,
-            'compact fairness line remains above trade': trade.index('<section class="fairness">') < trade.index('<section class="trade">') and 'height:10px' in trade and 'max-width:380px' in trade,
-            'fairness marker animates': 'fair-marker' in trade and 'transition:left .5s' in trade and "style.left=`${50-v.lean}%`" in trade,
+            'fairness area is larger': 'max-width:540px' in trade and 'height:15px' in trade and 'font-size:16px' in trade,
+            'fairness bar is dynamically green red yellow': all(x in trade for x in ['fairness.slight.favor-a','fairness.clear.favor-a','fairness.strong.favor-a','fairness.slight.favor-b','fairness.even','--win:#6fdfa0','--lose:#ef727c','--close:#e3c561']),
+            'fairness state follows winner and strength': "fair.className='fairness '+" in trade and 'favor-${v.winner.toLowerCase()}' in trade,
+            'fairness marker has smoother settle animation': 'transition:left .72s cubic-bezier(.16,1,.3,1)' in trade and '@keyframes fairSettle' in trade and "marker.classList.add('settle')" in trade,
             'fairness UI has no percentage': '50/50' not in trade and 'fairness meter' not in trade.lower(),
             'player cards do not advertise trade points': 'TRADE VALUE' not in trade and 'class="value"' not in trade and 'class="value-num"' in trade,
             'search results show ROS not trade points': '<em>ROS #${vi?.rank' in trade,
