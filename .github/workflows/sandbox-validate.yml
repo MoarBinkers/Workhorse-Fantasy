@@ -28,7 +28,7 @@ jobs:
 
       - name: Check season JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v4.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v5.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
 
       - name: Verify product and UI stability contracts
         run: |
@@ -49,10 +49,34 @@ jobs:
           tiers=Path('season-ros-tiers-v4.js').read_text()
           change=Path('season-ros-change-fix-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
-          trade=Path('season-trade-calculator-v4.js').read_text()
-          r1=round(8+116*math.exp(-.018*0)+8)
-          r2=round(8+116*math.exp(-.018*1)+(8-.45))
-          adjacent=round(r1+min(12,(r1-r2)*.28))-r2
+          trade=Path('season-trade-calculator-v5.js').read_text()
+
+          repl={'QB':12,'RB':30,'WR':36,'TE':12}
+          def rank_value(rank): return 6+114*math.exp(-.0165*max(0,rank-1))
+          def expected(pos,r):
+              floor={'QB':16,'RB':8.8,'WR':9.5,'TE':7.4}[pos]
+              ceil={'QB':24.5,'RB':21,'WR':21.5,'TE':17}[pos]
+              decay={'QB':.16,'RB':.085,'WR':.075,'TE':.15}[pos]
+              rr=repl[pos]
+              if r<=rr: return floor+(ceil-floor)*math.exp(-decay*max(0,r-1))
+              return max(3,floor-.28*(r-rr))
+          def value(rank,pos,posrank):
+              edge=expected(pos,posrank)-expected(pos,repl[pos])
+              bonus=max(-4,min(10,edge*.9))
+              return round(rank_value(rank)+bonus)
+          elite_gap=value(1,'RB',1)-value(2,'RB',2)
+          def pkg_weight(final,edge,index,best=100):
+              if index==0: return 1
+              relative=max(0,min(1,final/best))
+              edgeq=max(0,min(1,(edge+1.5)/8.5))
+              quality=.58*edgeq+.42*relative
+              floors=[1,.52,.32,.20]; caps=[1,.96,.86,.74]
+              w=floors[index]+(caps[index]-floors[index])*quality
+              if edge<=0: w*=.72
+              return max(.14,min(1,w))
+          starter_weight=pkg_weight(75,5,1)
+          depth_weight=pkg_weight(45,-2,1)
+
           checks={
             'sandbox safety remains': 'sandbox_write_blocked' in guard and 'wh_sandbox_v1::' in guard and 'Production is locked' in admin,
             'production deploy remains main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
@@ -72,17 +96,21 @@ jobs:
             'insights remain': all(x in insight for x in ['Role trend','Why Ranked','Save rationale','Smart Search','Game total','vs WH']),
             'compare remains': 'selected.size>=3' in compare and 'Player Comparison' in compare,
             'current modules load': all(x in seed for x in ['season-owner-control-v1.js','season-insight-v3.js','season-regression-fix-v2.js','season-card-polish-v1.js','season-ros-tiers-v4.js']),
-            'Trade Calculator v4 route exists': "v==='trade'" in page and 'season-trade-calculator-v4.js?v=4' in page,
+            'Trade Calculator v5 route exists': "v==='trade'" in page and 'season-trade-calculator-v5.js?v=5' in page,
             'Trade Calculator is featured in Tools': 'Trade Calculator' in tools and 'view=trade' in tools and 'FLAGSHIP' in tools,
             'trade model is PPR ROS based': all(x in trade for x in ['wh_ros_master_v3','PPR · REDRAFT · REST OF SEASON']),
             'tiers do not affect trade value': 'wh_ros_tiers' not in trade and 'tierBonus' not in trade and 'tierState' not in trade,
-            'trade value editing is removed': 'EDIT VALUE' not in trade and 'wh_trade_value_overrides' not in trade and 'data-edit' not in trade,
-            'trade value uses smooth ROS curve': 'Math.exp(-.018' in trade and 'function rankValue(rank)' in trade,
-            'adjacent elite RBs produce slight edge': 3 <= adjacent <= 7,
-            'position scarcity is smooth': all(x in trade for x in ["8-.45", "6-.30", "9-.75", "4-.45"]),
-            'best asset premium exists': 'topDiff' in trade and 'Math.abs(topDiff)*.28' in trade and 'gets the most valuable asset' in trade,
-            'package adjustment discounts extra assets': 'WEIGHTS=[1,.84,.66,.50]' in trade and 'WEIGHTS[i]' in trade and 'package adjustment' in trade,
-            'compact fairness line exists above trade': trade.index('<section class="fairness">') < trade.index('<section class="trade">') and 'height:10px' in trade and 'max-width:390px' in trade,
+            'trade value editing stays removed': 'EDIT VALUE' not in trade and 'wh_trade_value_overrides' not in trade and 'data-edit' not in trade,
+            'value over replacement exists': 'REPL={QB:12,RB:30,WR:36,TE:12}' in trade and 'function expectedPpr(pos,r)' in trade and 'function replacementEdge(pos,r)' in trade,
+            'VOR replaces flat positional bonus': 'replacementBonus' in trade and 'vs repl' in trade and 'flat QB/RB/WR/TE bonus' in trade,
+            'adjacent elite RBs stay slight': 2 <= elite_gap <= 7,
+            'smart package weighting exists': 'function packageWeight(info,index,best)' in trade and 'edgeQuality' in trade and 'relative' in trade and 'WEIGHTS=' not in trade,
+            'starter second piece keeps strong value': starter_weight >= .80,
+            'depth second piece is discounted hard': depth_weight <= .55,
+            'starter and depth pieces are materially different': starter_weight-depth_weight >= .25,
+            'package quality labels exist': all(x in trade for x in ['DIFFERENCE-MAKER','STARTER-GRADE','USABLE STARTER','DEPTH']),
+            'best asset premium remains package-specific': 'const packageDeal=' in trade and 'packageDeal&&topDiff' in trade and 'gets the most valuable asset' in trade,
+            'compact fairness line remains above trade': trade.index('<section class="fairness">') < trade.index('<section class="trade">') and 'height:10px' in trade and 'max-width:390px' in trade,
             'fairness marker animates': 'fair-marker' in trade and 'transition:left .5s' in trade and "style.left=`${50-v.lean}%`" in trade,
             'fairness UI has no percentage': '50/50' not in trade and 'fairness meter' not in trade.lower(),
             'raw and adjusted values display': 'ADJUSTED VALUE' in trade and 'Raw ${v.a.raw}' in trade,
