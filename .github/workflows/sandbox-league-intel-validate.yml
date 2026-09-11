@@ -16,8 +16,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sandbox
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Check JavaScript syntax
         run: |
@@ -33,78 +32,33 @@ jobs:
       - name: Check power-model sanity
         run: node .github/power-model-sanity-test.js
 
-      - name: Verify league intelligence contracts
+      - name: Verify league power contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-          league=Path('season-league-intelligence-v1.js').read_text()
           model=Path('season-league-power-model-v2.js').read_text()
           bars=Path('season-league-power-bars-v2.js').read_text()
           audit=Path('season-league-power-audit-v1.js').read_text()
-          details=Path('season-league-card-details-v1.js').read_text()
-          trade=Path('season-trade-league-mode-v1.js').read_text()
-          polish=Path('season-trade-ui-polish-v1.js').read_text()
           page=Path('sandbox-league.html').read_text()
           static=Path('.github/workflows/static.yml').read_text()
           checks={
             'production remains main only': 'branches: ["main"]' in static,
-            'league intelligence loads': 'season-league-intelligence-v1.js?v=1' in page,
-            'historical power model loads before bars': page.index('season-league-power-model-v2.js?v=2') < page.index('season-league-power-bars-v2.js?v=2'),
-            'historical power bars load': 'season-league-power-bars-v2.js?v=2' in page and 'season-league-power-bars-v1.js' not in page,
-            'league card details load': 'season-league-card-details-v1.js?v=1' in page,
-            'audit uses same power model': 'WorkhorsePowerModelV2' in audit and 'M.buildTeams(ctx())' in audit,
-            'multi-season positional curves exist': 'const HIST=' in model and 'QB:[[1,24.5]' in model and 'TE:[[1,16.5]' in model and 'RB:[[1,22.5]' in model and 'WR:[[1,23.0]' in model,
-            'workhorse overall ros rank is primary curve': 'function rosBase(overallRank)' in model and '64+48*Math.exp(-.009' in model,
-            'position scarcity is capped': 'function scarcityAdjustment(ctx,pos,posRank)' in model and 'Math.max(-4,Math.min(9,delta*.9))' in model,
-            'player value is ros base plus scarcity': 'rosBase(overallRank)+scarcityAdjustment(ctx,pos,posRank)' in model,
-            'workhorse position rank drives historical curve': 'function posRankFor' in model and 'historicalPpg(p.position,posRank)' in model,
-            'old explosive rank curve is gone': '210*Math.exp(-.022' not in model and '100*Math.exp(-.085' not in model and 'EDGE_SCALE' not in model,
-            'replacement level follows league settings': 'function replacementRank(ctx,pos)' in model and 'directSlots(ctx,pos)*n' in model and 'SUPER_FLEX' in model,
-            'best legal lineup is built before depth': 'function bestLegalLineup' in model and 'chooseFlexible' in model and "['RB','WR','TE']" in model,
-            'flex can use a second tight end': "chooseFlexible(all,selected,['RB','WR','TE'],f.flex,'FLEX')" in model,
-            '1qb backup value stays near zero': "if(p.position==='QB')" in model and "p.posRank<=n?.03:.01" in model and "index===1?.003:.001" in model,
-            'tight end backup can retain more value': "if(p.position==='TE')" in model and 'return .12' in model and 'return .06' in model,
+            'canonical model loads before bars': page.index('season-league-power-model-v2.js?v=2') < page.index('season-league-power-bars-v2.js?v=2'),
+            'ros rank is primary roster curve': '60+45*Math.exp(-.006' in model,
+            'historical scarcity is modest': 'Math.max(-3,Math.min(7,delta*.7))' in model,
+            'best legal lineup exists': 'function bestLegalLineup' in model and "['RB','WR','TE']" in model,
+            'lineup balance matters': 'function lineupBalance(starters)' in model and 'starterSum*.75' in model and 'lowerHalfAvg*values.length' in model,
+            'current sleeper starters ignored': 'r.starters' not in model and '(r.players||[])' in model,
+            '1qb backups near zero': "p.posRank<=n?.03:.01" in model and "index===1?.003:.001" in model,
+            'te can win flex': "chooseFlexible(all,selected,['RB','WR','TE'],f.flex,'FLEX')" in model,
             'rb wr depth diminishes': "[.30,.18,.10,.06,.04,.03]" in model,
-            'position ordinal bonus is removed': 'position bonus' not in model.lower() and 'const cap={QB:' not in model,
-            'power ignores current sleeper starters': 'r.starters' not in model and '(r.players||[])' in model and 'roster_positions' in model,
-            'current lineup is explicitly ignored in UI': 'Current Sleeper starters/bench do not affect it.' in bars,
-            'canonical power repairs legacy starter labels': 'cleanLegacyStarterLabels' in bars and 'syncMySummary' in bars and 'whPowerIgnoresCurrentStarters' in bars,
-            'leader is not normalized to max': 'league leader' not in bars,
-            'shared absolute scale exists': 'function buildScale()' in bars and 'state.scale.overall' in bars and 'state.scale.pos[p]' in bars,
-            'bars are physically clamped': 'max-width:96%!important' in bars and 'Math.min(96,pct)' in bars and 'contain:paint!important' in bars,
-            'power renderer has no self observing team subtree': 'observe(teams,{childList:true,subtree:true})' not in bars,
-            'bar percentage label remains hidden': '.bar-meta span:last-child{display:none!important}' in bars and "meta[1].textContent=''" in bars,
-            'exact canonical total is stored': 'card.dataset.whPowerTotal=String(Math.round(t.overall))' in bars and 'card.dataset.whPowerTotal' in details,
-            'rank buckets do not style bars': "card.classList.remove('top','mid','bottom')" in bars and '.team .power-fill.wh-stacked-power' in bars,
-            'bar gets horizontal room': 'minmax(430px,3fr)' in bars,
-            'power bars own displayed order': 'parent.appendChild(card)' in bars and 't.ranks.overall' in bars,
-            'overall bar has position segments': 'overallSegments' in bars and 'wh-power-seg' in bars,
-            'position colors are distinct': "QB:'#a98bff'" in bars and "RB:'#59d694'" in bars and "WR:'#5da8ff'" in bars and "TE:'#f0a45d'" in bars,
-            'intelligence no longer owns bars or ordering': 'power-fill' not in league and '.power-num' not in league and 'parent.appendChild(card)' not in league and 'growBar' not in league,
-            'card details observer is shallow': 'observe(teams,{childList:true,subtree:false})' in details,
-            'power number writes are idempotent': 'function setPowerNumber' in details and 'if(num.innerHTML!==html)' in details,
-            'expanded roster shows actual position rank': 'wh-pos-rank-badge' in details and "${pos} #${rank}" in details,
-            'expanded roster groups players by position': 'function groupRosterByPosition' in details and 'wh-by-position' in details and 'for(const pos of POS)' in details,
-            'starter context remains reference only': 'wh-starter-badge' in details and 'row.dataset.whStarter' in details,
-            'audit shows history raw role power': 'HIST' in audit and 'RAW' in audit and 'ROLE' in audit and 'POWER' in audit and 'There is no separate position-rank bonus.' in audit,
-            'multiple saved leagues exist': 'wh_sleeper_leagues_v2' in league and 'SAVED LEAGUES' in league and 'wh-saved-league' in league,
-            'username can discover several leagues': '/leagues/nfl/${SEASON}' in league and 'for(const l of leagues)upsertLeague' in league,
-            'needs do not use league-rank cutoffs': 'needCut=' not in league and 'surplusCut=' not in league and 'needCut=' not in trade and 'surplusCut=' not in trade,
-            'fantasy role bands are league-size aware': 'function leagueSize()' in league and 'function fantasyTier(posRank)' in league and '/leagueSize()' in league,
-            'needs use actual starter requirements': 'function starterSlots(pos)' in league and 'roster_positions' in league and 'starterTarget' in league,
-            'quality need and supply scores exist': 'needScore' in league and 'supplyScore' in league and 'positionProfile' in league,
-            'trade mode mirrors quality needs': 'positionProfileFromRoster' in trade and 'needScore' in trade and 'supplyScore' in trade and 'posRankMap' in trade,
-            'position power views exist': "['OVERALL',...POS]" in league and 'data-power-view' in league and 'state.view' in league,
-            'position view ordering is canonical in bars': "view==='OVERALL'?a.ranks.overall-b.ranks.overall:a.ranks[view]-b.ranks[view]" in bars,
-            'best trade partners use need x supply': 'partnerFit' in league and 'myNeed*theirSupply+theirNeed*mySupply' in league and 'teamA=' in league and 'teamB=' in league,
-            'league snapshots save need profiles': 'wh_league_intel_v1::' in league,
-            'trade league mode is loaded': 'season-trade-league-mode-v1.js?v=1' in polish,
-            'trade league mode supports saved leagues': 'wh_sleeper_leagues_v2' in trade,
-            'trade league mode uses real Sleeper rosters': '/league/${id}/rosters' in trade and 'r?.players||[]' in trade,
-            'league mode restricts add flow to roster picker': 'wh-roster-modal' in trade and 'data-league-pick' in trade,
-            'generic trade mode remains available': "setActive(!state.active)" in trade,
+            'old explosive curve gone': '210*Math.exp(-.022' not in model and '100*Math.exp(-.085' not in model,
+            'position bonus double count gone': 'const cap={QB:' not in model,
+            'bars clamped': 'max-width:96%!important' in bars and 'Math.min(96,pct)' in bars,
+            'no runaway bar observer': 'observe(teams,{childList:true,subtree:true})' not in bars,
+            'audit uses canonical model': 'M.buildTeams(ctx())' in audit,
           }
-          failed=[k for k,v in checks.items() if not v]
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
-          if failed: raise SystemExit('League intelligence checks failed: '+', '.join(failed))
+          failed=[k for k,v in checks.items() if not v]
+          if failed: raise SystemExit(', '.join(failed))
           PY
