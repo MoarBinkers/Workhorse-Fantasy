@@ -44,6 +44,7 @@ jobs:
           node --check season-insight-v1.js
           node --check season-compare-v1.js
           node --check season-matchup-trends-v1.js
+          node --check season-regression-fix-v1.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -68,6 +69,7 @@ jobs:
           insight=Path('season-insight-v1.js').read_text()
           compare=Path('season-compare-v1.js').read_text()
           trends=Path('season-matchup-trends-v1.js').read_text()
+          fix=Path('season-regression-fix-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -117,6 +119,11 @@ jobs:
             'owner controls load from ranking seed':'season-owner-control-v1.js?v=1' in seed and 'data-wh-owner-control' in seed,
             'owner controls force editable rows':'wh-owner-control' in owner and "row.classList.add('editable')" in owner and 'wh-owner-precision' in owner,
             'owner exact-rank controls remain visible':'#rank-rows .precision{display:flex!important}' in owner,
+            'owner mode syncs original edit state':'syncBaseEditing' in fix and "btn.click()" in fix and "classList.add('editable')" in fix,
+            'regression fix loads last':'loadRegressionFix()' in seed and seed.index('loadRegressionFix();') > seed.index('loadMatchupTrends();'),
+            'role trend duplicate guard exists':'data-wh-role-for' in fix and 'removeBrokenRoleBlocks' in fix and 'wh-role-fixed' in fix,
+            'empty role state is single stable block':'No 2026 role sample yet.' in fix and 'wh-role-fixed-note' in fix,
+            'matchup recovery preserves 2025 reference':'matchupRecovery' in fix and '.wh-2025-ref' in fix and "active.textContent.trim()!=='Matchup'" in fix,
             'player details load with ranking seed':'season-player-detail-v1.js?v=1' in seed and 'data-wh-player-detail' in seed,
             'player cards open full detail panel':'#rank-rows .rank-row' in detail and 'wh-player-panel' in detail and 'Player details' in detail,
             'player details preserve drag controls':'.drag-handle,button,input,a,label' in detail and 'wh-sorting' in detail,
