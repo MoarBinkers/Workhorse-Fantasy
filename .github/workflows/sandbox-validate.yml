@@ -35,6 +35,7 @@ jobs:
           node --check season-rankings-seed-v1.js
           node --check season-rankings-enhance-v4.js
           node --check season-rankings-ui-v5.js
+          node --check season-rankings-drag-v1.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -52,6 +53,7 @@ jobs:
           seed=Path('season-rankings-seed-v1.js').read_text()
           enhance=Path('season-rankings-enhance-v4.js').read_text()
           ui=Path('season-rankings-ui-v5.js').read_text()
+          drag=Path('season-rankings-drag-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -67,8 +69,6 @@ jobs:
             'tools hub offers specific utilities':'ADP & Draft Board' in tools and 'Live Draft' in tools and 'Preseason Rankings & Tiers' in tools,
             'rankings have Sleeper headshots':'sleepercdn.com/content/nfl/players/thumb/' in season,
             'rankings fetch actual season stats':'/stats/nfl/regular/' in season and 'pts_ppr' in season,
-            'rankings support mouse drag':'dragstart' in season and 'dropBefore' in season,
-            'rankings support touch drag':'pointerdown' in season and 'drag-handle' in season,
             'master and personal stores are separate':'wh_ros_master_v3' in season and 'wh_my_ros_v3' in season,
             'weekly boards are separated by week':'wh_week_master_v3::' in season and 'wh_my_week_v3::' in season,
             'owner verification protects master editing':'workhorse_role' in season and "==='owner'" in season,
@@ -86,11 +86,16 @@ jobs:
             'add player exists for editable boards':'+ Add Player' in enhance and 'wh-add-modal' in enhance,
             'weekly start tiers exist':all(x in enhance for x in ['Must Start','Great Start','Comfortable Flex','Shaky Flex']),
             'market wording is replaced in enhanced rows':'Market #' not in enhance and 'not based on ADP' in enhance,
-            'polished ranking UI loads from seeded board':'season-rankings-ui-v5.js?v=1' in seed,
+            'polished ranking UI loads after enhancement':'season-rankings-ui-v5.js?v=1' in page and page.index('season-rankings-enhance-v4.js?v=2') < page.index('season-rankings-ui-v5.js?v=1'),
             'overall and position ranks display together':'data-overall-rank' in ui and 'data-pos-rank' in ui and 'posRank' in ui,
             'overall rank remains compact':'font-size:13px' in ui and 'rank-area>b::before' in ui,
             'weekly tiers have labeled tier pills':all(x in ui for x in ['TIER 1','TIER 2','TIER 3','TIER 4','wh-tier-break::after']),
             'ranking rows use compact card styling':'border-radius:10px' in ui and 'min-height:58px' in ui,
+            'smooth drag loads after ranking UI':'season-rankings-drag-v1.js?v=1' in page and page.index('season-rankings-ui-v5.js?v=1') < page.index('season-rankings-drag-v1.js?v=1'),
+            'smooth drag replaces native browser drag':'r.removeAttribute(\'draggable\')' in drag and 'dragstart' in drag and 'preventDefault' in drag,
+            'smooth drag supports mouse touch and pen with one pointer path':all(x in drag for x in ['pointerdown','pointermove','pointerup','setPointerCapture']),
+            'smooth drag has insertion line and floating preview':'wh-drop-line' in drag and 'wh-drag-ghost' in drag,
+            'smooth drag auto scrolls near viewport edges':'scrollLoop' in drag and 'scrollBy(0,speed)' in drag,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
             'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
