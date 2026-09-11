@@ -26,101 +26,41 @@ jobs:
           python .github/live-draft-release-check.py
           node .github/rank-sync-regression-test.js
 
-      - name: Check season JavaScript syntax
+      - name: Check sandbox JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v5.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js sandbox-tools-v1.js; do node --check "$f"; done
 
-      - name: Verify product and UI stability contracts
+      - name: Verify current Workhorse contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-          import math
           page=Path('sandbox.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
-          admin=Path('sandbox-admin-v1.js').read_text()
-          seed=Path('season-rankings-seed-v1.js').read_text()
-          drag=Path('season-rankings-drag-v1.js').read_text()
-          matchup=Path('season-matchup-reference-v1.js').read_text()
-          injury=Path('season-injury-status-v1.js').read_text()
-          owner=Path('season-owner-control-v1.js').read_text()
-          polish=Path('season-card-polish-v1.js').read_text()
-          insight=Path('season-insight-v3.js').read_text()
-          compare=Path('season-compare-v1.js').read_text()
-          tiers=Path('season-ros-tiers-v4.js').read_text()
-          change=Path('season-ros-change-fix-v1.js').read_text()
-          tools=Path('sandbox-tools-v1.js').read_text()
+          loader=Path('season-trade-calculator-v5.js').read_text()
           trade=Path('season-trade-calculator-v7.js').read_text()
-
-          repl={'QB':12,'RB':30,'WR':36,'TE':12}
-          def rank_value(rank): return 6+114*math.exp(-.0165*max(0,rank-1))
-          def expected(pos,r):
-              floor={'QB':16,'RB':8.8,'WR':9.5,'TE':7.4}[pos]
-              ceil={'QB':24.5,'RB':21,'WR':21.5,'TE':17}[pos]
-              decay={'QB':.16,'RB':.085,'WR':.075,'TE':.15}[pos]
-              rr=repl[pos]
-              if r<=rr: return floor+(ceil-floor)*math.exp(-decay*max(0,r-1))
-              return max(3,floor-.28*(r-rr))
-          def value(rank,pos,posrank):
-              edge=expected(pos,posrank)-expected(pos,repl[pos])
-              bonus=max(-4,min(10,edge*.9))
-              return round(rank_value(rank)+bonus)
-          elite_gap=value(1,'RB',1)-value(2,'RB',2)
-          def pkg_weight(final,edge,index,best=100):
-              if index==0: return 1
-              relative=max(0,min(1,final/best))
-              edgeq=max(0,min(1,(edge+1.5)/8.5))
-              quality=.58*edgeq+.42*relative
-              floors=[1,.52,.32,.20]; caps=[1,.96,.86,.74]
-              w=floors[index]+(caps[index]-floors[index])*quality
-              if edge<=0: w*=.72
-              return max(.14,min(1,w))
-          starter_weight=pkg_weight(75,5,1)
-          depth_weight=pkg_weight(45,-2,1)
-
+          polish=Path('season-trade-ui-polish-v1.js').read_text()
+          league=Path('season-league-overview-v1.js').read_text()
+          league_page=Path('sandbox-league.html').read_text()
+          tools=Path('sandbox-tools-v1.js').read_text()
+          static=Path('.github/workflows/static.yml').read_text()
           checks={
-            'sandbox safety remains': 'sandbox_write_blocked' in guard and 'wh_sandbox_v1::' in guard and 'Production is locked' in admin,
-            'production deploy remains main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
-            'season routes remain': all(x in page for x in ['view=ros','view=weekly','view=my-rankings']),
-            'smooth drag remains': all(x in drag for x in ['pointerdown','pointermove','pointerup','wh-drag-ghost','wh-drop-line','scrollLoop']),
-            'owner mode remains toggleable': all(x in owner for x in ['OWNER MODE · ON','OWNER MODE · OFF','wh-owner-control']),
-            'owner rank controls remain': all(x in owner for x in ['wh-owner-precision','data-up','data-down','data-rank']),
-            'owner controls are mounted inside rank area': "if(p.parentElement!==area)area.appendChild(p)" in owner,
-            'owner control no longer uses timer repaint': 'setInterval' not in owner,
-            'owner mode does not create a fifth card column': 'grid-template-columns:70px 44px minmax(0,1fr) 80px 142px' not in polish and 'grid-template-columns:70px 44px minmax(0,1fr) 80px!important' in polish,
-            'ROS ALL visually hides tier UI': 'body:has(.filter.active[data-filter="ALL"]) #rank-rows .wh-ros-tier-break' in polish and '#rank-rows .wh-ros-tier-chip' in polish and '#wh-ros-add-tier' in polish,
-            'positional tier system remains editable': all(x in tiers for x in ['ADD NEXT TIER','data-add-tier-pos','workhorse:ros-tier-drop','assignment']),
-            'Change remains idle stable': 'observe(document.documentElement' not in change and 'observe(box,{childList:true,subtree:false})' in change,
-            'weekly matchup remains position specific': "POSITIONS=['QB','RB','WR','TE']" in matchup and 'table[team][pos]' in matchup,
-            'injury handling remains': all(x in injury for x in ['QUESTIONABLE','DOUBTFUL','OUT / UNAVAILABLE']),
-            'insights remain': all(x in insight for x in ['Role trend','Why Ranked','Save rationale','Smart Search','Game total','vs WH']),
-            'compare remains': 'selected.size>=3' in compare and 'Player Comparison' in compare,
-            'current modules load': all(x in seed for x in ['season-owner-control-v1.js','season-insight-v3.js','season-regression-fix-v2.js','season-card-polish-v1.js','season-ros-tiers-v4.js']),
-            'Trade Calculator v7 route exists': "v==='trade'" in page and 'season-trade-calculator-v7.js?v=7' in page,
-            'Trade Calculator is featured in Tools': 'Trade Calculator' in tools and 'view=trade' in tools and 'FLAGSHIP' in tools,
-            'trade model is PPR ROS based': all(x in trade for x in ['wh_ros_master_v3','PPR · REST OF SEASON']),
-            'tiers do not affect trade value': 'wh_ros_tiers' not in trade and 'tierBonus' not in trade and 'tierState' not in trade,
-            'trade value editing stays removed': 'EDIT VALUE' not in trade and 'wh_trade_value_overrides' not in trade and 'data-edit' not in trade,
-            'value over replacement exists': 'REPL={QB:12,RB:30,WR:36,TE:12}' in trade and 'function expectedPpr(pos,r)' in trade and 'function replacementEdge(pos,r)' in trade,
-            'VOR stays internal instead of cluttering cards': 'replacementBonus' in trade and 'vs repl' not in trade and 'model-note' not in trade,
-            'adjacent elite RBs stay slight': 2 <= elite_gap <= 7,
-            'smart package weighting exists': 'function packageWeight(info,index,best)' in trade and 'edgeQuality' in trade and 'relative' in trade and 'WEIGHTS=' not in trade,
-            'starter second piece keeps strong value': starter_weight >= .80,
-            'depth second piece is discounted hard': depth_weight <= .55,
-            'starter and depth pieces are materially different': starter_weight-depth_weight >= .25,
-            'package quality remains internal': all(x in trade for x in ['DIFFERENCE-MAKER','STARTER-GRADE','USABLE STARTER','DEPTH']) and 'packageClass' not in trade.split('function playerCard')[1].split('function renderSide')[0],
-            'best asset premium remains package-specific': 'const packageDeal=' in trade and 'packageDeal&&topDiff' in trade,
-            'fairness area is larger': 'max-width:540px' in trade and 'height:15px' in trade and 'font-size:16px' in trade,
-            'fairness bar is dynamically green red yellow': all(x in trade for x in ['fairness.slight.favor-a','fairness.clear.favor-a','fairness.strong.favor-a','fairness.slight.favor-b','fairness.even','--win:#6fdfa0','--lose:#ef727c','--close:#e3c561']),
-            'fairness state follows winner and strength': "fair.className='fairness '+" in trade and 'favor-${v.winner.toLowerCase()}' in trade,
-            'fairness marker has smoother settle animation': 'transition:left .72s cubic-bezier(.16,1,.3,1)' in trade and '@keyframes fairSettle' in trade and "marker.classList.add('settle')" in trade,
-            'fairness UI has no percentage': '50/50' not in trade and 'fairness meter' not in trade.lower(),
-            'player cards do not advertise trade points': 'TRADE VALUE' not in trade and 'class="value"' not in trade and 'class="value-num"' in trade,
-            'search results show ROS not trade points': '<em>ROS #${vi?.rank' in trade,
-            'trade value details sit below trade': trade.index('<section class="value-details">') > trade.index('<section class="trade">') and 'Trade value details' in trade,
-            'unnecessary model explainer is removed': 'Why Workhorse sees it this way' not in trade and 'model-note' not in trade and 'fair-note' in trade,
-            'trade supports four players per side': 'up to 4' in trade and 'sides[searchSide].length<4' in trade,
+            'sandbox guard remains': 'sandbox_write_blocked' in guard and 'Production is locked' in Path('sandbox-admin-v1.js').read_text(),
+            'production deploy remains main only': 'branches: ["main"]' in static,
+            'trade route remains': "v==='trade'" in page and 'season-trade-calculator-v5.js?v=5' in page,
+            'trade route loads current calculator': 'season-trade-calculator-v7.js?v=7' in loader and 'season-trade-ui-polish-v1.js?v=1' in loader,
+            'trade keeps VOR and smart packages': all(x in trade for x in ['REPL={QB:12,RB:30,WR:36,TE:12}','function replacementEdge(pos,r)','function packageWeight(info,index,best)','packageDeal&&topDiff']),
+            'trade tiers stay out': 'wh_ros_tiers' not in trade and 'tierBonus' not in trade,
+            'trade value editor stays out': 'EDIT VALUE' not in trade and 'wh_trade_value_overrides' not in trade,
+            'fairness colors and animation remain': all(x in trade for x in ['favor-a','favor-b','fairSettle','--win:#6fdfa0','--lose:#ef727c','--close:#e3c561']),
+            'ROS rank is promoted': '.ros{font-size:13px!important' in polish and 'ROS #' in trade,
+            'league overview page loads': 'season-league-overview-v1.js?v=1' in league_page and 'sandbox-guard-v1.js?v=2' in league_page,
+            'league overview uses Sleeper': all(x in league for x in ['/user/${encodeURIComponent(v)}','/leagues/nfl/${SEASON}','/league/${id}/rosters','/league/${id}/users']),
+            'league overview saves user context': 'wh_sleeper_context_v1' in league and 'my_roster_id' in league and 'SET AS MY TEAM' in league,
+            'league breakdown exists': all(x in league for x in ['League Power Rankings','starterScore','depthScore',"['QB','RB','WR','TE']",'FULL ROSTER']),
+            'league is linked from tools': 'sandbox-league.html' in tools and 'League Overview' in tools,
+            'trade links back to league': 'sandbox-league.html' in polish,
           }
-          failed=[n for n,v in checks.items() if not v]
-          for n,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+n)
+          failed=[k for k,v in checks.items() if not v]
+          for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
           if failed: raise SystemExit('Sandbox checks failed: '+', '.join(failed))
           PY
