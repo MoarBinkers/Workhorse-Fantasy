@@ -52,7 +52,7 @@ function tier(index,filterName){
  else if(filterName==='WR')cuts=[12,24,48,9999];
  else if(filterName==='TE')cuts=[6,12,18,9999];
  else return null;
- const labels=['Elite','High-End Starter','Starter','Depth'];
+ const labels=['A','B','C','D'];
  for(let i=0;i<cuts.length;i++)if(n<=cuts[i])return{i,label:labels[i]};
  return{i:3,label:labels[3]};
 }
