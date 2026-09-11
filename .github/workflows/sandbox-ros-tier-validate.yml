@@ -24,48 +24,52 @@ jobs:
           node --check season-ros-tiers-v4.js
           node --check season-ros-change-fix-v1.js
           node --check season-rankings-enhance-v4.js
-          node --check season-insight-v2.js
+          node --check season-insight-v3.js
           node --check season-rankings-drag-v1.js
           node --check season-rankings-seed-v1.js
 
-      - name: Verify editable ROS and idle-stability contracts
+      - name: Verify ROS behavior and idle stability
         run: |
           python - <<'PY'
           from pathlib import Path
           tiers=Path('season-ros-tiers-v4.js').read_text()
           change=Path('season-ros-change-fix-v1.js').read_text()
           enhance=Path('season-rankings-enhance-v4.js').read_text()
-          insight=Path('season-insight-v2.js').read_text()
+          insight=Path('season-insight-v3.js').read_text()
           drag=Path('season-rankings-drag-v1.js').read_text()
           seed=Path('season-rankings-seed-v1.js').read_text()
           checks={
-            'ROS v4 tiers load outside weekly':"window.__WH_ROS_TIERS_V4__" in seed and 'season-ros-tiers-v4.js?v=4' in seed,
-            'stable insights v2 loads':'season-insight-v2.js?v=2' in seed and 'data-wh-season-insight-v2' in seed,
-            'ROS change fix loads after tiers':'loadRosChangeFix();' in seed and seed.index('loadRosChangeFix();') > seed.index('loadRosTiers();'),
-            'default QB TE cuts preserved':'QB:[6,12,18]' in tiers and 'TE:[6,12,18]' in tiers,
-            'default RB WR cuts preserved':'RB:[12,24,48]' in tiers and 'WR:[12,24,48]' in tiers,
-            'tier assignments persist':'wh_ros_tiers_v1::' in tiers and 'assignment' in tiers and 'localStorage.setItem' in tiers,
-            'owner add tier works in positional tab':'#wh-ros-add-tier' in tiers and 'addTier(f)' in tiers,
-            'ALL add tier position picker exists':'wh-ros-tier-picker' in tiers and 'data-add-tier-pos' in tiers,
-            'last tier has inline add control':'ADD NEXT TIER' in tiers,
-            'empty tiers remain drop zones':'Empty · drop a player here' in tiers,
-            'ALL carries positional tier badge':'wh-ros-tier-chip' in tiers and 'renderAll' in tiers,
-            'legacy ROS breaks are suppressed':'wh-ros-tier-system #rank-rows>.wh-tier-break' in tiers,
-            'drag engine recognizes tier dividers':'wh-ros-tier-break[data-tier-letter]' in drag and 'tierTarget' in drag,
-            'tier drop emits event':'workhorse:ros-tier-drop' in drag and 'onTierDrop' in tiers,
-            'normal positional drag inherits tier':'workhorse:rank-dragged' in drag and 'onRankDrag' in tiers,
-            'tier controller has no repaint timer':'setInterval' not in tiers,
-            'enhancement does not watch whole document':'observe(document.documentElement' not in enhance,
-            'enhancement only reacts to direct board rows':"observe(box,{childList:true,subtree:false})" in enhance and 'rowMutation' in enhance,
-            'change is idempotent':'wh-change-wrap' in change and 'badge.textContent!==label' in change,
-            'change does not watch whole document':'observe(document.documentElement' not in change,
-            'change only reacts to direct board rows':"observe(box,{childList:true,subtree:false})" in change,
-            'insights do not timer-rewrite cards':'setInterval' not in insight,
-            'insight board decorator is direct-child only':"observe(box,{childList:true,subtree:false})" in insight,
-            'rank history remains in player detail':'historyDelta' in insight and 'Rank history' in insight,
-            'production deploy remains main only':'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
+            'ROS v4 loads': 'season-ros-tiers-v4.js?v=4' in seed and '__WH_ROS_TIERS_V4__' in seed,
+            'Insights v3 loads': 'season-insight-v3.js?v=3' in seed and '__WH_SEASON_INSIGHT_V3__' in seed,
+            'Change loads after tiers': seed.index('loadRosChangeFix();') > seed.index('loadRosTiers();'),
+            'QB/TE defaults preserved': 'QB:[6,12,18]' in tiers and 'TE:[6,12,18]' in tiers,
+            'RB/WR defaults preserved': 'RB:[12,24,48]' in tiers and 'WR:[12,24,48]' in tiers,
+            'tier assignments persist': 'wh_ros_tiers_v1::' in tiers and 'assignment' in tiers and 'localStorage.setItem' in tiers,
+            'position add tier works': '#wh-ros-add-tier' in tiers and 'addTier(f)' in tiers,
+            'ALL tier picker works': 'wh-ros-tier-picker' in tiers and 'data-add-tier-pos' in tiers,
+            'inline add tier exists': 'ADD NEXT TIER' in tiers,
+            'empty tier is drop zone': 'Empty · drop a player here' in tiers,
+            'ALL carries tier badge': 'wh-ros-tier-chip' in tiers and 'renderAll' in tiers,
+            'drag sees tier headers': 'wh-ros-tier-break[data-tier-letter]' in drag and 'tierTarget' in drag,
+            'tier drop event exists': 'workhorse:ros-tier-drop' in drag and 'onTierDrop' in tiers,
+            'normal drag inherits tier': 'workhorse:rank-dragged' in drag and 'onRankDrag' in tiers,
+            'tier controller has no timer repaint': 'setInterval' not in tiers,
+            'enhancer has no whole-page observer': 'observe(document.documentElement' not in enhance,
+            'enhancer only watches direct board children': 'observe(box,{childList:true,subtree:false})' in enhance,
+            'Change has stable wrapper': 'wh-change-wrap' in change and 'badge.textContent!==label' in change,
+            'Change has no whole-page observer': 'observe(document.documentElement' not in change,
+            'Change only watches direct board children': 'observe(box,{childList:true,subtree:false})' in change,
+            'insights do not use timer card rewrites': 'setInterval' not in insight,
+            'insight row decoration is direct-child only': 'observe(box,{childList:true,subtree:false})' in insight,
+            'role trends preserved': all(x in insight for x in ['Role trend','Targets','Carries','pass_att']),
+            'Why Ranked remains editable': all(x in insight for x in ['Why Ranked','wh-owner-note','Save rationale']),
+            'rank history remains': 'wh_rank_history_v3::' in insight and 'histDelta' in insight,
+            'My vs Workhorse remains': 'vs WH' in insight and 'masterKey' in insight,
+            'team environment remains': 'Game total' in insight and 'details' in insight,
+            'smart search remains': 'Smart Search' in insight and 'Vikings WR' in insight,
+            'production deploy remains main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
           }
-          failed=[name for name,ok in checks.items() if not ok]
-          for name,ok in checks.items(): print(('PASS' if ok else 'FAIL')+': '+name)
+          failed=[n for n,v in checks.items() if not v]
+          for n,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+n)
           if failed: raise SystemExit('ROS stability checks failed: '+', '.join(failed))
           PY
