@@ -34,6 +34,7 @@ jobs:
           node --check season-rankings-v3.js
           node --check season-rankings-seed-v1.js
           node --check season-rankings-enhance-v4.js
+          node --check season-rankings-ui-v5.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -50,6 +51,7 @@ jobs:
           season=Path('season-rankings-v3.js').read_text()
           seed=Path('season-rankings-seed-v1.js').read_text()
           enhance=Path('season-rankings-enhance-v4.js').read_text()
+          ui=Path('season-rankings-ui-v5.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -84,6 +86,11 @@ jobs:
             'add player exists for editable boards':'+ Add Player' in enhance and 'wh-add-modal' in enhance,
             'weekly start tiers exist':all(x in enhance for x in ['Must Start','Great Start','Comfortable Flex','Shaky Flex']),
             'market wording is replaced in enhanced rows':'Market #' not in enhance and 'not based on ADP' in enhance,
+            'polished ranking UI loads from seeded board':'season-rankings-ui-v5.js?v=1' in seed,
+            'overall and position ranks display together':'data-overall-rank' in ui and 'data-pos-rank' in ui and 'posRank' in ui,
+            'overall rank remains compact':'font-size:13px' in ui and 'rank-area>b::before' in ui,
+            'weekly tiers have labeled tier pills':all(x in ui for x in ['TIER 1','TIER 2','TIER 3','TIER 4','wh-tier-break::after']),
+            'ranking rows use compact card styling':'border-radius:10px' in ui and 'min-height:58px' in ui,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
             'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
