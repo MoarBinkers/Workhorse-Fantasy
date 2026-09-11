@@ -49,7 +49,7 @@ jobs:
             'elite ros curve is strongly nonlinear': '210*Math.exp(-.022*x)' in bars and '100*Math.exp(-.085*x)' in bars and '120*Math.exp(-.0165' not in bars,
             'expanded absolute bar range exists': 'Math.max(30,Math.min(96' in bars and 'Math.pow(ratio,.84)' in bars,
             'bar percentage label remains hidden': '.bar-meta span:last-child{display:none!important}' in bars and "meta[1].textContent=''" in bars,
-            'overall power number is restored': '.team .power-num{display:block!important}' in details and 'totalFromSegments' in details and "<small>POWER</small>" in details,
+            'overall power number is restored': '.team .power-num{display:block!important;' in details and 'totalFromSegments' in details and "<small>POWER</small>" in details,
             'rank buckets do not style bars': "card.classList.remove('top','mid','bottom')" in bars and '.team .power-fill.wh-stacked-power' in bars,
             'bar gets more horizontal room': 'minmax(430px,3fr)' in bars,
             'power bars own displayed order': 'parent.appendChild(card)' in bars and 't.ranks.overall=i+1' in bars,
