@@ -1,0 +1,55 @@
+name: Validate Editable ROS Tiers
+
+on:
+  push:
+    branches: ["sandbox"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-editable-ros-tiers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sandbox
+        uses: actions/checkout@v4
+
+      - name: Check tier JavaScript syntax
+        run: |
+          node --check season-ros-tiers-v2.js
+          node --check season-rankings-drag-v1.js
+          node --check season-rankings-seed-v1.js
+
+      - name: Verify editable ROS tier contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          tiers=Path('season-ros-tiers-v2.js').read_text()
+          drag=Path('season-rankings-drag-v1.js').read_text()
+          seed=Path('season-rankings-seed-v1.js').read_text()
+          checks={
+            'ROS tiers load only outside weekly':"if(isWeekly||window.__WH_ROS_TIERS_V2__)return" in seed,
+            'ROS tiers load last':'loadRosTiers();' in seed and seed.index('loadRosTiers();') > seed.index('loadCardPolish();'),
+            'default QB TE cuts preserved':'QB:[6,12,18]' in tiers and 'TE:[6,12,18]' in tiers,
+            'default RB WR cuts preserved':'RB:[12,24,48]' in tiers and 'WR:[12,24,48]' in tiers,
+            'tiers persist assignments':'wh_ros_tiers_v1::' in tiers and 'assignment' in tiers and 'localStorage.setItem' in tiers,
+            'owner can add tiers':'+ ${pos} TIER' in tiers and 'nextLetter' in tiers and 'defs.push' in tiers,
+            'empty tiers are valid drop zones':'Empty · drop a player here' in tiers,
+            'ALL carries positional tier badge':'wh-ros-tier-chip' in tiers and 'renderAll' in tiers and 'chip.textContent=`${pos} · ${tier}`' in tiers,
+            'position views render saved tier breaks':'wh-ros-tier-break' in tiers and 'renderPosition' in tiers,
+            'legacy ROS breaks are suppressed':'wh-ros-tier-system #rank-rows>.wh-tier-break' in tiers,
+            'tier observer ignores its own divider mutations':'rowMutation' in tiers and "muts.some(rowMutation)" in tiers,
+            'drag engine recognizes tier dividers':'wh-ros-tier-break[data-tier-letter]' in drag and 'tierTarget' in drag,
+            'dragging onto a tier emits saved-tier event':'workhorse:ros-tier-drop' in drag and 'handleTierDrop' in tiers,
+            'normal positional drag inherits target tier':'workhorse:rank-dragged' in drag and 'handleNormalDrag' in tiers,
+            'production deploy remains main only':'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
+          }
+          failed=[name for name,ok in checks.items() if not ok]
+          for name,ok in checks.items(): print(('PASS' if ok else 'FAIL')+': '+name)
+          if failed: raise SystemExit('ROS tier checks failed: '+', '.join(failed))
+          PY
