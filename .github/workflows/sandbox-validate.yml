@@ -38,6 +38,12 @@ jobs:
           node --check season-rankings-drag-v1.js
           node --check season-player-detail-v1.js
           node --check season-matchup-reference-v1.js
+          node --check season-matchup-expanded-v1.js
+          node --check season-injury-status-v1.js
+          node --check season-owner-control-v1.js
+          node --check season-insight-v1.js
+          node --check season-compare-v1.js
+          node --check season-matchup-trends-v1.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -58,6 +64,10 @@ jobs:
           drag=Path('season-rankings-drag-v1.js').read_text()
           detail=Path('season-player-detail-v1.js').read_text()
           matchup=Path('season-matchup-reference-v1.js').read_text()
+          owner=Path('season-owner-control-v1.js').read_text()
+          insight=Path('season-insight-v1.js').read_text()
+          compare=Path('season-compare-v1.js').read_text()
+          trends=Path('season-matchup-trends-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -104,6 +114,9 @@ jobs:
             'smooth drag supports mouse touch and pen with one pointer path':all(x in drag for x in ['pointerdown','pointermove','pointerup','setPointerCapture']),
             'smooth drag has insertion line and floating preview':'wh-drop-line' in drag and 'wh-drag-ghost' in drag,
             'smooth drag auto scrolls near viewport edges':'scrollLoop' in drag and 'scrollBy(0,speed)' in drag,
+            'owner controls load from ranking seed':'season-owner-control-v1.js?v=1' in seed and 'data-wh-owner-control' in seed,
+            'owner controls force editable rows':'wh-owner-control' in owner and "row.classList.add('editable')" in owner and 'wh-owner-precision' in owner,
+            'owner exact-rank controls remain visible':'#rank-rows .precision{display:flex!important}' in owner,
             'player details load with ranking seed':'season-player-detail-v1.js?v=1' in seed and 'data-wh-player-detail' in seed,
             'player cards open full detail panel':'#rank-rows .rank-row' in detail and 'wh-player-panel' in detail and 'Player details' in detail,
             'player details preserve drag controls':'.drag-handle,button,input,a,label' in detail and 'wh-sorting' in detail,
@@ -119,8 +132,19 @@ jobs:
             'compact matchup strip shows PPR yards and TD ranks':all(x in matchup for x in ['wh-card-matchup',"['PPR','ppr']","['YDS','yards']","['TD','td']"]),
             'matchup colors are green yellow red':'wh-mu-chip.green' in matchup and 'wh-mu-chip.yellow' in matchup and 'wh-mu-chip.red' in matchup,
             'defense rank direction is explained':'#1 toughest' in matchup and 'easiest' in matchup,
+            'matchup trends load only for weekly':'season-matchup-trends-v1.js?v=1' in seed and 'loadMatchupTrends' in seed,
+            '2025 last four matchup split exists':all(x in trends for x in ['2025 Last 4','[15,16,17,18]','rankTotal']),
             'must start color is green':'Meaning-first weekly tier colors' in matchup and '.wh-tier-0{' in matchup and '#a5e8bd' in matchup,
             'comfortable flex color is amber':'.wh-tier-2{' in matchup and '#f1ce75' in matchup,
+            'decision insights load':'season-insight-v1.js?v=1' in seed and 'data-wh-season-insight' in seed,
+            'role trends exist':all(x in insight for x in ['Role trend','Targets','Carries','Pass Att']),
+            'owner rationale is editable':all(x in insight for x in ['Why Ranked','wh-owner-note','Save rationale']),
+            'rank history exists':'wh_rank_history_v1::' in insight and 'historyDelta' in insight,
+            'my rankings compare against Workhorse':'vs WH' in insight and 'masterKey' in insight,
+            'team environment uses game total and line':'Game total' in insight and 'details' in insight,
+            'smart search supports team names':'Smart Search' in insight and 'TEAM_NAMES' in insight and 'Vikings' not in insight,
+            'player compare loads':'season-compare-v1.js?v=1' in seed and 'data-wh-compare' in seed,
+            'player compare supports three players':'selected.size>=3' in compare and 'Player Comparison' in compare,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
             'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
