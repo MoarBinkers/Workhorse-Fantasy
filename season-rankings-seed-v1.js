@@ -22,7 +22,7 @@ function loadCompare(){if(window.__WH_COMPARE_V1__)return;add('./season-compare-
 function loadMatchupTrends(){if(!isWeekly||window.__WH_MATCHUP_TRENDS_V1__)return;add('./season-matchup-trends-v1.js?v=1','data-wh-matchup-trends')}
 function loadRegressionFix(){if(window.__WH_REGRESSION_FIX_V2__)return;add('./season-regression-fix-v2.js?v=2','data-wh-regression-fix-v2')}
 function loadCardPolish(){if(window.__WH_CARD_POLISH_V1__)return;add('./season-card-polish-v1.js?v=1','data-wh-card-polish')}
-function loadRosTiers(){if(isWeekly||window.__WH_ROS_TIERS_V4__)return;add('./season-ros-tiers-v4.js?v=4','data-wh-ros-tiers-v4')}
+function loadRosTiers(){if(isWeekly||window.__WH_ROS_TIERS_V4__)return;add('./season-ros-tiers-v4.js?v=5','data-wh-ros-tiers-v4')}
 function loadRosChangeFix(){if(isWeekly||window.__WH_ROS_CHANGE_FIX_V1__)return;add('./season-ros-change-fix-v1.js?v=2','data-wh-ros-change-fix')}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
