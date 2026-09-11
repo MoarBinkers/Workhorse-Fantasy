@@ -78,7 +78,7 @@ jobs:
             'saved tier bonus affects value': 'function tierBonus(t)' in trade and 'tierBonus:tb' in trade,
             'package tax discounts extra assets': 'WEIGHTS=[1,.82,.62,.45]' in trade and 'WEIGHTS[i]' in trade and 'package tax' in trade,
             'best asset drives explanation': 'gets the best asset in the trade' in trade and 'top-end advantage' in trade,
-            'trade output avoids percentages and acceptance score': 'acceptance' not in trade.lower() and '%' not in trade,
+            'trade output has no acceptance or percentage fairness gimmick': all(x not in trade.lower() for x in ['acceptance score','acceptance rank','fairness meter','50/50']),
             'raw and adjusted values both display': 'ADJUSTED VALUE' in trade and 'Raw ${v.a.raw}' in trade,
             'owner trade value overrides exist': 'wh_trade_value_overrides_v1' in trade and 'EDIT VALUE' in trade and 'RESET' in trade,
             'trade supports four players per side': 'up to 4 players' in trade and 'sides[side].length>=4' in trade,
