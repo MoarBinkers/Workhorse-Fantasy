@@ -30,18 +30,19 @@
  const loadAdmin=()=>{const a=document.createElement('script');a.src='./sandbox-admin-v1.js?v=7';a.async=false;document.documentElement.appendChild(a)};
  if(v==='tools'){
    document.body.innerHTML='<div class="wh-load"><div><b>SANDBOX · NOT LIVE</b><h1>WORKHORSE</h1><p>Loading Tools…</p></div></div>';
-   const s=document.createElement('script');s.src='./sandbox-tools-v1.js?v=1';document.body.appendChild(s);loadAdmin();return;
+   const s=document.createElement('script');s.src='./sandbox-tools-v1.js?v=1';s.async=false;document.body.appendChild(s);loadAdmin();return;
  }
  if(v==='preseason'||v==='rankings'){
    document.body.innerHTML='<div class="wh-load"><div><b>SANDBOX · NOT LIVE</b><h1>WORKHORSE</h1><p>Loading selected draft tool…</p></div></div>';
-   const s=document.createElement('script');s.src='./sandbox-rankings-loader-v2.js?v=1';document.body.appendChild(s);return;
+   const s=document.createElement('script');s.src='./sandbox-rankings-loader-v2.js?v=1';s.async=false;document.body.appendChild(s);return;
  }
  if(v==='ros'||v==='weekly'||v==='my-rankings'||v==='season-rankings'){
    document.body.innerHTML='<div class="wh-load"><div><b>SANDBOX · NOT LIVE</b><h1>WORKHORSE</h1><p>Loading PPR in-season rankings…</p></div></div>';
-   const s=document.createElement('script');s.src='./season-rankings-v3.js?v=3';s.dataset.view=v==='season-rankings'?'ros':(v==='my-rankings'?'mine':v);document.body.appendChild(s);
-   const e=document.createElement('script');e.src='./season-rankings-enhance-v4.js?v=1';document.body.appendChild(e);loadAdmin();return;
+   const s=document.createElement('script');s.src='./season-rankings-v3.js?v=3';s.dataset.view=v==='season-rankings'?'ros':(v==='my-rankings'?'mine':v);s.async=false;document.body.appendChild(s);
+   const seed=document.createElement('script');seed.src='./season-rankings-seed-v1.js?v=1';seed.async=false;document.body.appendChild(seed);
+   const e=document.createElement('script');e.src='./season-rankings-enhance-v4.js?v=2';e.async=false;document.body.appendChild(e);loadAdmin();return;
  }
- const h=document.createElement('script');h.src='./season-home-v1.js?v=2';document.body.appendChild(h);loadAdmin();
+ const h=document.createElement('script');h.src='./season-home-v1.js?v=2';h.async=false;document.body.appendChild(h);loadAdmin();
 })();
 </script>
 </body>
