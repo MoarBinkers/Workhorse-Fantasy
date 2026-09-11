@@ -22,6 +22,10 @@ function loadMatchupReference(){
  if(!isWeekly||window.__WH_MATCHUP_REFERENCE_V1__||document.querySelector('script[data-wh-matchup-reference]'))return;
  const s=document.createElement('script');s.src='./season-matchup-reference-v1.js?v=1';s.async=false;s.dataset.whMatchupReference='1';document.body.appendChild(s);
 }
+function loadInjuryStatus(){
+ if(!isWeekly||window.__WH_INJURY_STATUS_V1__||document.querySelector('script[data-wh-injury-status]'))return;
+ const s=document.createElement('script');s.src='./season-injury-status-v1.js?v=1';s.async=false;s.dataset.whInjuryStatus='1';document.body.appendChild(s);
+}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
@@ -32,6 +36,7 @@ function seed(){
  loadUi();
  loadDetail();
  loadMatchupReference();
+ loadInjuryStatus();
  return true;
 }
 if(!seed()){
