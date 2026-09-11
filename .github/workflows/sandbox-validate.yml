@@ -37,6 +37,7 @@ jobs:
           node --check season-rankings-ui-v5.js
           node --check season-rankings-drag-v1.js
           node --check season-player-detail-v1.js
+          node --check season-matchup-reference-v1.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -56,6 +57,7 @@ jobs:
           ui=Path('season-rankings-ui-v5.js').read_text()
           drag=Path('season-rankings-drag-v1.js').read_text()
           detail=Path('season-player-detail-v1.js').read_text()
+          matchup=Path('season-matchup-reference-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -107,6 +109,14 @@ jobs:
             'weekly matchup uses NFL schedule':'site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' in detail,
             'weekly matchup calculates defense vs position':'defenseVsPosition' in detail and 'Defense-vs-position' in detail and 'PPR allowed / game' in detail,
             'all stats view exposes received numeric stats':'wh-all-grid' in detail and 'Object.entries(agg)' in detail,
+            '2025 matchup reference loads only for weekly boards':'season-matchup-reference-v1.js?v=1' in seed and 'if(!isWeekly' in seed,
+            'matchup reference is explicitly last season':"REF_SEASON=2025" in matchup and '2025 DEFENSE REFERENCE' in matchup,
+            'PPR ranks are separated by QB RB WR TE':"POSITIONS=['QB','RB','WR','TE']" in matchup and 'historicalPos' in matchup and 'table[team][pos]' in matchup,
+            'compact matchup strip shows PPR yards and TD ranks':all(x in matchup for x in ['wh-card-matchup','PPR #','YDS','TD #']),
+            'matchup colors are green yellow red':'wh-mu-chip.green' in matchup and 'wh-mu-chip.yellow' in matchup and 'wh-mu-chip.red' in matchup,
+            'defense rank direction is explained':'#1 toughest' in matchup and 'easiest' in matchup,
+            'must start color is green':'Meaning-first weekly tier colors' in matchup and '.wh-tier-0{' in matchup and '#a5e8bd' in matchup,
+            'comfortable flex color is amber':'.wh-tier-2{' in matchup and '#f1ce75' in matchup,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
             'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
