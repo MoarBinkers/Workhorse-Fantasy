@@ -28,7 +28,7 @@ jobs:
 
       - name: Check season JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v1.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v2.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
 
       - name: Verify product and UI stability contracts
         run: |
@@ -48,7 +48,7 @@ jobs:
           tiers=Path('season-ros-tiers-v4.js').read_text()
           change=Path('season-ros-change-fix-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
-          trade=Path('season-trade-calculator-v1.js').read_text()
+          trade=Path('season-trade-calculator-v2.js').read_text()
           checks={
             'sandbox safety remains': 'sandbox_write_blocked' in guard and 'wh_sandbox_v1::' in guard and 'Production is locked' in admin,
             'production deploy remains main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
@@ -69,19 +69,20 @@ jobs:
             'insights remain': all(x in insight for x in ['Role trend','Why Ranked','Save rationale','Smart Search','Game total','vs WH']),
             'compare remains': 'selected.size>=3' in compare and 'Player Comparison' in compare,
             'current modules load': all(x in seed for x in ['season-owner-control-v1.js','season-insight-v3.js','season-regression-fix-v2.js','season-card-polish-v1.js','season-ros-tiers-v4.js']),
-            'Trade Calculator route exists': "v==='trade'" in page and 'season-trade-calculator-v1.js?v=1' in page,
+            'Trade Calculator v2 route exists': "v==='trade'" in page and 'season-trade-calculator-v2.js?v=2' in page,
             'Trade Calculator is featured in Tools': 'Trade Calculator' in tools and 'view=trade' in tools and 'FLAGSHIP' in tools,
-            'trade model is PPR ROS based': all(x in trade for x in ['wh_ros_master_v3','wh_ros_tiers_v1::wh_ros_master_v3','PPR · REDRAFT · REST OF SEASON']),
-            'trade value uses nonlinear ROS rank': 'Math.exp(-.0185' in trade and 'base' in trade,
-            'elite asset premium exists': 'function elite(rank)' in trade and 'rank<=3?22' in trade and 'Elite +' in trade,
+            'trade model is PPR ROS based': all(x in trade for x in ['wh_ros_master_v3','PPR · REDRAFT · REST OF SEASON']),
+            'tiers do not affect trade value': 'wh_ros_tiers' not in trade and 'tierBonus' not in trade and 'tierState' not in trade,
+            'trade value uses nonlinear ROS rank': 'Math.exp(-.018' in trade and 'base' in trade,
+            'elite asset premium exists': 'function elite(rank)' in trade and 'rank<=3?26' in trade and 'Elite +' in trade,
             'position scarcity exists': 'function scarcity(pos,r)' in trade and "pos==='TE'" in trade and "pos==='RB'" in trade,
-            'saved tier bonus affects value': 'function tierBonus(t)' in trade and 'tierBonus:tb' in trade,
             'package tax discounts extra assets': 'WEIGHTS=[1,.82,.62,.45]' in trade and 'WEIGHTS[i]' in trade and 'package tax' in trade,
-            'best asset drives explanation': 'gets the best asset in the trade' in trade and 'top-end advantage' in trade,
-            'trade output has no acceptance or percentage fairness gimmick': all(x not in trade.lower() for x in ['acceptance score','acceptance rank','fairness meter','50/50']),
+            'best asset drives explanation': 'gets the most valuable asset' in trade and 'Top-end players carry extra weight' in trade,
+            'animated tug fairness bar exists': all(x in trade for x in ['class="rope"','class="knot"','animateTug','transition:left .65s','knotPulse']),
+            'fairness bar has no visible percentage': 'No percentage fairness.' in trade and '50/50' not in trade and 'fairness meter' not in trade.lower(),
             'raw and adjusted values both display': 'ADJUSTED VALUE' in trade and 'Raw ${v.a.raw}' in trade,
-            'owner trade value overrides exist': 'wh_trade_value_overrides_v1' in trade and 'EDIT VALUE' in trade and 'RESET' in trade,
-            'trade supports four players per side': 'up to 4 players' in trade and 'sides[side].length>=4' in trade,
+            'owner trade value overrides exist': 'wh_trade_value_overrides_v2' in trade and 'EDIT VALUE' in trade and 'RESET' in trade,
+            'trade supports four players per side': 'up to 4 players' in trade and 'sides[searchSide].length>=4' in trade,
           }
           failed=[n for n,v in checks.items() if not v]
           for n,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+n)
