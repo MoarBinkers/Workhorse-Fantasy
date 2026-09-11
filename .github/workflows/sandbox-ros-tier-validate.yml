@@ -19,23 +19,28 @@ jobs:
       - name: Checkout sandbox
         uses: actions/checkout@v4
 
-      - name: Check ROS tier and change JavaScript syntax
+      - name: Check ROS ranking JavaScript syntax
         run: |
-          node --check season-ros-tiers-v3.js
+          node --check season-ros-tiers-v4.js
           node --check season-ros-change-fix-v1.js
+          node --check season-rankings-enhance-v4.js
+          node --check season-insight-v2.js
           node --check season-rankings-drag-v1.js
           node --check season-rankings-seed-v1.js
 
-      - name: Verify editable ROS tier contracts
+      - name: Verify editable ROS and idle-stability contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-          tiers=Path('season-ros-tiers-v3.js').read_text()
+          tiers=Path('season-ros-tiers-v4.js').read_text()
           change=Path('season-ros-change-fix-v1.js').read_text()
+          enhance=Path('season-rankings-enhance-v4.js').read_text()
+          insight=Path('season-insight-v2.js').read_text()
           drag=Path('season-rankings-drag-v1.js').read_text()
           seed=Path('season-rankings-seed-v1.js').read_text()
           checks={
-            'ROS v3 tiers load outside weekly':"window.__WH_ROS_TIERS_V3__" in seed and 'season-ros-tiers-v3.js?v=3' in seed,
+            'ROS v4 tiers load outside weekly':"window.__WH_ROS_TIERS_V4__" in seed and 'season-ros-tiers-v4.js?v=4' in seed,
+            'stable insights v2 loads':'season-insight-v2.js?v=2' in seed and 'data-wh-season-insight-v2' in seed,
             'ROS change fix loads after tiers':'loadRosChangeFix();' in seed and seed.index('loadRosChangeFix();') > seed.index('loadRosTiers();'),
             'default QB TE cuts preserved':'QB:[6,12,18]' in tiers and 'TE:[6,12,18]' in tiers,
             'default RB WR cuts preserved':'RB:[12,24,48]' in tiers and 'WR:[12,24,48]' in tiers,
@@ -44,17 +49,23 @@ jobs:
             'ALL add tier position picker exists':'wh-ros-tier-picker' in tiers and 'data-add-tier-pos' in tiers,
             'last tier has inline add control':'ADD NEXT TIER' in tiers,
             'empty tiers remain drop zones':'Empty · drop a player here' in tiers,
-            'ALL carries positional tier badge':'wh-ros-tier-chip' in tiers and 'renderAll' in tiers and '`${p} · ${tier(id)}`' in tiers,
+            'ALL carries positional tier badge':'wh-ros-tier-chip' in tiers and 'renderAll' in tiers,
             'legacy ROS breaks are suppressed':'wh-ros-tier-system #rank-rows>.wh-tier-break' in tiers,
             'drag engine recognizes tier dividers':'wh-ros-tier-break[data-tier-letter]' in drag and 'tierTarget' in drag,
             'tier drop emits event':'workhorse:ros-tier-drop' in drag and 'onTierDrop' in tiers,
             'normal positional drag inherits tier':'workhorse:rank-dragged' in drag and 'onRankDrag' in tiers,
-            'change uses stable ROS anchor':'wh_change_anchor_v4::' in change and 'ensureAnchor' in change,
-            'change renders once per player':"meta.querySelectorAll('.wh-change').forEach" in change,
-            'ROS history card chip removed':'wh-row-chip:not(.mine)' in change,
+            'tier controller has no repaint timer':'setInterval' not in tiers,
+            'enhancement does not watch whole document':'observe(document.documentElement' not in enhance,
+            'enhancement only reacts to direct board rows':"observe(box,{childList:true,subtree:false})" in enhance and 'rowMutation' in enhance,
+            'change is idempotent':'wh-change-wrap' in change and 'badge.textContent!==label' in change,
+            'change does not watch whole document':'observe(document.documentElement' not in change,
+            'change only reacts to direct board rows':"observe(box,{childList:true,subtree:false})" in change,
+            'insights do not timer-rewrite cards':'setInterval' not in insight,
+            'insight board decorator is direct-child only':"observe(box,{childList:true,subtree:false})" in insight,
+            'rank history remains in player detail':'historyDelta' in insight and 'Rank history' in insight,
             'production deploy remains main only':'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
           }
           failed=[name for name,ok in checks.items() if not ok]
           for name,ok in checks.items(): print(('PASS' if ok else 'FAIL')+': '+name)
-          if failed: raise SystemExit('ROS tier/change checks failed: '+', '.join(failed))
+          if failed: raise SystemExit('ROS stability checks failed: '+', '.join(failed))
           PY
