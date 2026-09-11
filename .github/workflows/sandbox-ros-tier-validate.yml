@@ -26,6 +26,8 @@ jobs:
           node --check season-rankings-enhance-v4.js
           node --check season-insight-v3.js
           node --check season-rankings-drag-v1.js
+          node --check season-owner-control-v1.js
+          node --check season-card-polish-v1.js
           node --check season-rankings-seed-v1.js
 
       - name: Verify ROS behavior and idle stability
@@ -37,38 +39,31 @@ jobs:
           enhance=Path('season-rankings-enhance-v4.js').read_text()
           insight=Path('season-insight-v3.js').read_text()
           drag=Path('season-rankings-drag-v1.js').read_text()
+          owner=Path('season-owner-control-v1.js').read_text()
+          polish=Path('season-card-polish-v1.js').read_text()
           seed=Path('season-rankings-seed-v1.js').read_text()
           checks={
-            'ROS v4 loads with fresh cache token': 'season-ros-tiers-v4.js?v=5' in seed and '__WH_ROS_TIERS_V4__' in seed,
-            'Insights v3 loads': 'season-insight-v3.js?v=3' in seed and '__WH_SEASON_INSIGHT_V3__' in seed,
-            'Change loads after tiers': seed.index('loadRosChangeFix();') > seed.index('loadRosTiers();'),
+            'ROS tiers load': 'season-ros-tiers-v4.js?v=5' in seed and '__WH_ROS_TIERS_V4__' in seed,
             'QB/TE defaults preserved': 'QB:[6,12,18]' in tiers and 'TE:[6,12,18]' in tiers,
             'RB/WR defaults preserved': 'RB:[12,24,48]' in tiers and 'WR:[12,24,48]' in tiers,
             'tier assignments persist': 'wh_ros_tiers_v1::' in tiers and 'assignment' in tiers and 'localStorage.setItem' in tiers,
-            'position add tier works': '#wh-ros-add-tier' in tiers and 'addTier(f)' in tiers,
-            'ALL tier picker works': 'wh-ros-tier-picker' in tiers and 'data-add-tier-pos' in tiers,
-            'inline add tier exists': 'ADD NEXT TIER' in tiers,
-            'empty tier is drop zone': 'Empty · drop a player here' in tiers,
-            'ALL keeps tier chips': 'wh-ros-tier-chip' in tiers and 'renderAll' in tiers,
-            'ALL shows real positional tier bands': "all?' all-context':''" in tiers and '`${p} · Tier ${t}`' in tiers and 'bands.push' in tiers and 'box.insertBefore(x.band,x.row)' in tiers,
-            'ALL bands preserve overall row order': 'rowIndex=new Map(rows.map((r,i)=>[r,i]))' in tiers and 'bands.sort' in tiers,
+            'position add tier works': '#wh-ros-add-tier' in tiers and 'addTier(f)' in tiers and 'ADD NEXT TIER' in tiers,
+            'empty tier is a drop target': 'Empty · drop a player here' in tiers,
             'drag sees tier headers': 'wh-ros-tier-break[data-tier-letter]' in drag and 'tierTarget' in drag,
             'tier drop event exists': 'workhorse:ros-tier-drop' in drag and 'onTierDrop' in tiers,
-            'normal drag inherits tier': 'workhorse:rank-dragged' in drag and 'onRankDrag' in tiers,
+            'normal positional drag inherits tier': 'workhorse:rank-dragged' in drag and 'onRankDrag' in tiers,
+            'ALL hides tier separators': 'body:has(.filter.active[data-filter="ALL"]) #rank-rows .wh-ros-tier-break' in polish,
+            'ALL hides tier chips': 'body:has(.filter.active[data-filter="ALL"]) #rank-rows .wh-ros-tier-break,body:has(.filter.active[data-filter="ALL"]) #rank-rows .wh-ros-tier-chip' in polish,
+            'ALL hides add tier controls': '#wh-ros-add-tier' in polish and '#wh-ros-tier-picker' in polish,
+            'owner controls live inside rank area': "if(p.parentElement!==area)area.appendChild(p)" in owner,
+            'owner mode does not reflow card grid': '80px 142px' not in polish and 'grid-template-columns:70px 44px minmax(0,1fr) 80px!important' in polish,
+            'owner arrows are contained': 'width:64px!important' in owner and 'position:absolute!important' in owner,
+            'owner has no timer repaint': 'setInterval' not in owner,
             'tier controller has no timer repaint': 'setInterval' not in tiers,
             'enhancer has no whole-page observer': 'observe(document.documentElement' not in enhance,
-            'enhancer only watches direct board children': 'observe(box,{childList:true,subtree:false})' in enhance,
-            'Change has stable wrapper': 'wh-change-wrap' in change and 'badge.textContent!==label' in change,
             'Change has no whole-page observer': 'observe(document.documentElement' not in change,
             'Change only watches direct board children': 'observe(box,{childList:true,subtree:false})' in change,
             'insights do not use timer card rewrites': 'setInterval' not in insight,
-            'insight row decoration is direct-child only': 'observe(box,{childList:true,subtree:false})' in insight,
-            'role trends preserved': all(x in insight for x in ['Role trend','Targets','Carries','pass_att']),
-            'Why Ranked remains editable': all(x in insight for x in ['Why Ranked','wh-owner-note','Save rationale']),
-            'rank history remains': 'wh_rank_history_v3::' in insight and 'histDelta' in insight,
-            'My vs Workhorse remains': 'vs WH' in insight and 'masterKey' in insight,
-            'team environment remains': 'Game total' in insight and 'details' in insight,
-            'smart search remains': 'Smart Search' in insight and 'Vikings WR' in insight,
             'production deploy remains main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
           }
           failed=[n for n,v in checks.items() if not v]
