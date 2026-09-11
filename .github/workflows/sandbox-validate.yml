@@ -28,7 +28,7 @@ jobs:
 
       - name: Check sandbox JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v5.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js sandbox-tools-v1.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js sandbox-tools-v1.js; do node --check "$f"; done
 
       - name: Verify current Workhorse contracts
         run: |
@@ -36,7 +36,6 @@ jobs:
           from pathlib import Path
           page=Path('sandbox.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
-          loader=Path('season-trade-calculator-v5.js').read_text()
           trade=Path('season-trade-calculator-v7.js').read_text()
           polish=Path('season-trade-ui-polish-v1.js').read_text()
           league=Path('season-league-overview-v1.js').read_text()
@@ -46,8 +45,7 @@ jobs:
           checks={
             'sandbox guard remains': 'sandbox_write_blocked' in guard and 'Production is locked' in Path('sandbox-admin-v1.js').read_text(),
             'production deploy remains main only': 'branches: ["main"]' in static,
-            'trade route remains': "v==='trade'" in page and 'season-trade-calculator-v5.js?v=5' in page,
-            'trade route loads current calculator': 'season-trade-calculator-v7.js?v=7' in loader and 'season-trade-ui-polish-v1.js?v=1' in loader,
+            'trade route loads current calculator': "v==='trade'" in page and 'season-trade-calculator-v7.js?v=7' in page and 'season-trade-ui-polish-v1.js?v=1' in page,
             'trade keeps VOR and smart packages': all(x in trade for x in ['REPL={QB:12,RB:30,WR:36,TE:12}','function replacementEdge(pos,r)','function packageWeight(info,index,best)','packageDeal&&topDiff']),
             'trade tiers stay out': 'wh_ros_tiers' not in trade and 'tierBonus' not in trade,
             'trade value editor stays out': 'EDIT VALUE' not in trade and 'wh_trade_value_overrides' not in trade,
