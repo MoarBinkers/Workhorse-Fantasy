@@ -112,7 +112,7 @@ jobs:
             '2025 matchup reference loads only for weekly boards':'season-matchup-reference-v1.js?v=1' in seed and 'if(!isWeekly' in seed,
             'matchup reference is explicitly last season':"REF_SEASON=2025" in matchup and '2025 DEFENSE REFERENCE' in matchup,
             'PPR ranks are separated by QB RB WR TE':"POSITIONS=['QB','RB','WR','TE']" in matchup and 'historicalPos' in matchup and 'table[team][pos]' in matchup,
-            'compact matchup strip shows PPR yards and TD ranks':all(x in matchup for x in ['wh-card-matchup','PPR #','YDS','TD #']),
+            'compact matchup strip shows PPR yards and TD ranks':all(x in matchup for x in ['wh-card-matchup',"['PPR','ppr']","['YDS','yards']","['TD','td']"]),
             'matchup colors are green yellow red':'wh-mu-chip.green' in matchup and 'wh-mu-chip.yellow' in matchup and 'wh-mu-chip.red' in matchup,
             'defense rank direction is explained':'#1 toughest' in matchup and 'easiest' in matchup,
             'must start color is green':'Meaning-first weekly tier colors' in matchup and '.wh-tier-0{' in matchup and '#a5e8bd' in matchup,
