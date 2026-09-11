@@ -31,14 +31,15 @@ function replacementRank(ctx,pos){const n=leagueSize(ctx),base=directSlots(ctx,p
 }
 function historicalPpg(pos,posRank){const a=HIST[pos]||HIST.WR,r=Math.max(1,finite(posRank,999));if(r<=a[0][0])return a[0][1];for(let i=1;i<a.length;i++){const [r1,v1]=a[i-1],[r2,v2]=a[i];if(r<=r2){const t=(r-r1)/(r2-r1);return v1+(v2-v1)*t}}const [lastR,lastV]=a[a.length-1];return Math.max(POSITION_FLOOR[pos]||4.5,lastV-.08*(r-lastR))}
 
-// Overall ROS rank is the backbone. Adjacent ranks are intentionally close.
-// The curve is smooth enough that moving a player one spot never causes a value cliff.
-function rosBase(overallRank){const r=Math.max(1,finite(overallRank,999));return 52+68*Math.exp(-.012*(r-1))}
+// Overall ROS rank is the backbone. Adjacent ranks are intentionally close, and the
+// elite end is compressed because one player fills only one of many starting slots.
+// This is team-strength value, not trade-market value.
+function rosBase(overallRank){const r=Math.max(1,finite(overallRank,999));return 64+48*Math.exp(-.009*(r-1))}
 
 // History only nudges the ROS value for positional scarcity. The adjustment is capped
-// so a TE1/TE2, QB4/QB5, etc. sitting next to each other in ROS cannot separate wildly.
-function scarcityAdjustment(ctx,pos,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),delta=hist-repl;return Math.max(-6,Math.min(14,delta*1.3))}
-function playerValue(ctx,pos,overallRank,posRank){return Math.max(30,finite(rosBase(overallRank)+scarcityAdjustment(ctx,pos,posRank),30))}
+// so positional labels cannot overpower the user's overall ROS ordering.
+function scarcityAdjustment(ctx,pos,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),delta=hist-repl;return Math.max(-4,Math.min(9,delta*.9))}
+function playerValue(ctx,pos,overallRank,posRank){return Math.max(34,finite(rosBase(overallRank)+scarcityAdjustment(ctx,pos,posRank),34))}
 function rankFor(ctx,id,p){return ctx.rankMap?.get(String(id))||finite(p?.sleeper_rank,999)}
 function posRankFor(ctx,id,p){return ctx.posRankMap?.get(String(id))||finite(p?.position_rank,999)}
 function chooseFixed(all,selected,pos,count){for(let i=0;i<count;i++){const p=all.filter(x=>x.position===pos&&!selected.has(x.id)).sort((a,b)=>b.raw-a.raw||a.overallRank-b.overallRank)[0];if(!p)break;selected.add(p.id);p.lineupRole=pos;p.depthWeight=1}}
