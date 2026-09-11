@@ -28,7 +28,10 @@ jobs:
 
       - name: Check sandbox JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js season-league-intelligence-v1.js season-league-power-model-v2.js season-league-power-bars-v2.js season-league-card-details-v1.js season-league-power-audit-v1.js sandbox-tools-v1.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js season-league-intelligence-v1.js season-league-power-model-v2.js season-league-power-bars-v2.js season-league-card-details-v1.js season-league-power-audit-v1.js sandbox-tools-v1.js .github/power-model-sanity-test.js; do node --check "$f"; done
+
+      - name: Check power-model sanity
+        run: node .github/power-model-sanity-test.js
 
       - name: Verify current Workhorse contracts
         run: |
@@ -65,7 +68,7 @@ jobs:
             'league teams stack in one column': '.teams{display:grid;grid-template-columns:1fr' in league,
             'league full roster expands on team click': all(x in league for x in ['data-toggle-team','roster-panel','STARTERS','BENCH / DEPTH','VIEW FULL ROSTER']),
             'canonical power uses ros-led historical curves': 'const HIST=' in model and 'historicalPpg' in model and 'function rosBase(overallRank)' in model and 'function scarcityAdjustment(ctx,pos,posRank)' in model,
-            'canonical power caps positional scarcity': 'Math.max(-6,Math.min(14,delta*1.3))' in model,
+            'canonical power compresses elite end': '64+48*Math.exp(-.009' in model and 'Math.max(-4,Math.min(9,delta*.9))' in model,
             'canonical power builds best legal lineup': 'function bestLegalLineup' in model and "['RB','WR','TE']" in model and 'lineupRole' in model,
             'canonical power ignores current lineup': 'r.starters' not in model and '(r.players||[])' in model,
             'canonical power has diminishing depth': "[.30,.18,.10,.06,.04,.03]" in model and "p.posRank<=n?.03:.01" in model,
