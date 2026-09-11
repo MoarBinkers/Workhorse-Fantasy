@@ -10,26 +10,16 @@ const isMine=route==='my-rankings';
 const isWeekly=type==='weekly';
 const key=isMine?(isWeekly?`wh_my_week_v3::${week}`:'wh_my_ros_v3'):(isWeekly?`wh_week_master_v3::${week}`:'wh_ros_master_v3');
 function saved(){try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x:[]}catch(_){return[]}}
-function loadUi(){
- if(window.__WH_SEASON_UI_V5__||document.querySelector('script[data-wh-ui-v5]'))return;
- const s=document.createElement('script');s.src='./season-rankings-ui-v5.js?v=1';s.async=false;s.dataset.whUiV5='1';document.body.appendChild(s);
-}
-function loadDetail(){
- if(window.__WH_PLAYER_DETAIL_V1__||document.querySelector('script[data-wh-player-detail]'))return;
- const s=document.createElement('script');s.src='./season-player-detail-v1.js?v=1';s.async=false;s.dataset.whPlayerDetail='1';document.body.appendChild(s);
-}
-function loadMatchupReference(){
- if(!isWeekly||window.__WH_MATCHUP_REFERENCE_V1__||document.querySelector('script[data-wh-matchup-reference]'))return;
- const s=document.createElement('script');s.src='./season-matchup-reference-v1.js?v=1';s.async=false;s.dataset.whMatchupReference='1';document.body.appendChild(s);
-}
-function loadMatchupExpanded(){
- if(!isWeekly||window.__WH_MATCHUP_EXPANDED_V1__||document.querySelector('script[data-wh-matchup-expanded]'))return;
- const s=document.createElement('script');s.src='./season-matchup-expanded-v1.js?v=1';s.async=false;s.dataset.whMatchupExpanded='1';document.body.appendChild(s);
-}
-function loadInjuryStatus(){
- if(!isWeekly||window.__WH_INJURY_STATUS_V1__||document.querySelector('script[data-wh-injury-status]'))return;
- const s=document.createElement('script');s.src='./season-injury-status-v1.js?v=1';s.async=false;s.dataset.whInjuryStatus='1';document.body.appendChild(s);
-}
+function add(src,dataKey){if(document.querySelector(`script[${dataKey}]`))return;const s=document.createElement('script');s.src=src;s.async=false;s.setAttribute(dataKey,'1');document.body.appendChild(s)}
+function loadUi(){if(window.__WH_SEASON_UI_V5__)return;add('./season-rankings-ui-v5.js?v=1','data-wh-ui-v5')}
+function loadDetail(){if(window.__WH_PLAYER_DETAIL_V1__)return;add('./season-player-detail-v1.js?v=1','data-wh-player-detail')}
+function loadMatchupReference(){if(!isWeekly||window.__WH_MATCHUP_REFERENCE_V1__)return;add('./season-matchup-reference-v1.js?v=1','data-wh-matchup-reference')}
+function loadMatchupExpanded(){if(!isWeekly||window.__WH_MATCHUP_EXPANDED_V1__)return;add('./season-matchup-expanded-v1.js?v=1','data-wh-matchup-expanded')}
+function loadInjuryStatus(){if(!isWeekly||window.__WH_INJURY_STATUS_V1__)return;add('./season-injury-status-v1.js?v=1','data-wh-injury-status')}
+function loadOwnerControl(){if(window.__WH_OWNER_CONTROL_V1__)return;add('./season-owner-control-v1.js?v=1','data-wh-owner-control')}
+function loadInsights(){if(window.__WH_SEASON_INSIGHT_V1__)return;add('./season-insight-v1.js?v=1','data-wh-season-insight')}
+function loadCompare(){if(window.__WH_COMPARE_V1__)return;add('./season-compare-v1.js?v=1','data-wh-compare')}
+function loadMatchupTrends(){if(!isWeekly||window.__WH_MATCHUP_TRENDS_V1__)return;add('./season-matchup-trends-v1.js?v=1','data-wh-matchup-trends')}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
@@ -42,6 +32,10 @@ function seed(){
  loadMatchupReference();
  loadMatchupExpanded();
  loadInjuryStatus();
+ loadOwnerControl();
+ loadInsights();
+ loadCompare();
+ loadMatchupTrends();
  return true;
 }
 if(!seed()){
