@@ -13,8 +13,8 @@ const HIST={
   WR:[[1,23.0],[2,21.5],[4,19.2],[6,17.8],[8,16.7],[12,15.3],[18,13.9],[24,12.8],[30,11.9],[36,11.0],[48,9.6],[60,8.3],[72,7.2],[90,6.0]],
   TE:[[1,16.5],[2,14.9],[4,13.5],[6,11.8],[8,10.6],[10,9.8],[12,9.1],[16,8.1],[20,7.4],[24,6.8],[32,5.8]],
 };
-const EDGE_SCALE={QB:6.5,RB:6.0,WR:5.8,TE:7.0};
-const DEFICIT_SCALE={QB:2.5,RB:2.2,WR:2.0,TE:2.5};
+const EDGE_SCALE={QB:5.5,RB:5.2,WR:5.0,TE:6.0};
+const DEFICIT_SCALE={QB:2.0,RB:1.8,WR:1.7,TE:2.0};
 const POSITION_FLOOR={QB:8,RB:4.5,WR:4.5,TE:4.5};
 const finite=(v,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
 function rosterSlots(ctx){return Array.isArray(ctx?.league?.roster_positions)?ctx.league.roster_positions:[]}
@@ -34,8 +34,8 @@ function replacementRank(ctx,pos){const n=leagueSize(ctx),base=directSlots(ctx,p
   return Math.max(1,Math.round(base+extra));
 }
 function historicalPpg(pos,posRank){const a=HIST[pos]||HIST.WR,r=Math.max(1,finite(posRank,999));if(r<=a[0][0])return a[0][1];for(let i=1;i<a.length;i++){const [r1,v1]=a[i-1],[r2,v2]=a[i];if(r<=r2){const t=(r-r1)/(r2-r1);return v1+(v2-v1)*t}}const [lastR,lastV]=a[a.length-1];return Math.max(POSITION_FLOOR[pos]||4.5,lastV-.08*(r-lastR))}
-function rosPremium(overallRank){return 10*Math.exp(-.015*Math.max(0,finite(overallRank,999)-1))}
-function playerValue(ctx,pos,overallRank,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),edge=Math.max(0,hist-repl),deficit=Math.max(0,repl-hist),value=45+edge*(EDGE_SCALE[pos]||6)-deficit*(DEFICIT_SCALE[pos]||2)+rosPremium(overallRank);return Math.max(24,finite(value,24))}
+function rosPremium(overallRank){return 8*Math.exp(-.015*Math.max(0,finite(overallRank,999)-1))}
+function playerValue(ctx,pos,overallRank,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),edge=Math.max(0,hist-repl),deficit=Math.max(0,repl-hist),value=55+edge*(EDGE_SCALE[pos]||5)-deficit*(DEFICIT_SCALE[pos]||1.8)+rosPremium(overallRank);return Math.max(30,finite(value,30))}
 function rankFor(ctx,id,p){return ctx.rankMap?.get(String(id))||finite(p?.sleeper_rank,999)}
 function posRankFor(ctx,id,p){return ctx.posRankMap?.get(String(id))||finite(p?.position_rank,999)}
 function chooseFixed(all,selected,pos,count){for(let i=0;i<count;i++){const p=all.filter(x=>x.position===pos&&!selected.has(x.id)).sort((a,b)=>b.raw-a.raw||a.overallRank-b.overallRank)[0];if(!p)break;selected.add(p.id);p.lineupRole=pos;p.depthWeight=1}}
