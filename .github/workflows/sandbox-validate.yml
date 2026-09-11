@@ -36,6 +36,7 @@ jobs:
           node --check season-rankings-enhance-v4.js
           node --check season-rankings-ui-v5.js
           node --check season-rankings-drag-v1.js
+          node --check season-player-detail-v1.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
           node --check sandbox-open-tool-v1.js
@@ -54,6 +55,7 @@ jobs:
           enhance=Path('season-rankings-enhance-v4.js').read_text()
           ui=Path('season-rankings-ui-v5.js').read_text()
           drag=Path('season-rankings-drag-v1.js').read_text()
+          detail=Path('season-player-detail-v1.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
           checks={
@@ -92,10 +94,19 @@ jobs:
             'weekly tiers have labeled tier pills':all(x in ui for x in ['TIER 1','TIER 2','TIER 3','TIER 4','wh-tier-break::after']),
             'ranking rows use compact card styling':'border-radius:10px' in ui and 'min-height:58px' in ui,
             'smooth drag loads after ranking UI':'season-rankings-drag-v1.js?v=1' in page and page.index('season-rankings-ui-v5.js?v=1') < page.index('season-rankings-drag-v1.js?v=1'),
-            'smooth drag replaces native browser drag':'r.removeAttribute(\'draggable\')' in drag and 'dragstart' in drag and 'preventDefault' in drag,
+            'smooth drag replaces native browser drag':"r.removeAttribute('draggable')" in drag and 'dragstart' in drag and 'preventDefault' in drag,
             'smooth drag supports mouse touch and pen with one pointer path':all(x in drag for x in ['pointerdown','pointermove','pointerup','setPointerCapture']),
             'smooth drag has insertion line and floating preview':'wh-drop-line' in drag and 'wh-drag-ghost' in drag,
             'smooth drag auto scrolls near viewport edges':'scrollLoop' in drag and 'scrollBy(0,speed)' in drag,
+            'player details load with ranking seed':'season-player-detail-v1.js?v=1' in seed and 'data-wh-player-detail' in seed,
+            'player cards open full detail panel':'#rank-rows .rank-row' in detail and 'wh-player-panel' in detail and 'Player details' in detail,
+            'player details preserve drag controls':'.drag-handle,button,input,a,label' in detail and 'wh-sorting' in detail,
+            'player detail has requested tabs':all(x in detail for x in ['Overview','Game Log','Splits','Matchup','All Stats']),
+            'player detail supports useful splits':all(x in detail for x in ['Last 3','Last 5','Home','Away']),
+            'player detail uses weekly Sleeper stats':'api.sleeper.app/v1/stats/nfl/regular/' in detail,
+            'weekly matchup uses NFL schedule':'site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' in detail,
+            'weekly matchup calculates defense vs position':'defenseVsPosition' in detail and 'Defense-vs-position' in detail and 'PPR allowed / game' in detail,
+            'all stats view exposes received numeric stats':'wh-all-grid' in detail and 'Object.entries(agg)' in detail,
             'production write block exists':'sandbox_write_blocked' in guard,
             'storage is namespaced':'wh_sandbox_v1::' in guard,
             'publish remains locked':'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
