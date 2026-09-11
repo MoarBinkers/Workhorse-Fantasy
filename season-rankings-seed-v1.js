@@ -21,6 +21,7 @@ function loadInsights(){if(window.__WH_SEASON_INSIGHT_V1__)return;add('./season-
 function loadCompare(){if(window.__WH_COMPARE_V1__)return;add('./season-compare-v1.js?v=1','data-wh-compare')}
 function loadMatchupTrends(){if(!isWeekly||window.__WH_MATCHUP_TRENDS_V1__)return;add('./season-matchup-trends-v1.js?v=1','data-wh-matchup-trends')}
 function loadRegressionFix(){if(window.__WH_REGRESSION_FIX_V1__)return;add('./season-regression-fix-v1.js?v=1','data-wh-regression-fix')}
+function loadCardPolish(){if(window.__WH_CARD_POLISH_V1__)return;add('./season-card-polish-v1.js?v=1','data-wh-card-polish')}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
@@ -38,6 +39,7 @@ function seed(){
  loadCompare();
  loadMatchupTrends();
  loadRegressionFix();
+ loadCardPolish();
  return true;
 }
 if(!seed()){
