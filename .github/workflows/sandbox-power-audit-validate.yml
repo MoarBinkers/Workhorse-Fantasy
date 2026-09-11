@@ -1,0 +1,36 @@
+name: Validate Team Power Audit
+
+on:
+  push:
+    branches: ["sandbox"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check audit JavaScript
+        run: node --check season-league-power-audit-v1.js
+      - name: Verify audit is read only and loaded
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          audit=Path('season-league-power-audit-v1.js').read_text()
+          page=Path('sandbox-league.html').read_text()
+          checks={
+            'audit loads': 'season-league-power-audit-v1.js?v=1' in page,
+            'uses full roster': '(r.players||[])' in audit,
+            'does not read current starters': 'r.starters' not in audit,
+            'shows raw weight power': 'RAW' in audit and 'WEIGHT' in audit and 'POWER' in audit,
+            'shows position bonuses': 'position bonuses' in audit,
+            'no database writes': '/rest/v1/' in audit and 'method:' not in audit,
+            'no mutation observer loop': 'MutationObserver' not in audit,
+          }
+          failed=[k for k,v in checks.items() if not v]
+          for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
+          if failed: raise SystemExit(', '.join(failed))
+          PY
