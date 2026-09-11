@@ -32,6 +32,7 @@ jobs:
           node --check sandbox-admin-v1.js
           node --check season-home-v1.js
           node --check season-rankings-v3.js
+          node --check season-rankings-seed-v1.js
           node --check season-rankings-enhance-v4.js
           node --check sandbox-tools-v1.js
           node --check sandbox-rankings-loader-v2.js
@@ -47,6 +48,7 @@ jobs:
           admin=Path('sandbox-admin-v1.js').read_text()
           home=Path('season-home-v1.js').read_text()
           season=Path('season-rankings-v3.js').read_text()
+          seed=Path('season-rankings-seed-v1.js').read_text()
           enhance=Path('season-rankings-enhance-v4.js').read_text()
           tools=Path('sandbox-tools-v1.js').read_text()
           legacy=Path('sandbox-rankings-loader-v2.js').read_text()
@@ -74,7 +76,8 @@ jobs:
             'original editor toolbar restored':all(x in admin for x in ['AUTO-SAVED','VIEW','EDIT','PREVIEW','deUndo','deRedo','deTools','dePublish']),
             'floating text editor restored':'Edit selected text' in admin and 'deEditorInput' in admin and 'data-site-edit' in admin,
             'editor protects live ranking player data':'#rank-rows' in admin and '.rank-card' in admin and '.stats' in admin,
-            'ranking enhancement loads on in-season routes':'season-rankings-enhance-v4.js?v=1' in page,
+            'fresh boards seed rendered rankings before enhancement':'season-rankings-seed-v1.js?v=1' in page and 'rank-row[data-id]' in seed and 'localStorage.setItem(key' in seed,
+            'ranking enhancement loads after seed':'season-rankings-enhance-v4.js?v=2' in page and page.index('season-rankings-seed-v1.js?v=1') < page.index('season-rankings-enhance-v4.js?v=2'),
             'weekly caps are 75 WR and 50 RB':"if(pos==='WR')return 75" in enhance and "if(pos==='RB')return 50" in enhance,
             'ROS caps are 100 WR and 75 RB':"if(pos==='WR')return 100" in enhance and "if(pos==='RB')return 75" in enhance,
             'ROS movement says Change and weekly suppresses it':'Change ▲' in enhance and "if(isWeekly)return''" in enhance,
