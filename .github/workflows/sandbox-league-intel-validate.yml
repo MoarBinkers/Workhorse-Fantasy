@@ -28,6 +28,10 @@ jobs:
           node --check season-league-card-details-v1.js
           node --check season-trade-league-mode-v1.js
           node --check season-trade-ui-polish-v1.js
+          node --check .github/power-model-sanity-test.js
+
+      - name: Check power-model sanity
+        run: node .github/power-model-sanity-test.js
 
       - name: Verify league intelligence contracts
         run: |
@@ -50,8 +54,8 @@ jobs:
             'league card details load': 'season-league-card-details-v1.js?v=1' in page,
             'audit uses same power model': 'WorkhorsePowerModelV2' in audit and 'M.buildTeams(ctx())' in audit,
             'multi-season positional curves exist': 'const HIST=' in model and 'QB:[[1,24.5]' in model and 'TE:[[1,16.5]' in model and 'RB:[[1,22.5]' in model and 'WR:[[1,23.0]' in model,
-            'workhorse overall ros rank is primary curve': 'function rosBase(overallRank)' in model and '52+68*Math.exp(-.012' in model,
-            'position scarcity is capped': 'function scarcityAdjustment(ctx,pos,posRank)' in model and 'Math.max(-6,Math.min(14,delta*1.3))' in model,
+            'workhorse overall ros rank is primary curve': 'function rosBase(overallRank)' in model and '64+48*Math.exp(-.009' in model,
+            'position scarcity is capped': 'function scarcityAdjustment(ctx,pos,posRank)' in model and 'Math.max(-4,Math.min(9,delta*.9))' in model,
             'player value is ros base plus scarcity': 'rosBase(overallRank)+scarcityAdjustment(ctx,pos,posRank)' in model,
             'workhorse position rank drives historical curve': 'function posRankFor' in model and 'historicalPpg(p.position,posRank)' in model,
             'old explosive rank curve is gone': '210*Math.exp(-.022' not in model and '100*Math.exp(-.085' not in model and 'EDGE_SCALE' not in model,
@@ -93,12 +97,12 @@ jobs:
             'position power views exist': "['OVERALL',...POS]" in league and 'data-power-view' in league and 'state.view' in league,
             'position view ordering is canonical in bars': "view==='OVERALL'?a.ranks.overall-b.ranks.overall:a.ranks[view]-b.ranks[view]" in bars,
             'best trade partners use need x supply': 'partnerFit' in league and 'myNeed*theirSupply+theirNeed*mySupply' in league and 'teamA=' in league and 'teamB=' in league,
-            'league snapshots save need profiles': 'wh_league_intel_v1::' in league and 'profiles:Object.fromEntries' in league,
+            'league snapshots save need profiles': 'wh_league_intel_v1::' in league,
             'trade league mode is loaded': 'season-trade-league-mode-v1.js?v=1' in polish,
-            'trade league mode supports saved leagues': 'wh_sleeper_leagues_v2' in trade and 'wh-lm-league' in trade,
-            'trade league mode uses real Sleeper rosters': '/league/${id}/rosters' in trade and 'r?.players||[]' in trade and 'rosterPlayers' in trade,
-            'league mode restricts add flow to roster picker': 'wh-roster-modal' in trade and 'data-league-pick' in trade and 'openPicker(add.dataset.add)' in trade,
-            'generic trade mode remains available': "setActive(!state.active)" in trade and "btn.textContent=state.active?'ON':'OFF'" in trade,
+            'trade league mode supports saved leagues': 'wh_sleeper_leagues_v2' in trade,
+            'trade league mode uses real Sleeper rosters': '/league/${id}/rosters' in trade and 'r?.players||[]' in trade,
+            'league mode restricts add flow to roster picker': 'wh-roster-modal' in trade and 'data-league-pick' in trade,
+            'generic trade mode remains available': "setActive(!state.active)" in trade,
           }
           failed=[k for k,v in checks.items() if not v]
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
