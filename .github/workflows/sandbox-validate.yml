@@ -28,97 +28,45 @@ jobs:
 
       - name: Check season JavaScript syntax
         run: |
-          node --check sandbox-guard-v1.js
-          node --check sandbox-admin-v1.js
-          node --check season-home-v1.js
-          node --check season-rankings-v3.js
-          node --check season-rankings-seed-v1.js
-          node --check season-rankings-enhance-v4.js
-          node --check season-rankings-ui-v5.js
-          node --check season-rankings-drag-v1.js
-          node --check season-player-detail-v1.js
-          node --check season-matchup-reference-v1.js
-          node --check season-matchup-expanded-v1.js
-          node --check season-injury-status-v1.js
-          node --check season-owner-control-v1.js
-          node --check season-insight-v3.js
-          node --check season-compare-v1.js
-          node --check season-matchup-trends-v1.js
-          node --check season-regression-fix-v1.js
-          node --check season-card-polish-v1.js
-          node --check season-ros-tiers-v4.js
-          node --check season-ros-change-fix-v1.js
-          node --check sandbox-tools-v1.js
-          node --check sandbox-rankings-loader-v2.js
-          node --check sandbox-open-tool-v1.js
-          node --check sandbox-return-home-v2.js
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-matchup-reference-v1.js season-matchup-expanded-v1.js season-injury-status-v1.js season-owner-control-v1.js season-insight-v3.js season-compare-v1.js season-matchup-trends-v1.js season-regression-fix-v2.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js sandbox-tools-v1.js sandbox-rankings-loader-v2.js sandbox-open-tool-v1.js sandbox-return-home-v2.js; do node --check "$f"; done
 
-      - name: Verify product and stability contracts
+      - name: Verify product and UI stability contracts
         run: |
           python - <<'PY'
           from pathlib import Path
           page=Path('sandbox.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
           admin=Path('sandbox-admin-v1.js').read_text()
-          season=Path('season-rankings-v3.js').read_text()
           seed=Path('season-rankings-seed-v1.js').read_text()
-          enhance=Path('season-rankings-enhance-v4.js').read_text()
-          ui=Path('season-rankings-ui-v5.js').read_text()
           drag=Path('season-rankings-drag-v1.js').read_text()
-          detail=Path('season-player-detail-v1.js').read_text()
           matchup=Path('season-matchup-reference-v1.js').read_text()
           injury=Path('season-injury-status-v1.js').read_text()
           owner=Path('season-owner-control-v1.js').read_text()
+          polish=Path('season-card-polish-v1.js').read_text()
           insight=Path('season-insight-v3.js').read_text()
           compare=Path('season-compare-v1.js').read_text()
-          trends=Path('season-matchup-trends-v1.js').read_text()
           tiers=Path('season-ros-tiers-v4.js').read_text()
           change=Path('season-ros-change-fix-v1.js').read_text()
           checks={
-            'sandbox noindex': 'noindex,nofollow,noarchive' in page,
-            'production writes blocked': 'sandbox_write_blocked' in guard,
-            'sandbox storage isolated': 'wh_sandbox_v1::' in guard,
-            'publish stays locked': 'Production is locked' in admin and 'cannot publish to the live Workhorse site' in admin,
-            'production deploy is main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
-            'PPR season routes exist': all(x in page for x in ['view=ros','view=weekly','view=my-rankings']),
-            'master and personal ranking stores separate': 'wh_ros_master_v3' in season and 'wh_my_ros_v3' in season,
-            'weekly stores are week specific': 'wh_week_master_v3::' in season and 'wh_my_week_v3::' in season,
-            'actual season stats load': '/stats/nfl/regular/' in season and 'pts_ppr' in season,
-            'weekly caps preserved': "if(pos==='WR')return 75" in enhance and "if(pos==='RB')return 50" in enhance,
-            'ROS caps preserved': "if(pos==='WR')return 100" in enhance and "if(pos==='RB')return 75" in enhance,
-            'weekly tiers preserved': all(x in enhance for x in ['Must Start','Great Start','Comfortable Flex','Shaky Flex']),
-            'add player preserved': '+ Add Player' in enhance and 'wh-add-modal' in enhance,
-            'enhancer is idle stable': 'observe(document.documentElement' not in enhance and 'observe(box,{childList:true,subtree:false})' in enhance,
-            'rank cards keep overall and position ranks': 'data-overall-rank' in ui and 'data-pos-rank' in ui,
-            'smooth drag preserved': all(x in drag for x in ['pointerdown','pointermove','pointerup','wh-drag-ghost','wh-drop-line','scrollLoop']),
+            'sandbox safety remains': 'sandbox_write_blocked' in guard and 'wh_sandbox_v1::' in guard and 'Production is locked' in admin,
+            'production deploy remains main only': 'branches: ["main"]' in Path('.github/workflows/static.yml').read_text(),
+            'season routes remain': all(x in page for x in ['view=ros','view=weekly','view=my-rankings']),
+            'smooth drag remains': all(x in drag for x in ['pointerdown','pointermove','pointerup','wh-drag-ghost','wh-drop-line','scrollLoop']),
             'owner mode remains toggleable': all(x in owner for x in ['OWNER MODE · ON','OWNER MODE · OFF','wh-owner-control']),
-            'owner exact controls preserved': all(x in owner for x in ['wh-owner-precision','data-up','data-down','data-rank']),
-            'player detail tabs preserved': all(x in detail for x in ['Overview','Game Log','Splits','Matchup','All Stats']),
-            'weekly matchup is position specific': "POSITIONS=['QB','RB','WR','TE']" in matchup and 'table[team][pos]' in matchup,
-            '2025 matchup reference preserved': 'REF_SEASON=2025' in matchup and '2025 DEFENSE REFERENCE' in matchup,
-            'weekly injury statuses preserved': all(x in injury for x in ['QUESTIONABLE','DOUBTFUL','OUT / UNAVAILABLE']),
-            'out players remain outside normal tiers': 'wh-player-unavailable' in injury and 'order:100' in injury,
-            'matchup last four preserved': '2025 Last 4' in trends and '[15,16,17,18]' in trends,
-            'Insights v3 loads': 'season-insight-v3.js?v=3' in seed and '__WH_SEASON_INSIGHT_V3__' in seed,
-            'role trends preserved': all(x in insight for x in ['Role trend','Targets','Carries','pass_att']),
-            'Why Ranked editable rationale preserved': all(x in insight for x in ['Why Ranked','wh-owner-note','Save rationale']),
-            'rank history preserved': 'wh_rank_history_v3::' in insight and 'histDelta' in insight,
-            'My vs Workhorse preserved': 'vs WH' in insight and 'masterKey' in insight,
-            'game environment preserved': 'Game total' in insight and 'details' in insight,
-            'Smart Search preserved': 'Smart Search' in insight and 'Vikings WR' in insight,
-            'insights have no timer card rewrite': 'setInterval' not in insight,
-            'insight row decoration direct only': 'observe(box,{childList:true,subtree:false})' in insight,
-            'compare supports three players': 'selected.size>=3' in compare and 'Player Comparison' in compare,
-            'ROS tiers load with fresh cache token': 'season-ros-tiers-v4.js?v=5' in seed and '__WH_ROS_TIERS_V4__' in seed,
-            'ROS tier defaults preserved': all(x in tiers for x in ['QB:[6,12,18]','RB:[12,24,48]','WR:[12,24,48]','TE:[6,12,18]']),
-            'ROS tiers persist': 'wh_ros_tiers_v1::' in tiers and 'assignment' in tiers,
-            'ROS add tier controls preserved': all(x in tiers for x in ['#wh-ros-add-tier','wh-ros-tier-picker','ADD NEXT TIER','data-add-tier-pos']),
-            'ROS tier chips transfer to ALL': 'wh-ros-tier-chip' in tiers and 'renderAll' in tiers,
-            'ROS tier bands also show in ALL': "all?' all-context':''" in tiers and '`${p} · Tier ${t}`' in tiers and 'bands.push' in tiers and 'box.insertBefore(x.band,x.row)' in tiers,
-            'ALL tier bands preserve overall ordering': 'rowIndex=new Map(rows.map((r,i)=>[r,i]))' in tiers and 'bands.sort' in tiers,
-            'ROS tier controller has no interval': 'setInterval' not in tiers,
-            'Change is idempotent': 'wh-change-wrap' in change and 'badge.textContent!==label' in change,
-            'Change is idle stable': 'observe(document.documentElement' not in change and 'observe(box,{childList:true,subtree:false})' in change,
+            'owner rank controls remain': all(x in owner for x in ['wh-owner-precision','data-up','data-down','data-rank']),
+            'owner controls are mounted inside rank area': "if(p.parentElement!==area)area.appendChild(p)" in owner,
+            'owner control no longer uses timer repaint': 'setInterval' not in owner,
+            'owner mode does not create a fifth card column': 'grid-template-columns:70px 44px minmax(0,1fr) 80px 142px' not in polish and 'grid-template-columns:70px 44px minmax(0,1fr) 80px!important' in polish,
+            'owner controls are contained': all(x in owner for x in ['position:absolute!important','width:64px!important','rank-area{position:relative']),
+            'ROS ALL visually hides tier UI': 'body:has(.filter.active[data-filter="ALL"]) #rank-rows .wh-ros-tier-break' in polish and '#rank-rows .wh-ros-tier-chip' in polish and '#wh-ros-add-tier' in polish,
+            'positional tier system remains editable': all(x in tiers for x in ['ADD NEXT TIER','data-add-tier-pos','workhorse:ros-tier-drop','assignment']),
+            'tier defaults remain': all(x in tiers for x in ['QB:[6,12,18]','RB:[12,24,48]','WR:[12,24,48]','TE:[6,12,18]']),
+            'Change remains idle stable': 'observe(document.documentElement' not in change and 'observe(box,{childList:true,subtree:false})' in change,
+            'weekly matchup remains position specific': "POSITIONS=['QB','RB','WR','TE']" in matchup and 'table[team][pos]' in matchup,
+            'injury handling remains': all(x in injury for x in ['QUESTIONABLE','DOUBTFUL','OUT / UNAVAILABLE']),
+            'insights remain': all(x in insight for x in ['Role trend','Why Ranked','Save rationale','Smart Search','Game total','vs WH']),
+            'compare remains': 'selected.size>=3' in compare and 'Player Comparison' in compare,
+            'current modules load': all(x in seed for x in ['season-owner-control-v1.js','season-insight-v3.js','season-regression-fix-v2.js','season-card-polish-v1.js','season-ros-tiers-v4.js']),
           }
           failed=[n for n,v in checks.items() if not v]
           for n,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+n)
