@@ -2,9 +2,10 @@
 'use strict';
 if(window.__WH_SEASON_ENHANCE_V4__)return;
 window.__WH_SEASON_ENHANCE_V4__=true;
+
 const qs=new URLSearchParams(location.search);
 const route=qs.get('view')||'ros';
-const type=route==='my-rankings'?(qs.get('type')==='weekly'?'weekly':'ros'):route;
+const type=route==='my-rankings'?(qs.get('type')==='weekly'?'weekly':'ros'):(route==='season-rankings'?'ros':route);
 const week=Math.max(1,Math.min(18,Number(qs.get('week')||1)||1));
 const isMine=route==='my-rankings';
 const isWeekly=type==='weekly';
@@ -13,10 +14,10 @@ const KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k';
 const boardId=isMine?(isWeekly?`my-week-${week}`:'my-ros'):(isWeekly?`master-week-${week}`:'master-ros');
 const orderKey=isMine?(isWeekly?`wh_my_week_v3::${week}`:'wh_my_ros_v3'):(isWeekly?`wh_week_master_v3::${week}`:'wh_ros_master_v3');
 const addedKey=`wh_added_players_v4::${boardId}`;
-const anchorKey=`wh_change_anchor_v4::${boardId}`;
-let pool=[],poolMap=new Map(),busy=false,addQuery='';
+let pool=[],poolMap=new Map(),busy=false,queued=false,addQuery='';
+
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function loadArr(k){try{const x=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(x)?x:[]}catch(_){return[]}}
+function loadArr(k){try{const x=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(x)?x.map(String):[]}catch(_){return[]}}
 function saveArr(k,x){try{localStorage.setItem(k,JSON.stringify(x))}catch(_){}}
 function added(){return new Set(loadArr(addedKey))}
 function order(){return loadArr(orderKey)}
@@ -25,49 +26,89 @@ function activeFilter(){return document.querySelector('.filter.active')?.dataset
 function visibleIds(ids,filterName='ALL'){
  const extra=added(),counts={},out=[];
  for(const id of ids){
-   const p=poolMap.get(String(id));if(!p)continue;
-   if(filterName!=='ALL'&&p.position!==filterName)continue;
-   const pos=p.position;counts[pos]=(counts[pos]||0)+1;
-   if(counts[pos]<=cap(pos)||extra.has(String(id)))out.push(String(id));
+  const p=poolMap.get(String(id));if(!p)continue;
+  if(filterName!=='ALL'&&p.position!==filterName)continue;
+  counts[p.position]=(counts[p.position]||0)+1;
+  if(counts[p.position]<=cap(p.position)||extra.has(String(id)))out.push(String(id));
  }
  return out;
 }
-function ensureAnchor(){if(isWeekly)return;const ids=visibleIds(order(),'ALL');if(ids.length&&!loadArr(anchorKey).length)saveArr(anchorKey,ids)}
-function changeHtml(id){if(isWeekly)return'';const base=loadArr(anchorKey),now=visibleIds(order(),'ALL');const a=base.indexOf(String(id)),b=now.indexOf(String(id));if(a<0||b<0)return '<span class="wh-change new">Change NEW</span>';const d=(a+1)-(b+1);if(!d)return '<span class="wh-change flat">Change —</span>';return d>0?`<span class="wh-change up">Change ▲${d}</span>`:`<span class="wh-change down">Change ▼${Math.abs(d)}</span>`}
-function tier(index,filterName){
- const n=index+1;
- if(isWeekly){
-   let cuts;
-   if(filterName==='WR')cuts=[12,24,48,75];
-   else if(filterName==='RB')cuts=[12,24,36,50];
-   else if(filterName==='ALL')cuts=[24,50,90,9999];
-   else return null;
-   const labels=['Must Start','Great Start','Comfortable Flex','Shaky Flex'];
-   for(let i=0;i<cuts.length;i++)if(n<=cuts[i])return{i,label:labels[i]};
-   return{i:3,label:labels[3]};
- }
- let cuts;
- if(filterName==='QB')cuts=[6,12,18,9999];
- else if(filterName==='RB')cuts=[12,24,48,9999];
- else if(filterName==='WR')cuts=[12,24,48,9999];
- else if(filterName==='TE')cuts=[6,12,18,9999];
+function weeklyTier(index,filterName){
+ if(!isWeekly)return null;
+ const n=index+1;let cuts;
+ if(filterName==='WR')cuts=[12,24,48,75];
+ else if(filterName==='RB')cuts=[12,24,36,50];
+ else if(filterName==='ALL')cuts=[24,50,90,9999];
  else return null;
- const labels=['A','B','C','D'];
+ const labels=['Must Start','Great Start','Comfortable Flex','Shaky Flex'];
  for(let i=0;i<cuts.length;i++)if(n<=cuts[i])return{i,label:labels[i]};
  return{i:3,label:labels[3]};
 }
-function addStyles(){if(document.querySelector('#wh-season-enhance-v4-css'))return;const s=document.createElement('style');s.id='wh-season-enhance-v4-css';s.textContent=`.wh-change{margin-left:5px;font-style:normal}.wh-change.up{color:#6fd99a}.wh-change.down{color:#ed858f}.wh-change.flat{color:#607483}.wh-change.new{color:#79c6ff}.wh-tier-break{height:28px;display:flex;align-items:flex-end;padding:0 11px 5px;border-top:8px solid #070d13;background:#0a131b}.wh-tier-break.first{border-top:0;height:24px}.wh-tier-break span{font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:950;color:#aebdca}.wh-tier-0 span{color:#f0d27a}.wh-tier-1 span{color:#9dd8ff}.wh-tier-2 span{color:#9fe0b9}.wh-tier-3 span{color:#d7b1b5}#rank-rows .precision{display:none!important}.wh-add-modal{display:none;position:fixed;z-index:2147483000;inset:0;background:#03070bd1;align-items:center;justify-content:center;padding:18px}.wh-add-modal.open{display:flex}.wh-add-card{width:min(560px,100%);max-height:min(720px,88vh);display:flex;flex-direction:column;background:#0b151e;border:1px solid #2c4354;border-radius:15px;box-shadow:0 24px 80px #000b;overflow:hidden}.wh-add-head{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid #1c2d39}.wh-add-head b{font-size:14px}.wh-add-head small{display:block;font-size:10px;color:#8193a0;margin-top:2px}.wh-add-head button{margin-left:auto;border:0;background:transparent;color:#9aaab6;font-size:20px;cursor:pointer}.wh-add-search{margin:12px;background:#08121a;border:1px solid #293f50;color:#fff;border-radius:9px;padding:10px 11px}.wh-add-results{overflow:auto;padding:0 10px 12px}.wh-add-result{width:100%;display:grid;grid-template-columns:38px minmax(0,1fr) auto 26px;align-items:center;gap:9px;border:0;border-top:1px solid #172731;background:transparent;color:#e9f0f4;text-align:left;padding:8px 4px;cursor:pointer}.wh-add-result:hover{background:#0e1d27}.wh-add-result img{width:34px;height:34px;border-radius:8px;object-fit:cover;object-position:center top;background:#10202c}.wh-add-result b{font-size:11px}.wh-add-result small{font-size:9px;color:#778b99}.wh-add-result em{font-style:normal;font-size:20px;color:#6fd99a}.wh-add-empty{padding:24px;text-align:center;color:#708592;font-size:11px}@media(max-width:760px){.wh-add-result{grid-template-columns:36px minmax(0,1fr) 24px}.wh-add-result small{display:none}}`;document.head.appendChild(s)}
-function modal(){if(document.querySelector('#wh-add-modal'))return;const m=document.createElement('div');m.id='wh-add-modal';m.className='wh-add-modal';m.dataset.whNoEdit='';m.innerHTML=`<div class="wh-add-card"><div class="wh-add-head"><div><b>Add Player</b><small>Add someone outside the default ${isWeekly?'weekly':'ROS'} board</small></div><button id="wh-close-add" type="button">×</button></div><input id="wh-add-search" class="wh-add-search" type="search" placeholder="Search player, team, or position…"><div id="wh-add-results" class="wh-add-results"></div></div>`;document.body.appendChild(m);m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')});m.querySelector('#wh-close-add').onclick=()=>m.classList.remove('open');m.querySelector('#wh-add-search').oninput=e=>{addQuery=e.target.value.trim().toLowerCase();renderCandidates()};m.querySelector('#wh-add-results').addEventListener('click',e=>{const b=e.target.closest('[data-add-id]');if(!b)return;const set=added();set.add(String(b.dataset.addId));saveArr(addedKey,[...set]);m.classList.remove('open');apply();const p=poolMap.get(String(b.dataset.addId));toast(`${p?.full_name||'Player'} added to this board.`)})}
-function canAdd(){return isMine||!!document.querySelector('#edit-toggle')}
-function addButton(){if(!canAdd()||document.querySelector('#wh-add-player'))return;const actions=document.querySelector('.hero-actions');if(!actions)return;const b=document.createElement('button');b.id='wh-add-player';b.className='btn';b.type='button';b.textContent='+ Add Player';b.dataset.whNoEdit='';b.onclick=()=>{modal();addQuery='';const m=document.querySelector('#wh-add-modal');m.classList.add('open');const i=m.querySelector('#wh-add-search');i.value='';renderCandidates();setTimeout(()=>i.focus(),0)};const edit=document.querySelector('#edit-toggle');if(edit?.nextSibling)actions.insertBefore(b,edit.nextSibling);else actions.appendChild(b)}
+function addStyles(){
+ if(document.querySelector('#wh-season-enhance-v4-css'))return;
+ const s=document.createElement('style');s.id='wh-season-enhance-v4-css';s.textContent=`
+.wh-tier-break{height:28px;display:flex;align-items:flex-end;padding:0 11px 5px;border-top:8px solid #070d13;background:#0a131b}.wh-tier-break.first{border-top:0;height:24px}.wh-tier-break span{font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:950;color:#aebdca}.wh-tier-0 span{color:#f0d27a}.wh-tier-1 span{color:#9dd8ff}.wh-tier-2 span{color:#9fe0b9}.wh-tier-3 span{color:#d7b1b5}
+#rank-rows .precision{display:none!important}
+.wh-add-modal{display:none;position:fixed;z-index:2147483000;inset:0;background:#03070bd1;align-items:center;justify-content:center;padding:18px}.wh-add-modal.open{display:flex}.wh-add-card{width:min(560px,100%);max-height:min(720px,88vh);display:flex;flex-direction:column;background:#0b151e;border:1px solid #2c4354;border-radius:15px;box-shadow:0 24px 80px #000b;overflow:hidden}.wh-add-head{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid #1c2d39}.wh-add-head b{font-size:14px}.wh-add-head small{display:block;font-size:10px;color:#8193a0;margin-top:2px}.wh-add-head button{margin-left:auto;border:0;background:transparent;color:#9aaab6;font-size:20px;cursor:pointer}.wh-add-search{margin:12px;background:#08121a;border:1px solid #293f50;color:#fff;border-radius:9px;padding:10px 11px}.wh-add-results{overflow:auto;padding:0 10px 12px}.wh-add-result{width:100%;display:grid;grid-template-columns:38px minmax(0,1fr) auto 26px;align-items:center;gap:9px;border:0;border-top:1px solid #172731;background:transparent;color:#e9f0f4;text-align:left;padding:8px 4px;cursor:pointer}.wh-add-result:hover{background:#0e1d27}.wh-add-result img{width:34px;height:34px;border-radius:8px;object-fit:cover;object-position:center top;background:#10202c}.wh-add-result b{font-size:11px}.wh-add-result small{font-size:9px;color:#778b99}.wh-add-result em{font-style:normal;font-size:20px;color:#6fd99a}.wh-add-empty{padding:24px;text-align:center;color:#708592;font-size:11px}@media(max-width:760px){.wh-add-result{grid-template-columns:36px minmax(0,1fr) 24px}.wh-add-result small{display:none}}
+`;
+ document.head.appendChild(s);
+}
+function modal(){
+ if(document.querySelector('#wh-add-modal'))return;
+ const m=document.createElement('div');m.id='wh-add-modal';m.className='wh-add-modal';m.dataset.whNoEdit='';
+ m.innerHTML=`<div class="wh-add-card"><div class="wh-add-head"><div><b>Add Player</b><small>Add someone outside the default ${isWeekly?'weekly':'ROS'} board</small></div><button id="wh-close-add" type="button">×</button></div><input id="wh-add-search" class="wh-add-search" type="search" placeholder="Search player, team, or position…"><div id="wh-add-results" class="wh-add-results"></div></div>`;
+ document.body.appendChild(m);
+ m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')});
+ m.querySelector('#wh-close-add').onclick=()=>m.classList.remove('open');
+ m.querySelector('#wh-add-search').oninput=e=>{addQuery=e.target.value.trim().toLowerCase();renderCandidates()};
+ m.querySelector('#wh-add-results').addEventListener('click',e=>{const b=e.target.closest('[data-add-id]');if(!b)return;const set=added();set.add(String(b.dataset.addId));saveArr(addedKey,[...set]);m.classList.remove('open');apply();const p=poolMap.get(String(b.dataset.addId));toast(`${p?.full_name||'Player'} added to this board.`)});
+}
+function canAdd(){return isMine||!!document.querySelector('#edit-toggle')||document.documentElement.classList.contains('wh-owner-control')}
+function addButton(){
+ if(!canAdd()||document.querySelector('#wh-add-player'))return;
+ const actions=document.querySelector('.hero-actions');if(!actions)return;
+ const b=document.createElement('button');b.id='wh-add-player';b.className='btn';b.type='button';b.textContent='+ Add Player';b.dataset.whNoEdit='';
+ b.onclick=()=>{modal();addQuery='';const m=document.querySelector('#wh-add-modal');m.classList.add('open');const i=m.querySelector('#wh-add-search');i.value='';renderCandidates();setTimeout(()=>i.focus(),0)};
+ actions.appendChild(b);
+}
 function candidateIds(){const ids=order().slice(0,450),shown=new Set(visibleIds(ids,'ALL')),q=addQuery;return ids.filter(id=>{if(shown.has(String(id)))return false;const p=poolMap.get(String(id));if(!p)return false;return !q||`${p.full_name} ${p.team} ${p.position}`.toLowerCase().includes(q)}).slice(0,50)}
 function renderCandidates(){const box=document.querySelector('#wh-add-results');if(!box)return;const ids=candidateIds();box.innerHTML=ids.map(id=>{const p=poolMap.get(String(id));return `<button class="wh-add-result" type="button" data-add-id="${esc(id)}"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(id)}.jpg" alt="" onerror="this.style.visibility='hidden'"><b>${esc(p.full_name)}</b><small>${esc(p.position)} · ${esc(p.team||'FA')}</small><em>+</em></button>`}).join('')||'<div class="wh-add-empty">No matching players outside this board.</div>'}
 function toast(msg){let t=document.querySelector('#wh-enhance-toast');if(!t){t=document.createElement('div');t.id='wh-enhance-toast';t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translate(-50%,10px);opacity:0;background:#edf4f7;color:#071019;padding:9px 12px;border-radius:8px;font:850 10px system-ui;transition:.15s;z-index:2147483100';document.body.appendChild(t)}t.textContent=msg;t.style.opacity='1';t.style.transform='translate(-50%,0)';setTimeout(()=>{t.style.opacity='0';t.style.transform='translate(-50%,10px)'},1900)}
-function apply(){if(busy||!pool.length)return;const box=document.querySelector('#rank-rows');if(!box)return;busy=true;try{addStyles();addButton();ensureAnchor();box.querySelectorAll('.wh-tier-break').forEach(x=>x.remove());const f=activeFilter(),ids=order(),allowed=new Set(visibleIds(ids,f));const rows=[...box.querySelectorAll('.rank-row')];let visible=[];for(const row of rows){const id=String(row.dataset.id||'');const show=allowed.has(id);row.style.display=show?'':'none';if(!show)continue;visible.push(row);const p=poolMap.get(id);const meta=row.querySelector('.meta');if(meta&&p){meta.innerHTML=`<i class="pos ${esc(String(p.position).toLowerCase())}">${esc(p.position)}</i>${esc(p.team||'FA')}${isWeekly?'':` · ${changeHtml(id)}`}`}}
-visible.forEach((row,i)=>{const n=row.querySelector('.rank-area>b');if(n)n.textContent=String(i+1)});const count=document.querySelector('#visible-count');if(count)count.textContent=`${visible.length} players`;
-let last=-1;visible.forEach((row,i)=>{const t=tier(i,f);if(!t||t.i===last)return;const d=document.createElement('div');d.className=`wh-tier-break wh-tier-${t.i}${i===0?' first':''}`;d.dataset.whNoEdit='';d.innerHTML=`<span>${t.label}</span>`;box.insertBefore(d,row);last=t.i});
-const note=document.querySelector('.note');if(note)note.textContent=isWeekly?'Weekly board: top 75 WRs and top 50 RBs by default. Add Player lets you bring extra players onto the board. Start tiers are shown with mild breaks.':'ROS board: top 100 WRs and top 75 RBs by default. Choose QB, RB, WR, or TE to see position-specific ROS tiers; ALL stays combined. Change is Workhorse rank movement only — it is not based on ADP. Add Player lets you bring extra players onto the board.'}finally{busy=false}}
+function setMeta(row,p){
+ const meta=row.querySelector('.meta');if(!meta||!p)return;
+ let base=meta.querySelector('.wh-meta-base');
+ if(!base){meta.innerHTML='';base=document.createElement('span');base.className='wh-meta-base';meta.appendChild(base)}
+ const html=`<i class="pos ${esc(String(p.position).toLowerCase())}">${esc(p.position)}</i>${esc(p.team||'FA')}`;
+ if(base.innerHTML!==html)base.innerHTML=html;
+}
+function apply(){
+ queued=false;if(busy||!pool.length)return;
+ const box=document.querySelector('#rank-rows');if(!box)return;
+ busy=true;
+ try{
+  addStyles();addButton();
+  box.querySelectorAll(':scope > .wh-tier-break').forEach(x=>x.remove());
+  const f=activeFilter(),ids=order(),allowed=new Set(visibleIds(ids,f)),rows=[...box.querySelectorAll('.rank-row')],visible=[];
+  for(const row of rows){const id=String(row.dataset.id||''),show=allowed.has(id);row.style.display=show?'':'none';if(!show)continue;visible.push(row);setMeta(row,poolMap.get(id))}
+  visible.forEach((row,i)=>{const n=row.querySelector('.rank-area>b');if(n&&n.textContent!==String(i+1))n.textContent=String(i+1)});
+  const count=document.querySelector('#visible-count');if(count)count.textContent=`${visible.length} players`;
+  if(isWeekly){let last=-1;visible.forEach((row,i)=>{const t=weeklyTier(i,f);if(!t||t.i===last)return;const d=document.createElement('div');d.className=`wh-tier-break wh-tier-${t.i}${i===0?' first':''}`;d.dataset.whNoEdit='';d.innerHTML=`<span>${t.label}</span>`;box.insertBefore(d,row);last=t.i})}
+  const note=document.querySelector('.note');if(note)note.textContent=isWeekly?'Weekly board: top 75 WRs and top 50 RBs by default. Add Player lets you bring extra players onto the board. Start tiers are shown with mild breaks.':'ROS board: top 100 WRs and top 75 RBs by default. Positional tiers are owner-controlled and persist independently. Change is Workhorse rank movement only — it is not based on ADP.';
+ }finally{busy=false}
+}
+function queueApply(){if(!queued){queued=true;requestAnimationFrame(apply)}}
+function rowMutation(m){return [...m.addedNodes,...m.removedNodes].some(n=>n?.nodeType===1&&(n.matches?.('.rank-row')||n.querySelector?.('.rank-row')))}
 async function fetchPool(){const path='sleeper_adp_current?select=player_id,full_name,position,team&format=eq.ppr&order=sleeper_rank.asc&limit=500';const r=await fetch(SB+'/rest/v1/'+path,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});if(!r.ok)throw new Error('player pool '+r.status);const seen=new Set();pool=(await r.json()).filter(p=>p.player_id&&['QB','RB','WR','TE'].includes(p.position)&&!seen.has(String(p.player_id))&&(seen.add(String(p.player_id)),true));poolMap=new Map(pool.map(p=>[String(p.player_id),p]))}
-async function start(){try{await fetchPool()}catch(e){console.warn('[Workhorse enhancement] player pool unavailable',e);return}const obs=new MutationObserver(()=>{clearTimeout(start._t);start._t=setTimeout(apply,20)});obs.observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('click',e=>{if(e.target.closest?.('[data-filter]'))setTimeout(apply,0);if(e.target.closest?.('[data-up],[data-down]'))setTimeout(apply,0)},true);document.addEventListener('dragend',()=>setTimeout(apply,0),true);document.addEventListener('pointerup',()=>setTimeout(apply,0),true);let tries=0;const tick=()=>{if(document.querySelector('#rank-rows'))apply();else if(tries++<100)setTimeout(tick,50)};tick()}
+async function start(){
+ try{await fetchPool()}catch(e){console.warn('[Workhorse enhancement] player pool unavailable',e);return}
+ const box=document.querySelector('#rank-rows');
+ if(box)new MutationObserver(ms=>{if(!busy&&ms.some(rowMutation))queueApply()}).observe(box,{childList:true,subtree:false});
+ document.addEventListener('click',e=>{if(e.target.closest?.('[data-filter],[data-up],[data-down]'))setTimeout(queueApply,0)},true);
+ document.addEventListener('change',e=>{if(e.target.matches?.('[data-rank]'))setTimeout(queueApply,0)},true);
+ window.addEventListener('workhorse:rank-dragged',()=>setTimeout(queueApply,0));
+ window.addEventListener('workhorse:ros-tier-drop',()=>setTimeout(queueApply,0));
+ window.addEventListener('workhorse:owner-mode-changed',()=>setTimeout(()=>{addButton();queueApply()},0));
+ queueApply();
+}
 start();
 })();
