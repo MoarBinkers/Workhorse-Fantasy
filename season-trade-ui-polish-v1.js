@@ -13,6 +13,7 @@ const apply=()=>{
  }
  const top=document.querySelector('.top');
  if(top&&!document.querySelector('#wh-league-link')){const a=document.createElement('a');a.id='wh-league-link';a.className='back';a.href='./sandbox-league.html';a.textContent='League Overview';const tools=top.querySelector('.back');top.insertBefore(a,tools||null)}
+ if(!document.querySelector('#wh-trade-league-mode-script')){const s=document.createElement('script');s.id='wh-trade-league-mode-script';s.src='./season-trade-league-mode-v1.js?v=1';s.async=false;document.body.appendChild(s)}
 };
 apply();
 })();
