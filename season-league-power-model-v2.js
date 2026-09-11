@@ -31,14 +31,12 @@ function replacementRank(ctx,pos){const n=leagueSize(ctx),base=directSlots(ctx,p
 }
 function historicalPpg(pos,posRank){const a=HIST[pos]||HIST.WR,r=Math.max(1,finite(posRank,999));if(r<=a[0][0])return a[0][1];for(let i=1;i<a.length;i++){const [r1,v1]=a[i-1],[r2,v2]=a[i];if(r<=r2){const t=(r-r1)/(r2-r1);return v1+(v2-v1)*t}}const [lastR,lastV]=a[a.length-1];return Math.max(POSITION_FLOOR[pos]||4.5,lastV-.08*(r-lastR))}
 
-// Overall ROS rank is the backbone. Adjacent ranks are intentionally close, and the
-// elite end is compressed because one player fills only one of many starting slots.
-// This is team-strength value, not trade-market value.
-function rosBase(overallRank){const r=Math.max(1,finite(overallRank,999));return 64+48*Math.exp(-.009*(r-1))}
+// Roster POWER is intentionally flatter than trade value. One elite player occupies
+// one lineup slot; the other starting spots must carry most of the team result.
+function rosBase(overallRank){const r=Math.max(1,finite(overallRank,999));return 60+45*Math.exp(-.006*(r-1))}
 
-// History only nudges the ROS value for positional scarcity. The adjustment is capped
-// so positional labels cannot overpower the user's overall ROS ordering.
-function scarcityAdjustment(ctx,pos,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),delta=hist-repl;return Math.max(-4,Math.min(9,delta*.9))}
+// Positional history is a small scarcity nudge, never a second dominant value curve.
+function scarcityAdjustment(ctx,pos,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),delta=hist-repl;return Math.max(-3,Math.min(7,delta*.7))}
 function playerValue(ctx,pos,overallRank,posRank){return Math.max(34,finite(rosBase(overallRank)+scarcityAdjustment(ctx,pos,posRank),34))}
 function rankFor(ctx,id,p){return ctx.rankMap?.get(String(id))||finite(p?.sleeper_rank,999)}
 function posRankFor(ctx,id,p){return ctx.posRankMap?.get(String(id))||finite(p?.position_rank,999)}
@@ -64,11 +62,15 @@ function bestLegalLineup(ctx,all){const selected=new Set();for(const pos of POS)
   for(const pos of POS){const bench=all.filter(x=>x.position===pos&&!selected.has(x.id)).sort((a,b)=>b.raw-a.raw||a.overallRank-b.overallRank);bench.forEach((p,i)=>{p.lineupRole='DEPTH';p.depthWeight=benchWeight(ctx,p,i)})}
   return selected;
 }
+
+// Roster balance matters: 75% of lineup strength is the whole starting lineup and
+// 25% is driven by the weaker half. This prevents one or two stars from hiding holes.
+function lineupBalance(starters){if(!starters.length)return{factor:1,lineupScore:0,starterSum:0,lowerHalfAvg:0};const values=starters.map(p=>Math.max(0,finite(p.raw,0))).sort((a,b)=>a-b),starterSum=values.reduce((n,v)=>n+v,0),lowerCount=Math.max(1,Math.ceil(values.length/2)),lowerHalfAvg=values.slice(0,lowerCount).reduce((n,v)=>n+v,0)/lowerCount,lineupScore=starterSum*.75+(lowerHalfAvg*values.length)*.25,factor=starterSum>0?Math.max(.72,Math.min(1,lineupScore/starterSum)):1;return{factor,lineupScore,starterSum,lowerHalfAvg}}
 function metric(ctx,r){const all=(r.players||[]).map(id=>{const p=ctx.pool?.get(String(id));if(!p||!POS.includes(p.position))return null;const overallRank=rankFor(ctx,id,p),posRank=posRankFor(ctx,id,p),historyPpg=historicalPpg(p.position,posRank),replacementPpg=historicalPpg(p.position,replacementRank(ctx,p.position));return{...p,id:String(id),overallRank,posRank,historyPpg,replacementPpg,scarcityAdjustment:scarcityAdjustment(ctx,p.position,posRank),rosBase:rosBase(overallRank),raw:playerValue(ctx,p.position,overallRank,posRank),depthWeight:0,lineupRole:'DEPTH',score:0}}).filter(Boolean);
-  bestLegalLineup(ctx,all);const pos={QB:0,RB:0,WR:0,TE:0};let rosterScore=0;for(const p of all){p.score=Math.max(0,finite(p.raw*p.depthWeight,0));pos[p.position]+=p.score;rosterScore+=p.score}for(const k of POS)pos[k]=Math.max(0,finite(pos[k],0));return{all,pos,rosterScore:Math.max(0,finite(rosterScore,0))};
+  bestLegalLineup(ctx,all);const starters=all.filter(p=>p.depthWeight===1),balance=lineupBalance(starters),pos={QB:0,RB:0,WR:0,TE:0};let rosterScore=0;for(const p of all){const w=p.depthWeight===1?balance.factor:p.depthWeight;p.rosterWeight=w;p.score=Math.max(0,finite(p.raw*w,0));pos[p.position]+=p.score;rosterScore+=p.score}for(const k of POS)pos[k]=Math.max(0,finite(pos[k],0));return{all,pos,rosterScore:Math.max(0,finite(rosterScore,0)),balanceFactor:balance.factor,lowerHalfAvg:balance.lowerHalfAvg,starterSum:balance.starterSum};
 }
 function buildTeams(ctx){const list=(ctx.rosters||[]).map(r=>({r,m:metric(ctx,r),ranks:{},overall:0}));for(const p of POS)[...list].sort((a,b)=>b.m.pos[p]-a.m.pos[p]).forEach((t,i)=>t.ranks[p]=i+1);[...list].sort((a,b)=>b.m.rosterScore-a.m.rosterScore).forEach((t,i)=>{t.ranks.overall=i+1;t.overall=t.m.rosterScore});return list}
 function offenseStarterCount(ctx){const n=rosterSlots(ctx).filter(x=>['QB','RB','WR','TE','FLEX','SUPER_FLEX','WRRB_FLEX','REC_FLEX','WRRBTE_FLEX'].includes(x)).length;return n||7}
 function benchSlotCount(ctx){const n=rosterSlots(ctx).filter(x=>x==='BN').length;return n||6}
-window.WorkhorsePowerModelV2={POS,HIST,finite,leagueSize,directSlots,flexCounts,replacementRank,historicalPpg,rosBase,scarcityAdjustment,playerValue,metric,buildTeams,offenseStarterCount,benchSlotCount};
+window.WorkhorsePowerModelV2={POS,HIST,finite,leagueSize,directSlots,flexCounts,replacementRank,historicalPpg,rosBase,scarcityAdjustment,playerValue,lineupBalance,metric,buildTeams,offenseStarterCount,benchSlotCount};
 })();
