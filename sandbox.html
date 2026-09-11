@@ -40,7 +40,10 @@
    document.body.innerHTML='<div class="wh-load"><div><b>SANDBOX · NOT LIVE</b><h1>WORKHORSE</h1><p>Loading PPR in-season rankings…</p></div></div>';
    const s=document.createElement('script');s.src='./season-rankings-v3.js?v=3';s.dataset.view=v==='season-rankings'?'ros':(v==='my-rankings'?'mine':v);s.async=false;document.body.appendChild(s);
    const seed=document.createElement('script');seed.src='./season-rankings-seed-v1.js?v=1';seed.async=false;document.body.appendChild(seed);
-   const e=document.createElement('script');e.src='./season-rankings-enhance-v4.js?v=2';e.async=false;document.body.appendChild(e);loadAdmin();return;
+   const e=document.createElement('script');e.src='./season-rankings-enhance-v4.js?v=2';e.async=false;document.body.appendChild(e);
+   const ui=document.createElement('script');ui.src='./season-rankings-ui-v5.js?v=1';ui.async=false;document.body.appendChild(ui);
+   const drag=document.createElement('script');drag.src='./season-rankings-drag-v1.js?v=1';drag.async=false;document.body.appendChild(drag);
+   loadAdmin();return;
  }
  const h=document.createElement('script');h.src='./season-home-v1.js?v=2';h.async=false;document.body.appendChild(h);loadAdmin();
 })();
