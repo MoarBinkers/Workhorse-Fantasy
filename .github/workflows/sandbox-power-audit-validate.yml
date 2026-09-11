@@ -14,19 +14,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check audit JavaScript
-        run: node --check season-league-power-audit-v1.js
+        run: |
+          node --check season-league-power-model-v2.js
+          node --check season-league-power-audit-v1.js
       - name: Verify audit is read only and loaded
         run: |
           python - <<'PY'
           from pathlib import Path
           audit=Path('season-league-power-audit-v1.js').read_text()
+          model=Path('season-league-power-model-v2.js').read_text()
           page=Path('sandbox-league.html').read_text()
           checks={
-            'audit loads': 'season-league-power-audit-v1.js?v=1' in page,
-            'uses full roster': '(r.players||[])' in audit,
-            'does not read current starters': 'r.starters' not in audit,
-            'shows raw weight power': 'RAW' in audit and 'WEIGHT' in audit and 'POWER' in audit,
-            'shows position bonuses': 'position bonuses' in audit,
+            'audit loads': 'season-league-power-audit-v1.js?v=2' in page,
+            'model loads before audit': page.index('season-league-power-model-v2.js?v=2') < page.index('season-league-power-audit-v1.js?v=2'),
+            'audit uses canonical model': 'WorkhorsePowerModelV2' in audit and 'M.buildTeams(ctx())' in audit,
+            'canonical model uses full roster': '(r.players||[])' in model,
+            'canonical model ignores current starters': 'r.starters' not in model,
+            'shows historical calibration': 'HIST' in audit and 'historyPpg' in audit,
+            'shows raw role and power': 'RAW' in audit and 'ROLE' in audit and 'POWER' in audit,
+            'position bonus removed': 'position bonuses' not in audit.lower() and 'no separate position-rank bonus' in audit.lower(),
             'no database writes': '/rest/v1/' in audit and 'method:' not in audit,
             'no mutation observer loop': 'MutationObserver' not in audit,
           }
