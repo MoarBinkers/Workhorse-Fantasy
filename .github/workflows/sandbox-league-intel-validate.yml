@@ -49,6 +49,8 @@ jobs:
             'elite ros curve is strongly nonlinear': '210*Math.exp(-.022*x)' in bars and '100*Math.exp(-.085*x)' in bars and '120*Math.exp(-.0165' not in bars,
             'position specific value over replacement exists': 'function replacementRank(pos)' in bars and 'function expectedPpr(pos,r,repl)' in bars and 'function playerValue(pos,overallRank,posRank)' in bars and 'posRankFor' in bars,
             'replacement level follows league settings': 'starterSlots(pos)*n' in bars and 'flexCounts()' in bars and 'SUPER_FLEX' in bars,
+            'power ignores current sleeper starters': 'r.starters' not in bars and '(r.players||[])' in bars and 'roster_positions' in bars and 'Current Sleeper starters/bench do not affect POWER' in bars,
+            'canonical power repairs legacy starter labels': 'cleanLegacyStarterLabels' in bars and 'syncMySummary' in bars and 'whPowerIgnoresCurrentStarters' in bars,
             'position value scales differ': "QB:8.5,RB:11.5,WR:10.5,TE:12.5" in bars,
             'diminishing rb wr depth exists': 'function flexDepthBoost(pos,index,posRank)' in bars and "[.52,.31,.18,.10,.06]" in bars,
             'qb2 is near-zero in 1qb': "backupEliteCut('QB')" in bars and 'return .05' in bars and 'return .02' in bars and 'return .005' in bars and "depth===1?.003:.001" in bars,
