@@ -17,7 +17,7 @@ function loadMatchupReference(){if(!isWeekly||window.__WH_MATCHUP_REFERENCE_V1__
 function loadMatchupExpanded(){if(!isWeekly||window.__WH_MATCHUP_EXPANDED_V1__)return;add('./season-matchup-expanded-v1.js?v=1','data-wh-matchup-expanded')}
 function loadInjuryStatus(){if(!isWeekly||window.__WH_INJURY_STATUS_V1__)return;add('./season-injury-status-v1.js?v=1','data-wh-injury-status')}
 function loadOwnerControl(){if(window.__WH_OWNER_CONTROL_V1__)return;add('./season-owner-control-v1.js?v=1','data-wh-owner-control')}
-function loadInsights(){if(window.__WH_SEASON_INSIGHT_V2__)return;add('./season-insight-v2.js?v=2','data-wh-season-insight-v2')}
+function loadInsights(){if(window.__WH_SEASON_INSIGHT_V3__)return;add('./season-insight-v3.js?v=3','data-wh-season-insight-v3')}
 function loadCompare(){if(window.__WH_COMPARE_V1__)return;add('./season-compare-v1.js?v=1','data-wh-compare')}
 function loadMatchupTrends(){if(!isWeekly||window.__WH_MATCHUP_TRENDS_V1__)return;add('./season-matchup-trends-v1.js?v=1','data-wh-matchup-trends')}
 function loadRegressionFix(){if(window.__WH_REGRESSION_FIX_V1__)return;add('./season-regression-fix-v1.js?v=1','data-wh-regression-fix')}
