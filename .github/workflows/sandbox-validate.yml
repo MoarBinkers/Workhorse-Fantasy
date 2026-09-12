@@ -40,7 +40,6 @@ jobs:
           league_page=Path('sandbox-league.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
           owner=Path('season-owner-control-v1.js').read_text()
-          drag=Path('season-rankings-drag-v1.js').read_text()
           model=Path('season-league-power-model-v2.js').read_text()
           bars=Path('season-league-power-bars-v2.js').read_text()
           audit=Path('season-league-power-audit-v1.js').read_text()
@@ -52,13 +51,15 @@ jobs:
             'owner editing survives rerenders': 'function attachRankObserver()' in owner and 'rankObserver.observe(observedBox' in owner,
             'trade calculator unchanged': 'function packageWeight(info,index,best)' in trade and 'REPL={QB:12,RB:30,WR:36,TE:12}' in trade,
             'league model loads': 'season-league-power-model-v2.js?v=2' in league_page and 'season-league-power-bars-v2.js?v=2' in league_page,
-            'roster power is lineup based': 'function bestLegalLineup' in model and 'function lineupBalance(starters)' in model,
+            'asset and lineup values are separated': 'function playerValue(ctx,pos,overallRank,posRank)' in model and 'function starterSlotValue(ctx,pos,overallRank,posRank)' in model,
+            'lineup power uses positional history': 'historicalPpg(pos,posRank)' in model and 'START_EDGE_SCALE' in model,
+            'starter slot ceiling prevents superstar domination': 'Math.min(112' in model and 'Math.max(68' in model,
+            'roster power uses best legal lineup': 'function bestLegalLineup' in model and 'b.lineupValue-a.lineupValue' in model,
             'roster power uses full roster': '(r.players||[])' in model and 'r.starters' not in model,
-            'elite end is compressed': '60+45*Math.exp(-.006' in model,
-            'scarcity is capped': 'Math.max(-3,Math.min(7,delta*.7))' in model,
-            'weak half influences lineup': 'starterSum*.75' in model and 'lowerHalfAvg*values.length' in model,
+            'weak half has mild influence': 'starterSum*.88' in model and 'lowerHalfAvg*values.length)*.12' in model,
+            'backup depth remains secondary': "[.24,.14,.08,.05,.035,.025]" in model and "p.posRank<=n?.03:.01" in model,
             'bars stay bounded': 'max-width:96%!important' in bars and 'Math.min(96,pct)' in bars,
-            'audit uses exact model': 'M.buildTeams(ctx())' in audit,
+            'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
