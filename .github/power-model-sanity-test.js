@@ -25,11 +25,11 @@ const starHeavyScore=rosterScore(starHeavy),balancedScore=rosterScore(balanced);
 
 const checks={
   'adjacent overall TE assets stay close': Math.abs(adjacentTe1-adjacentTe2) < 3,
-  'qb1 vs qb14 starting-slot gap stays modest': qb1Slot-qb14Slot > 8 && qb1Slot-qb14Slot < 22,
-  'elite RB improves one slot but is not another starter': rb1Slot/rb24Slot < 1.35,
-  'elite RB still has meaningful slot edge': rb1Slot-rb24Slot > 12,
+  'qb1 vs qb14 slot gap is meaningful not extreme': qb1Slot-qb14Slot > 10 && qb1Slot-qb14Slot < 18,
+  'elite RB improves one slot but is not another starter': rb1Slot/rb24Slot < 1.25,
+  'elite RB has useful but bounded slot edge': rb1Slot-rb24Slot > 12 && rb1Slot-rb24Slot < 22,
   'balanced eight beats one superstar plus lineup holes': balancedScore > starHeavyScore,
-  'starter slot value has a hard ceiling': rb1Slot <= 112,
+  'starter slot value has a hard ceiling': rb1Slot <= 108,
 };
 for(const [name,ok] of Object.entries(checks))console.log(`${ok?'PASS':'FAIL'}: ${name}`);
 const failed=Object.entries(checks).filter(([,ok])=>!ok).map(([name])=>name);
