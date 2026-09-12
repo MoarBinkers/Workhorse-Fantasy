@@ -8,10 +8,13 @@ const slot=(pos,overall,posRank)=>M.starterSlotValue(ctx,pos,overall,posRank);
 const adjacentTe1=asset('TE',20,1),adjacentTe2=asset('TE',21,2);
 const qb1Slot=slot('QB',35,1),qb14Slot=slot('QB',112,14);
 const rb1Slot=slot('RB',1,1),rb24Slot=slot('RB',80,24);
-const firstRbBench=M.benchWeight(ctx,{position:'RB',posRank:28},0);
-const thirdWrBench=M.benchWeight(ctx,{position:'WR',posRank:45},2);
-const sixthRbBench=M.benchWeight(ctx,{position:'RB',posRank:60},5);
-const qb2Bench=M.benchWeight(ctx,{position:'QB',posRank:14},0);
+const ros50=asset('WR',50,20),ros150=asset('WR',150,50);
+const firstRbBench=M.benchWeight(ctx,{position:'RB',posRank:28,overallRank:70},0);
+const thirdWrBench=M.benchWeight(ctx,{position:'WR',posRank:45,overallRank:95},2);
+const sixthRbBench=M.benchWeight(ctx,{position:'RB',posRank:60,overallRank:170},5);
+const sameDepthTop=M.benchWeight(ctx,{position:'WR',posRank:30,overallRank:45},0);
+const sameDepthDeep=M.benchWeight(ctx,{position:'WR',posRank:30,overallRank:170},0);
+const qb2Bench=M.benchWeight(ctx,{position:'QB',posRank:14,overallRank:80},0);
 
 function makeTeam(prefix,defs){
   const pool=new Map(),rankMap=new Map(),posRankMap=new Map(),ids=[];
@@ -29,17 +32,19 @@ const starHeavyScore=rosterScore(starHeavy),balancedScore=rosterScore(balanced);
 
 const checks={
   'adjacent overall TE assets stay close': Math.abs(adjacentTe1-adjacentTe2) < 3,
-  'qb1 vs qb14 slot gap is meaningful not extreme': qb1Slot-qb14Slot > 15 && qb1Slot-qb14Slot < 22,
-  'elite RB improves one slot but is not another starter': rb1Slot/rb24Slot < 1.22,
-  'elite RB has useful but bounded slot edge': rb1Slot-rb24Slot > 12 && rb1Slot-rb24Slot < 19,
-  'balanced eight clearly beats one superstar plus lineup holes': balancedScore-starHeavyScore > 25,
-  'starter slot value has a hard ceiling': rb1Slot <= 104,
-  'first useful RB bench piece matters': firstRbBench >= .40 && firstRbBench <= .50,
-  'third useful WR bench piece still matters': thirdWrBench >= .18 && thirdWrBench <= .25,
+  'qb1 vs qb14 gap is meaningful not extreme': qb1Slot-qb14Slot > 24 && qb1Slot-qb14Slot < 30,
+  'elite RB is one strong slot not two starters': rb1Slot/rb24Slot < 1.45,
+  'elite RB has a meaningful bounded edge': rb1Slot-rb24Slot > 25 && rb1Slot-rb24Slot < 35,
+  'middle ROS rankings create real separation': ros50-ros150 > 18,
+  'balanced eight clearly beats one superstar plus lineup holes': balancedScore-starHeavyScore > 80,
+  'starter slot value has a hard ceiling': rb1Slot <= 110,
+  'first useful RB bench piece matters': firstRbBench >= .50 && firstRbBench <= .60,
+  'third useful WR bench piece still matters': thirdWrBench >= .25 && thirdWrBench <= .32,
   'deep RB bench still diminishes': sixthRbBench < .07,
+  'higher ROS bench player gets more depth credit': sameDepthTop-sameDepthDeep > .20,
   'QB2 remains nearly irrelevant in 1QB': qb2Bench <= .01,
 };
 for(const [name,ok] of Object.entries(checks))console.log(`${ok?'PASS':'FAIL'}: ${name}`);
 const failed=Object.entries(checks).filter(([,ok])=>!ok).map(([name])=>name);
-console.log('Values:',{adjacentTe1:adjacentTe1.toFixed(1),adjacentTe2:adjacentTe2.toFixed(1),qb1Slot:qb1Slot.toFixed(1),qb14Slot:qb14Slot.toFixed(1),rb1Slot:rb1Slot.toFixed(1),rb24Slot:rb24Slot.toFixed(1),starHeavyScore:starHeavyScore.toFixed(1),balancedScore:balancedScore.toFixed(1),firstRbBench,thirdWrBench,sixthRbBench,qb2Bench});
+console.log('Values:',{adjacentTe1:adjacentTe1.toFixed(1),adjacentTe2:adjacentTe2.toFixed(1),qb1Slot:qb1Slot.toFixed(1),qb14Slot:qb14Slot.toFixed(1),rb1Slot:rb1Slot.toFixed(1),rb24Slot:rb24Slot.toFixed(1),ros50:ros50.toFixed(1),ros150:ros150.toFixed(1),starHeavyScore:starHeavyScore.toFixed(1),balancedScore:balancedScore.toFixed(1),firstRbBench,thirdWrBench,sixthRbBench,sameDepthTop,sameDepthDeep,qb2Bench});
 if(failed.length)throw new Error(`Power sanity checks failed: ${failed.join(', ')}`);
