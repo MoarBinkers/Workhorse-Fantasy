@@ -30,9 +30,9 @@ jobs:
             'audit uses canonical model': 'WorkhorsePowerModelV2' in audit and 'M.buildTeams(ctx())' in audit,
             'canonical model uses full roster': '(r.players||[])' in model,
             'canonical model ignores current starters': 'r.starters' not in model,
-            'shows historical calibration': 'HIST' in audit and 'historyPpg' in audit,
-            'shows raw role and power': 'RAW' in audit and 'ROLE' in audit and 'POWER' in audit,
-            'position bonus removed': 'position bonuses' not in audit.lower() and 'no separate position-rank bonus' in audit.lower(),
+            'audit shows asset value': 'ASSET' in audit and '${fmt(p.raw)}' in audit,
+            'audit shows starting slot value': 'SLOT' in audit and '${fmt(p.lineupValue)}' in audit,
+            'audit shows role and final power': 'ROLE' in audit and 'POWER' in audit,
             'no database writes': '/rest/v1/' in audit and 'method:' not in audit,
             'no mutation observer loop': 'MutationObserver' not in audit,
           }
