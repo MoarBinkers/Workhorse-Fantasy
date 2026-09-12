@@ -32,16 +32,16 @@ const starHeavyScore=rosterScore(starHeavy),balancedScore=rosterScore(balanced);
 
 const checks={
   'adjacent overall TE assets stay close': Math.abs(adjacentTe1-adjacentTe2) < 3,
-  'qb1 vs qb14 gap is meaningful not extreme': qb1Slot-qb14Slot > 24 && qb1Slot-qb14Slot < 30,
-  'elite RB is one strong slot not two starters': rb1Slot/rb24Slot < 1.45,
-  'elite RB has a meaningful bounded edge': rb1Slot-rb24Slot > 25 && rb1Slot-rb24Slot < 35,
-  'middle ROS rankings create real separation': ros50-ros150 > 18,
-  'balanced eight clearly beats one superstar plus lineup holes': balancedScore-starHeavyScore > 80,
-  'starter slot value has a hard ceiling': rb1Slot <= 110,
-  'first useful RB bench piece matters': firstRbBench >= .50 && firstRbBench <= .60,
-  'third useful WR bench piece still matters': thirdWrBench >= .25 && thirdWrBench <= .32,
-  'deep RB bench still diminishes': sixthRbBench < .07,
-  'higher ROS bench player gets more depth credit': sameDepthTop-sameDepthDeep > .20,
+  'qb1 vs qb14 gap is meaningful not extreme': qb1Slot-qb14Slot > 28 && qb1Slot-qb14Slot < 34,
+  'elite RB remains one bounded starting slot': rb1Slot/rb24Slot < 1.45,
+  'elite RB edge is meaningful but not team carrying': rb1Slot-rb24Slot > 28 && rb1Slot-rb24Slot < 34,
+  'middle ROS rankings create strong separation': ros50-ros150 > 30,
+  'balanced eight crushes one superstar plus lineup holes': balancedScore-starHeavyScore > 180,
+  'starter slot has a hard superstar ceiling': rb1Slot <= 106,
+  'first useful RB bench piece matters': firstRbBench >= .58 && firstRbBench <= .63,
+  'third useful WR bench piece still matters': thirdWrBench >= .28 && thirdWrBench <= .31,
+  'deep RB bench still diminishes': sixthRbBench < .06,
+  'higher ROS bench player gets much more depth credit': sameDepthTop-sameDepthDeep > .30,
   'QB2 remains nearly irrelevant in 1QB': qb2Bench <= .01,
 };
 for(const [name,ok] of Object.entries(checks))console.log(`${ok?'PASS':'FAIL'}: ${name}`);
