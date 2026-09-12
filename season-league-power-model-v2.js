@@ -18,23 +18,14 @@ function directSlots(ctx,pos){const n=rosterSlots(ctx).filter(x=>x===pos).length
 function flexCounts(ctx){const s=rosterSlots(ctx);return{flex:s.filter(x=>['FLEX','WRRBTE_FLEX'].includes(x)).length,rec:s.filter(x=>x==='REC_FLEX').length,wrrb:s.filter(x=>x==='WRRB_FLEX').length,superflex:s.filter(x=>x==='SUPER_FLEX').length}}
 function replacementRank(ctx,pos){const n=leagueSize(ctx),base=directSlots(ctx,pos)*n,f=flexCounts(ctx);let extra=0;if(pos==='QB')extra=f.superflex*n*.78;if(pos==='RB')extra=(f.flex*n*.38)+(f.wrrb*n*.44)+(f.superflex*n*.08);if(pos==='WR')extra=(f.flex*n*.50)+(f.rec*n*.58)+(f.wrrb*n*.56)+(f.superflex*n*.11);if(pos==='TE')extra=(f.flex*n*.12)+(f.rec*n*.42)+(f.superflex*n*.03);return Math.max(1,Math.round(base+extra))}
 function historicalPpg(pos,posRank){const a=HIST[pos]||HIST.WR,r=Math.max(1,finite(posRank,999));if(r<=a[0][0])return a[0][1];for(let i=1;i<a.length;i++){const [r1,v1]=a[i-1],[r2,v2]=a[i];if(r<=r2){const t=(r-r1)/(r2-r1);return v1+(v2-v1)*t}}const [lastR,lastV]=a[a.length-1];return Math.max(POSITION_FLOOR[pos]||4.5,lastV-.08*(r-lastR))}
-
-// User-authored Workhorse ROS rank is the backbone. The very top is deliberately
-// compressed so one Gibbs/Bijan-level asset cannot carry a whole team, while ranks
-// 40-220 separate much more strongly so complete lineups and real depth matter.
 function rosBase(overallRank){const r=Math.max(1,finite(overallRank,999));if(r<=ROS_VALUE[0][0])return ROS_VALUE[0][1];for(let i=1;i<ROS_VALUE.length;i++){const [r1,v1]=ROS_VALUE[i-1],[r2,v2]=ROS_VALUE[i];if(r<=r2){const t=(r-r1)/(r2-r1);return v1+(v2-v1)*t}}const [lastR,lastV]=ROS_VALUE[ROS_VALUE.length-1];return Math.max(34,lastV-.025*(r-lastR))}
-
-// Positional history is only a scarcity nudge. It cannot override adjacent ROS ranks.
 function scarcityAdjustment(ctx,pos,posRank){const hist=historicalPpg(pos,posRank),repl=historicalPpg(pos,replacementRank(ctx,pos)),delta=hist-repl;return Math.max(-3,Math.min(6,delta*.6))}
 function playerValue(ctx,pos,overallRank,posRank){return Math.max(34,finite(rosBase(overallRank)+scarcityAdjustment(ctx,pos,posRank),34))}
-function starterSlotValue(ctx,pos,overallRank,posRank){return Math.max(50,Math.min(110,playerValue(ctx,pos,overallRank,posRank)))}
+function starterSlotValue(ctx,pos,overallRank,posRank){return Math.max(44,Math.min(106,playerValue(ctx,pos,overallRank,posRank)))}
 function rankFor(ctx,id,p){return ctx.rankMap?.get(String(id))||finite(p?.sleeper_rank,999)}
 function posRankFor(ctx,id,p){return ctx.posRankMap?.get(String(id))||finite(p?.position_rank,999)}
 function chooseFixed(all,selected,pos,count){for(let i=0;i<count;i++){const p=all.filter(x=>x.position===pos&&!selected.has(x.id)).sort((a,b)=>b.lineupValue-a.lineupValue||a.overallRank-b.overallRank)[0];if(!p)break;selected.add(p.id);p.lineupRole=pos;p.depthWeight=1}}
 function chooseFlexible(all,selected,eligible,count,label){for(let i=0;i<count;i++){const p=all.filter(x=>eligible.includes(x.position)&&!selected.has(x.id)).sort((a,b)=>b.lineupValue-a.lineupValue||a.overallRank-b.overallRank)[0];if(!p)break;selected.add(p.id);p.lineupRole=label;p.depthWeight=1}}
-
-// Bench value follows ROS quality sharply: strong depth matters, replacement-level
-// clutter does not. QB remains nearly irrelevant in 1QB because it cannot fill FLEX.
 function depthQuality(p){const r=Math.max(1,finite(p?.overallRank,999));if(r<=40)return 1;if(r<=80)return .92;if(r<=120)return .78;if(r<=160)return .60;if(r<=220)return .40;if(r<=280)return .25;return .15}
 function benchWeight(ctx,p,index){const n=leagueSize(ctx),f=flexCounts(ctx),q=depthQuality(p);if(p.position==='QB'){
   if(f.superflex)return (index===0?.14:index===1?.06:.02)*q;
@@ -49,9 +40,6 @@ function benchWeight(ctx,p,index){const n=leagueSize(ctx),f=flexCounts(ctx),q=de
   return .01;
 }
 function bestLegalLineup(ctx,all){const selected=new Set();for(const pos of POS)chooseFixed(all,selected,pos,directSlots(ctx,pos));const f=flexCounts(ctx);chooseFlexible(all,selected,['RB','WR'],f.wrrb,'WR/RB FLEX');chooseFlexible(all,selected,['WR','TE'],f.rec,'REC FLEX');chooseFlexible(all,selected,['RB','WR','TE'],f.flex,'FLEX');chooseFlexible(all,selected,['QB','RB','WR','TE'],f.superflex,'SUPER FLEX');for(const pos of POS){const bench=all.filter(x=>x.position===pos&&!selected.has(x.id)).sort((a,b)=>b.raw-a.raw||a.overallRank-b.overallRank);bench.forEach((p,i)=>{p.lineupRole='DEPTH';p.depthWeight=benchWeight(ctx,p,i)})}return selected}
-
-// Team strength should reflect all starting slots. A superstar plus several weak starters
-// gets a meaningful completeness penalty; a deep, consistently strong lineup gets rewarded.
 function lineupBalance(starters){
   if(!starters.length)return{factor:1,lineupScore:0,starterSum:0,lowerHalfAvg:0};
   const values=starters.map(p=>Math.max(0,finite(p.lineupValue,0))).sort((a,b)=>a-b),starterSum=values.reduce((n,v)=>n+v,0),avg=starterSum/values.length,lowerCount=Math.max(1,Math.ceil(values.length/2)),lowerHalfAvg=values.slice(0,lowerCount).reduce((n,v)=>n+v,0)/lowerCount;
