@@ -454,8 +454,8 @@ async function latestRoleContext(p,id){
   },0);
   const totalRz=peers.reduce((a,[,x])=>a+E.rz(x),0);
   const snap=E.snapPct(row),targets=E.targets(row),carries=E.carries(row),rz=E.rz(row),routes=E.routes(row);
-  const targetShare=teamPassAttempts>0?targets/teamPassAttempts:null;
-  const targetDistribution=totalTargets>0?targets/totalTargets:null;
+  const targetShare=totalTargets>0?targets/totalTargets:null;
+  const targetDistribution=targetShare;
   const routeParticipation=routes>0&&teamDropbacks>0?Math.min(1,routes/teamDropbacks):null;
   const targetsPerRoute=routes>0?targets/routes:null;
   const rushShare=totalCarries>0?carries/totalCarries:null;
@@ -481,7 +481,7 @@ async function latestRoleContext(p,id){
   if(pos==='RB'&&rushShare!=null)bits.push(`${Math.round(rushShare*100)}% RB carry share`);
   if(['RB','WR','TE'].includes(pos)&&targetShare!=null)bits.push(`${Math.round(targetShare*100)}% target share`);
   if(snap!=null)bits.push(`${Math.round(snap*100)}% snaps`);
-  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,targetDistribution,routeParticipation,targetsPerRoute,rushShare,rzShare,targets,carries,routes,rz,totalTargets,totalCarries,teamPassAttempts,teamDropbacks,label:bits.join(' · ')||'Role data unavailable'};
+  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,targetDistribution,routeParticipation,targetsPerRoute,rushShare,rzShare,targets,carries,routes,rz,totalTargets,teamTargets:totalTargets,totalCarries,teamPassAttempts,teamDropbacks,label:bits.join(' · ')||'Role data unavailable'};
  }
  return {week:null,score:null,confidence:0,snap:null,targetShare:null,targetDistribution:null,routeParticipation:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,totalCarries:null,teamPassAttempts:null,teamDropbacks:null,label:'Role data unavailable'}
 }
@@ -548,6 +548,7 @@ function mergeVerifiedRole(p,id,base){
  if(n('snap_pct')!=null)out.snap=n('snap_pct')/100;
  if(n('targets')!=null)out.targets=n('targets');
  if(n('team_targets')!=null)out.teamTargets=n('team_targets');
+ if(out.teamTargets==null&&Number(out.totalTargets)>0)out.teamTargets=Number(out.totalTargets);
  if(out.targets!=null&&out.teamTargets>0)out.targetShare=out.targets/out.teamTargets;
  else if(n('target_share_pct')!=null)out.targetShare=n('target_share_pct')/100;
  out.targetDistribution=out.targetShare;
@@ -854,7 +855,7 @@ function roleShareCell(x){
 }
 function targetShareCell(x){
  const r=x.latestRole||{};
- const sub=r.targets==null?'':r.teamTargets!=null?`${r.targets} targets / ${r.teamTargets} team targets`:`${r.targets} targets${r.verifiedSource?` · ${r.verifiedSource}`:''}`;
+ const teamTargets=r.teamTargets??r.totalTargets;const sub=r.targets==null?'':teamTargets!=null?`${r.targets} targets / ${teamTargets} team targets`:`${r.targets} targets${r.verifiedSource?` · ${r.verifiedSource}`:''}`;
  return matrixCell(r.targetShare==null?'—':pct(r.targetShare),sub)
 }
 function routeCell(x){
