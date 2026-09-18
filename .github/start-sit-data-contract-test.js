@@ -3,7 +3,7 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
-  "await loadStartSitPlayerBundle(p)",
+  "bundle=await loadStartSitPlayerBundle(p)",
   "playerBundleCache=new Map()",
   "/functions/v1/get-startsit-player-data",
   "async function loadStartSitPlayerBundle(p)",
@@ -38,8 +38,7 @@ const must=[
   "async function loadPropsFor(p)",
   "&season=${SEASON}&week=${week}",
   "function latestGameStats(pos,stats)",
-  "const targetShare=teamPassAttempts>0?targets/teamPassAttempts:null",
-  "const targetDistribution=totalTargets>0?targets/totalTargets:null",
+  "const targetDistribution=targetShare;",
   "const routeParticipation=routes>0&&teamDropbacks>0?Math.min(1,routes/teamDropbacks):null",
   "const targetsPerRoute=routes>0?targets/routes:null",
   "roleNorm(targetShare,.08,.30),.55",
@@ -51,12 +50,17 @@ const must=[
   "wh_start_sit_matchup_v4::",
   "workhorseRank=whRank(id)",
   "providerProjection:weeklyProjection",
-  "latestRoleScore:forwardRoleScore"
+  "latestRoleScore:forwardRoleScore",
+  "function matchupFromBundle(bundle,p,game)",
+  "bundleRoleChange",
+  "Targets ÷ total team targets",
+  "route_pct_available"
 ];
 for(const m of must)if(!s.includes(m))throw new Error('Start/Sit data contract missing: '+m);
 
 const forbidden=[
   'VERIFIED_2025_PPR',
+  "const targetShare=teamPassAttempts>0?targets/teamPassAttempts:null",
   'verifiedPpr25(',
   "const targetShare=totalTargets>0?targets/totalTargets:null",
   "label:'Workhorse projection'",
