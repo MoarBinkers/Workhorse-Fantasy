@@ -3,6 +3,10 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
+  "await loadStartSitPlayerBundle(p)",
+  "playerBundleCache=new Map()",
+  "/functions/v1/get-startsit-player-data",
+  "async function loadStartSitPlayerBundle(p)",
   "label:'Routes & efficiency'",
   "label:'Player props'",
   "label:'Week projection'",
