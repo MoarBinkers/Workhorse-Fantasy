@@ -3,6 +3,12 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
+  "2026 matchup unavailable",
+  "2025 matchup unavailable",
+  "Core verified data fallback",
+  "function safeDetailCard(x)",
+  "function safeMatrixCell(row,x)",
+  "Promise.allSettled(selected.map(grade))",
   "async function loadPropsFor(p)",
   "&season=${SEASON}&week=${week}",
   "age>24",
@@ -43,4 +49,5 @@ if(propsFn.indexOf('/functions/v1/get-player-props')<0)throw new Error('Live pro
 if(!propsFn.includes('&season=${SEASON}&week=${week}'))throw new Error('Live prop endpoint must be week-scoped');
 if(propsFn.indexOf('/functions/v1/get-player-props')>propsFn.indexOf('/rest/v1/player_prop_lines'))throw new Error('Live prop endpoint must be checked before local cache');
 
+if(s.includes('Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.'))throw new Error('all-or-nothing failure message returned');
 console.log('PASS: Start/Sit data contracts');
