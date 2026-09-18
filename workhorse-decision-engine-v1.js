@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=5)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=6)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -187,9 +187,16 @@ function startSitScoreV2(input={}){
  const rankWeight=Number.isFinite(Number(input.rankWeight))?Math.max(0,Number(input.rankWeight)):.14;
  const providerBacked=proj.providerPoints!=null;
  const latestRole=Number(input.latestRoleScore),roleComponent=Number.isFinite(latestRole)?clamp(latestRole,0,100):null;
- let parts=providerBacked
-   ?[[projectionComponent,.44],[roleComponent,.24],[usage.score,.12],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.07],[envComponent,.05]]
-   :[[projectionComponent,.38],[roleComponent,.25],[usage.score,.14],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.10],[envComponent,.05]];
+ let parts;
+ if(providerBacked){
+   if(pos==='RB')parts=[[projectionComponent,.38],[roleComponent,.29],[usage.score,.10],[rankComponent,Math.min(rankWeight,.06)],[matchupComponent,.12],[envComponent,.05]];
+   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.43],[roleComponent,.26],[usage.score,.12],[rankComponent,Math.min(rankWeight,.07)],[matchupComponent,.08],[envComponent,.04]];
+   else parts=[[projectionComponent,.52],[roleComponent,.18],[usage.score,.10],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.07],[envComponent,.05]];
+ }else{
+   if(pos==='RB')parts=[[projectionComponent,.32],[roleComponent,.31],[usage.score,.12],[rankComponent,Math.min(rankWeight,.06)],[matchupComponent,.14],[envComponent,.05]];
+   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.37],[roleComponent,.28],[usage.score,.14],[rankComponent,Math.min(rankWeight,.07)],[matchupComponent,.10],[envComponent,.04]];
+   else parts=[[projectionComponent,.45],[roleComponent,.20],[usage.score,.12],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.10],[envComponent,.05]];
+ }
  parts=parts.filter(([v,w])=>v!=null&&w>0);
  const weight=parts.reduce((a,x)=>a+x[1],0);
  let score=parts.reduce((a,[v,w])=>a+v*w,0)/Math.max(.01,weight);
@@ -226,7 +233,7 @@ function startSitScoreV2(input={}){
  return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:5,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:6,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
