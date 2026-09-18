@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=2)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=3)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -209,7 +209,7 @@ function startSitScoreV2(input={}){
  return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:2,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:3,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
