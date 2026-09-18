@@ -899,7 +899,7 @@ function matrixRows(graded){
   {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + 2025 box-score baseline',cell:matchupCell},
   {label:'Game line',note:'Spread · total · implied team points',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
-  {label:'Role news',note:'Confirmed coach/injury context only',cell:x=>matrixCell(x.newsCtx?.forwardRoleBoost>0?'Trending up':x.newsCtx?.forwardRoleBoost<0?'Trending down':'No confirmed change',x.newsCtx?.reasons?.[0]||'No verified role-change report',x.newsCtx?.forwardRoleBoost>0?'good':x.newsCtx?.forwardRoleBoost<0?'bad':'')},
+  {label:'Role news',note:'Confirmed coach/team statements first',cell:x=>{const rc=x.bundleRoleChange,dir=String(rc?.direction||'').toLowerCase();return matrixCell(rc?.label||(x.newsCtx?.forwardRoleBoost>0?'Trending up':x.newsCtx?.forwardRoleBoost<0?'Trending down':'No confirmed change'),rc?.headline?[rc.headline,rc.source].filter(Boolean).join(' · '):(x.newsCtx?.reasons?.[0]||'No verified role-change report'),dir==='up'||x.newsCtx?.forwardRoleBoost>0?'good':dir==='down'||x.newsCtx?.forwardRoleBoost<0?'bad':'')}},
   {label:'Player status',note:'Current availability designation',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?'Availability risk applied':'',statusTone(x))}
  ];
  return rows
@@ -971,7 +971,7 @@ async function compare(){
  const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Checking projections, stats, matchup and news…';
  let graded=[];
  try{
-  try{await ensureMatchups()}catch(e){console.warn('matchup preload skipped',e)}
+  try{if(format!=='ppr')await ensureMatchups()}catch(e){console.warn('legacy matchup preload skipped',e)}
   const settled=await Promise.allSettled(selected.map(grade));
   graded=settled.map((x,i)=>{
    if(x.status==='fulfilled'&&x.value)return x.value;
@@ -991,7 +991,7 @@ async function compare(){
   try{matrix=renderMatrix(graded)}catch(e){console.warn('matrix render failed',e);matrix='<div class="warning">Comparison table is temporarily unavailable; the recommendation above is still active.</div>'}
   let details='';
   try{details=renderDetails(graded)}catch(e){console.warn('details render failed',e)}
-  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. Routes, route participation, TPRR and YPRR support receiver role. Player props are current-week, source-stamped markets when verified. Matchups show all players at the position combined from completed box scores. Missing optional inputs are excluded instead of guessed.</div>`;
+  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. RB route participation is shown only when a real route source exists; snap share is never substituted. Player props are current-week, source-stamped markets when verified. Matchups show 2026 opponent-vs-position results separately from the 2025 full-season baseline. Confirmed coach/team role changes are surfaced directly. Missing optional inputs are excluded instead of guessed.</div>`;
   st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable · ${weekSource}`;
  }catch(e){
   console.error('Start/Sit core comparison failure',e);
