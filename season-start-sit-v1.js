@@ -106,36 +106,65 @@ async function loadNewsFor(p){
  newsCache.set(k,clean);return clean
 }
 function newsContext(items,injury){
- let adjustment=0;const reasons=[],market=[],now=Date.now(),inj=String(injury||'').toLowerCase();
- for(const n of items||[]){
-  const age=(now-new Date(n.published_at||0).getTime())/86400000;if(!Number.isFinite(age)||age>7)continue;
-  const cats=Array.isArray(n.categories)?n.categories:[],indirect=cats.includes('indirect'),trending=cats.includes('trending');
-  const text=`${n.headline||''} ${n.summary||''} ${n.fantasy_impact||''}`.toLowerCase();
-  if(trending){market.push(n);continue}
-  if(indirect){
-   if(/ready to go|expected to play|will play|returns?|cleared|activated/.test(text)){adjustment-=2;reasons.push('A teammate appears to be returning, which can tighten opportunity.')}
-   else if(/ruled out|will miss|out for|doubtful|uncertain to play|injur|exits?|miss(ing|ed)?/.test(text)){adjustment+=2.5;reasons.push('Teammate availability news can open additional opportunity.')}
-   continue
-  }
-  if(/ruled out|will miss|out for|placed on ir/.test(text)){if(!/out|ir|pup/.test(inj))adjustment-=7;reasons.push('Recent direct news indicates a major availability concern.')}
-  else if(/doubtful|unlikely to play|uncertain to play/.test(text)){adjustment-=4;reasons.push('Recent direct news adds meaningful availability risk.')}
-  else if(/questionable|limited|did not practice|dnp|hamstring|ankle|shoulder/.test(text)){adjustment-=2;reasons.push('Recent direct news adds some health volatility.')}
-  if(/ready to go|expected to play|will play|full practice|cleared|no injury designation/.test(text)){adjustment+=1.5;reasons.push('Recent news is positive for availability.')}
-  if(/named starter|will start|starting role|starter going forward/.test(text)){adjustment+=3;reasons.push('Recent news supports a stronger role.')}
-  if(/benched|demoted|backup role|will not start/.test(text)){adjustment-=4;reasons.push('Recent news points to a reduced role.')}
+ const now=Date.now(),inj=String(injury||'').toLowerCase(),market=[],reasons=[];
+ const recent=(items||[]).filter(n=>{
+  const age=(now-new Date(n.published_at||0).getTime())/86400000;
+  return Number.isFinite(age)&&age<=7;
+ });
+ const direct=recent.find(n=>{
+  const c=Array.isArray(n.categories)?n.categories:[];
+  return !c.includes('indirect')&&!c.includes('trending');
+ });
+ let directAdjustment=0,directState='neutral';
+ if(direct){
+  const text=`${direct.headline||''} ${direct.summary||''} ${direct.fantasy_impact||''}`.toLowerCase();
+  if(/ruled out|will miss|out for|placed on ir|inactive/.test(text)){directAdjustment=-7;directState='out';reasons.push('Latest direct report indicates the player is not expected to be available.')}
+  else if(/doubtful|unlikely to play|uncertain to play/.test(text)){directAdjustment=-4;directState='doubtful';reasons.push('Latest direct report adds meaningful availability risk.')}
+  else if(/ready to go|expected to play|will play|full practice|cleared|no injury designation/.test(text)){directAdjustment=1.5;directState='positive';reasons.push('Latest direct report is positive for availability.')}
+  else if(/questionable|limited|did not practice|dnp|hamstring|ankle|shoulder|knee|groin/.test(text)){directAdjustment=-1.5;directState='questionable';reasons.push('Latest direct report adds some health volatility.')}
+  if(/named starter|will start|starting role|starter going forward/.test(text)){directAdjustment=Math.min(7,directAdjustment+2.5);reasons.push('Latest direct report supports a stronger role.')}
+  if(/benched|demoted|backup role|will not start/.test(text)){directAdjustment=Math.max(-7,directAdjustment-4);reasons.push('Latest direct report points to a reduced role.')}
  }
- return {adjustment:Math.max(-7,Math.min(7,adjustment)),reasons:[...new Set(reasons)].slice(0,3),market:market.slice(0,2)}
+ let indirectAdjustment=0;
+ const seenIndirect=new Set();
+ for(const n of recent){
+  const cats=Array.isArray(n.categories)?n.categories:[];
+  if(cats.includes('trending')){market.push(n);continue}
+  if(!cats.includes('indirect'))continue;
+  const text=`${n.headline||''} ${n.summary||''} ${n.fantasy_impact||''}`.toLowerCase();
+  const key=text.replace(/^indirect impact:[^—-]+[—-]s*/,'').slice(0,140);
+  if(seenIndirect.has(key))continue;seenIndirect.add(key);
+  if(/ready to go|expected to play|will play|returns?|cleared|activated/.test(text))indirectAdjustment-=1.25;
+  else if(/ruled out|will miss|out for|doubtful|uncertain to play|injur|exits?|miss(ing|ed)?/.test(text))indirectAdjustment+=1.5;
+ }
+ indirectAdjustment=Math.max(-2.5,Math.min(2.5,indirectAdjustment));
+ if(indirectAdjustment>=1.25)reasons.push('Teammate availability news may open additional opportunity.');
+ if(indirectAdjustment<=-1.25)reasons.push('A teammate appears to be returning, which may tighten opportunity.');
+ const adjustment=Math.max(-7,Math.min(7,directAdjustment+indirectAdjustment));
+ return {adjustment,reasons:[...new Set(reasons)].slice(0,3),market:market.slice(0,2),direct,directState,directAdjustment,indirectAdjustment}
 }
 function teamContext(p){
  const rows=(teamStatus.get(normTeam(p.team))||[]).slice(),reasons=[];let adjustment=0;
  if(p.position!=='QB'){
   const qbs=rows.filter(x=>x.position==='QB').sort((a,b)=>(Number(a.search_rank)||9999)-(Number(b.search_rank)||9999));
-  const qb=qbs[0],st=String(qb?.injury_status||'').toLowerCase();
-  if(qb&&/out|ir|pup/.test(st)){adjustment-=5;reasons.push(`${qb.full_name||'Starting QB'} is ${qb.injury_status}, lowering offensive stability.`)}
-  else if(qb&&/doubtful/.test(st)){adjustment-=3;reasons.push(`${qb.full_name||'Starting QB'} is doubtful.`)}
-  else if(qb&&/questionable|limited|dnr/.test(st)){adjustment-=1.5;reasons.push(`${qb.full_name||'Starting QB'} carries an injury designation.`)}
+  const qb=qbs[0],st=String(qb?.injury_status||qb?.status||'').toLowerCase();
+  if(qb&&/(^|\b)(out|ir|pup|na|dnr|sus|suspended)(\b|$)/.test(st)){adjustment-=3;reasons.push(`${qb.full_name||'Top-listed team QB'} is currently unavailable, which lowers offensive stability.`)}
+  else if(qb&&/doubtful/.test(st)){adjustment-=2;reasons.push(`${qb.full_name||'Top-listed team QB'} is doubtful.`)}
+  else if(qb&&/questionable|limited|dnp/.test(st)){adjustment-=1;reasons.push(`${qb.full_name||'Top-listed team QB'} carries an injury designation.`)}
  }
- return {adjustment:Math.max(-7,Math.min(7,adjustment)),reasons}
+ return {adjustment:Math.max(-4,Math.min(2,adjustment)),reasons}
+}
+function availabilityRisk(injury,newsCtx){
+ const st=String(injury||'').toLowerCase();
+ if(/(^|\b)(out|ir|pup|na|dnr|sus|suspended)(\b|$)/.test(st))return 1;
+ if(/doubtful/.test(st))return newsCtx?.directState==='positive'?.20:.34;
+ if(/questionable/.test(st)){
+  if(newsCtx?.directState==='positive')return .03;
+  if(['doubtful','out'].includes(newsCtx?.directState))return .16;
+  return .08;
+ }
+ if(/limited|dnp|did not practice/.test(st))return newsCtx?.directState==='positive'?.02:.06;
+ return newsCtx?.directState==='doubtful'?.12:newsCtx?.directState==='questionable'?.05:0;
 }
 function confidence(g){return g?.confidence??0}
 
@@ -230,8 +259,9 @@ async function grade(id){
  const priorTeam=[...prior].reverse().map(s=>normTeam(textFirst(s,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection);
  const rankWeight=slot==='SUPERFLEX'?.04:.14;
- const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,ownerProjection,teamChanged,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:!game,rankWeight});
- return {id:String(id),p,current,prior,inj,rank,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current),priorWork:workload(p.position,prior)}
+ const injuryRisk=availabilityRisk(inj,newsCtx);
+ const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,teamChanged,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:!game,rankWeight});
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current),priorWork:workload(p.position,prior)}
 }
 
 function edgeLabel(a,b){if(!a||a.g.score==null)return 'Not enough data';if(!b||b.g.score==null)return 'Data edge';const d=a.g.score-b.g.score,low=Math.min(a.confidence,b.confidence);if(low<45)return d>=6?'Lean · limited data':'Toss-up · limited data';if(d>=9)return 'Clear edge';if(d>=4)return 'Lean';return 'Toss-up'}
