@@ -3,7 +3,7 @@
 if(window.__WH_START_SIT_V1__)return;window.__WH_START_SIT_V1__=true;
 const E=window.WorkhorseDecisionEngine;if(!E){document.body.innerHTML='<div style="padding:40px;color:white">Workhorse decision engine could not load.</div>';return}
 const SB='https://ytfwbvdzhrebupcftmhs.supabase.co',KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k',SEASON=2026;
-const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Number(qs.get('week')||0)||0)),format='ppr',slot='FLEX',selected=[];
+const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Number(qs.get('week')||0)||0)),weekSource=week?'url':'unresolved',format='ppr',slot='FLEX',selected=[];
 const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
@@ -22,7 +22,22 @@ function weeklyOrder(){
  return {ids:baseline,source:'default'}
 }
 function whRank(id){const a=weeklyOrder().ids,i=a.indexOf(String(id));return i<0?null:i+1}
-async function currentWeek(){if(week)return week;try{const r=await fetch('https://api.sleeper.app/v1/state/nfl',{cache:'no-store'});if(r.ok){const x=await r.json();week=Math.max(1,Math.min(18,Number(x?.week)||1));return week}}catch(_){}return week=1}
+function calendarWeek(now=Date.now()){
+ const start=Date.UTC(2026,8,9,0,0,0),n=Math.floor((now-start)/604800000)+1;
+ return Math.max(1,Math.min(18,n))
+}
+async function currentWeek(){
+ if(week)return week;
+ try{
+  const r=await fetch(`${SB}/functions/v1/get-nfl-state`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const x=await r.json(),w=Number(x?.week);if(Number.isFinite(w)&&w>=1&&w<=18){week=Math.round(w);weekSource='server';return week}}
+ }catch(e){console.warn('Workhorse NFL state unavailable',e)}
+ try{
+  const r=await fetch('https://api.sleeper.app/v1/state/nfl',{cache:'no-store'});
+  if(r.ok){const x=await r.json(),w=Number(x?.week);if(Number.isFinite(w)&&w>=1&&w<=18){week=Math.round(w);weekSource='sleeper-direct';return week}}
+ }catch(e){console.warn('Direct Sleeper NFL state unavailable',e)}
+ week=calendarWeek();weekSource='calendar-fallback';return week
+}
 function ingest(data){
  const m=new Map();
  const pack=(r)=>{
@@ -750,7 +765,7 @@ async function compare(){
   let details='';
   try{details=renderDetails(graded)}catch(e){console.warn('details render failed',e)}
   document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. WR/TE target share = targets ÷ team pass attempts. Routes, route participation, TPRR and YPRR support receiver role. Player props are current-week, source-stamped markets when verified. Matchups show all players at the position combined from completed box scores. Missing optional inputs are excluded instead of guessed.</div>`;
-  st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable`;
+  st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable · ${weekSource}`;
  }catch(e){
   console.error('Start/Sit core comparison failure',e);
   document.querySelector('#ss-output').innerHTML=graded.length?renderDetails(graded):'<div class="warning">Core player data could not be graded. Optional feeds no longer block comparisons; re-select the players to retry core data.</div>';
