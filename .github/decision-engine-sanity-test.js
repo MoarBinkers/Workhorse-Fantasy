@@ -2,7 +2,7 @@
 const assert=require('assert');
 require('../workhorse-decision-engine-v1.js');
 const E=global.WorkhorseDecisionEngine;
-assert(E&&E.version>=2,'decision engine loads');
+assert(E&&E.version>=4,'decision engine loads');
 const rb=[
  {rush_att:12,rec_tgt:2,rec:2,rush_yd:45,rec_yd:12,pts_ppr:8.7,snap_pct:.48,rush_rz_att:2},
  {rush_att:16,rec_tgt:4,rec:3,rush_yd:72,rec_yd:26,pts_ppr:14.8,snap_pct:.61,rush_rz_att:3},
@@ -33,3 +33,7 @@ assert(Math.abs(qbFallback-19)<0.001,'fallback QB scoring matches Sleeper defaul
 assert(E.injuryPenalty('NA')===1&&E.injuryPenalty('DNR')===1,'inactive Sleeper statuses are treated as unavailable');
 const bye=E.startSitScoreV2({pos:'RB',currentStats:rb.slice(-2),priorStats:prior,format:'ppr',bye:true});
 assert(bye.eligible===false&&bye.score===0,'bye player is not actionable');
+
+const provider=E.startSitScoreV2({pos:'RB',currentStats:rb.slice(-2),priorStats:prior,format:'ppr',providerProjection:18.4,matchupScore:55,matchupConfidence:70,environment:{gameTotal:45}});
+assert(provider.projection.providerPoints===18.4,'provider projection anchors weekly model');
+assert(provider.projection.source==='provider_blend','provider projection blends with verified form when both exist');
