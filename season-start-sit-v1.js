@@ -61,26 +61,38 @@ function ingest(data){
 async function weekStats(season,w){
  const key=`${season}:${w}`;if(weeks.has(key))return weeks.get(key);
  let data=null;
- for(const u of [`https://api.sleeper.com/stats/nfl/${season}/${w}?season_type=regular`,`https://api.sleeper.app/v1/stats/nfl/regular/${season}/${w}`]){
-  try{const r=await fetch(u,{cache:'no-store'});if(r.ok){data=await r.json();break}}catch(_){}
+ try{
+  const r=await fetch(`${SB}/functions/v1/get-sleeper-week-data?type=stats&season=${season}&week=${w}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const j=await r.json();if(j?.data!=null)data=j.data}
+ }catch(e){console.warn('server Sleeper stats unavailable',season,w,e)}
+ if(data==null){
+  for(const u of [`https://api.sleeper.com/stats/nfl/${season}/${w}?season_type=regular`,`https://api.sleeper.app/v1/stats/nfl/regular/${season}/${w}`]){
+   try{const r=await fetch(u,{cache:'no-store'});if(r.ok){data=await r.json();break}}catch(_){}
+  }
  }
  const m=ingest(data);weeks.set(key,m);return m
 }
 async function loadProjections(){
  projections.clear();projectionsLoaded=false;
  let data=null;
- for(const u of [
-  `https://api.sleeper.com/projections/nfl/${SEASON}/${week}?season_type=regular`,
-  `https://api.sleeper.app/v1/projections/nfl/regular/${SEASON}/${week}`
- ]){
-  try{const r=await fetch(u,{cache:'no-store'});if(r.ok){data=await r.json();break}}catch(_){}
+ try{
+  const r=await fetch(`${SB}/functions/v1/get-sleeper-week-data?type=projections&season=${SEASON}&week=${week}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const j=await r.json();if(j?.data!=null)data=j.data}
+ }catch(e){console.warn('server Sleeper projections unavailable',e)}
+ if(data==null){
+  for(const u of [
+   `https://api.sleeper.com/projections/nfl/${SEASON}/${week}?season_type=regular`,
+   `https://api.sleeper.app/v1/projections/nfl/regular/${SEASON}/${week}`
+  ]){
+   try{const r=await fetch(u,{cache:'no-store'});if(r.ok){data=await r.json();break}}catch(_){}
+  }
  }
  const m=ingest(data);
  for(const [id,row] of m.entries()){
   const hasPoints=['pts_ppr','pts_half_ppr','pts_std'].some(k=>row?.[k]!=null&&Number.isFinite(Number(row[k])));
   if(hasPoints)projections.set(String(id),row);
  }
- projectionsLoaded=true;
+ projectionsLoaded=true
 }
 async function loadVerifiedWeeklyData(){
  verifiedUsage.clear();verifiedProjections.clear();
@@ -780,16 +792,22 @@ function matchupCell(x){
 }
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
+function seasonPpgCell(x){
+ const games=Number(x.seasonWork?.games)||0;
+ if(games>0)return matrixCell(fmt(x.seasonWork?.ppg,1),`${games} game${games===1?'':'s'}`);
+ if(x.latestGame?.fantasy!=null)return matrixCell(fmt(x.latestGame.fantasy,1),'1 verified game');
+ return matrixCell('—','No completed-game stat found')
+}
 function matrixRows(graded){
  const hasReceiver=graded.some(x=>x.p.position==='WR'||x.p.position==='TE'),hasRb=graded.some(x=>x.p.position==='RB');
  const rows=[
   {label:'Week projection',note:'Current-week verified projection',cell:x=>matrixCell(sourceProjectionName(x),projectionSourceText(x))},
   {label:'Player props',note:'Live consensus markets fetched for the selected player',cell:propsCell},
-  {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} game${x.seasonWork?.games===1?'':'s'}`)},
+  {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:seasonPpgCell},
   {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
   {label:'Primary opportunity',note:'WR/TE = target share · RB = share of RB carries',cell:roleShareCell},
   ...(hasReceiver?[{label:'Target share',note:'Targets ÷ team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetShareCell(x):matrixCell('—','')},{label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
-  ...(hasRb?[{label:'RB target share',note:'RB targets ÷ team pass attempts',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets}/${x.latestRole.teamPassAttempts} team pass attempts`:''):matrixCell('—','')}]:[]),
+  ...(hasRb?[{label:'RB target share',note:'Verified share of team targets',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets} targets${x.latestRole?.verifiedSource?` · ${x.latestRole.verifiedSource}`:''}`:''):matrixCell('—','')}]:[]),
   {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + 2025 box-score baseline shown separately',cell:matchupCell},
   {label:'Game line',note:'Current team spread / total when available',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
@@ -811,18 +829,18 @@ function renderMatrix(graded){
 
 function detailCard(x){
  const d26=x.mu?.y2026,d25=x.mu?.y2025,st=status.get(String(x.id))||{},lg=x.latestGame||{},lr=x.latestRole||{};
- const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`]];
+ const projectionRows=[['Week projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts · ${projectionSourceText(x)}`]];
  let propRows=[];try{propRows=(x.props||[]).map(p=>[p.label||propLabel(p.market),`${propValue(p)}${propOdds(p)?` · ${propOdds(p)}`:''} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
  const wrEfficiency=[
   ['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'} team pass attempts`],
-  ['Target distribution',lr.targetDistribution==null?'—':`${pct(lr.targetDistribution)} · ${lr.targets??'—'}/${lr.totalTargets??'—'} recorded player targets`],
   ['Route participation',pct(lr.routeParticipation)],
   ['Targets per route',pct(lr.targetsPerRoute)],
   ['Yards per route',lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—'],
-  ['Air yards',fmt(lg.airYds,0)]
+  ['Air yards',fmt(lg.airYds,0)],
+  ['aDOT',lg.adot==null?'—':fmt(lg.adot,1)]
  ];
  const lastRows=x.p.position==='RB'
-  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Team target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.totalTargets??'—'}`],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
+  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'} targets${lr.verifiedSource?` · ${lr.verifiedSource}`:''}`],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
   :x.p.position==='WR'||x.p.position==='TE'
    ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Routes',fmt(lg.routes,0)],...wrEfficiency,['Red-zone opportunities',fmt(lg.rz,0)]]
    :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
