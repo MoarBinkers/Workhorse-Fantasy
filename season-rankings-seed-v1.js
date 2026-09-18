@@ -10,7 +10,7 @@ const isMine=route==='my-rankings';
 const isWeekly=type==='weekly';
 const key=isMine?(isWeekly?`wh_my_week_v3::${week}`:'wh_my_ros_v3'):(isWeekly?`wh_week_master_v3::${week}`:'wh_ros_master_v3');
 function saved(){try{const x=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(x)?x:[]}catch(_){return[]}}
-function add(src,dataKey){if(document.querySelector(`script[${dataKey}]`))return;const s=document.createElement('script');s.src=src;s.async=false;s.setAttribute(dataKey,'1');document.body.appendChild(s)}
+function add(src,dataKey,onload){if(document.querySelector(`script[${dataKey}]`)){onload?.();return}const s=document.createElement('script');s.src=src;s.async=false;s.setAttribute(dataKey,'1');if(onload)s.onload=onload;document.body.appendChild(s)}
 function loadUi(){if(window.__WH_SEASON_UI_V5__)return;add('./season-rankings-ui-v5.js?v=1','data-wh-ui-v5')}
 function loadDetail(){if(window.__WH_PLAYER_DETAIL_V1__)return;add('./season-player-detail-v1.js?v=1','data-wh-player-detail')}
 function loadMatchupReference(){if(!isWeekly||window.__WH_MATCHUP_REFERENCE_V1__)return;add('./season-matchup-reference-v1.js?v=1','data-wh-matchup-reference')}
@@ -24,31 +24,13 @@ function loadRegressionFix(){if(window.__WH_REGRESSION_FIX_V2__)return;add('./se
 function loadCardPolish(){if(window.__WH_CARD_POLISH_V1__)return;add('./season-card-polish-v1.js?v=1','data-wh-card-polish')}
 function loadRosTiers(){if(isWeekly||window.__WH_ROS_TIERS_V4__)return;add('./season-ros-tiers-v4.js?v=5','data-wh-ros-tiers-v4')}
 function loadRosChangeFix(){if(isWeekly||window.__WH_ROS_CHANGE_FIX_V1__)return;add('./season-ros-change-fix-v1.js?v=2','data-wh-ros-change-fix')}
+function loadDecision(){const command=()=>{if(!window.__WH_COMMAND_CENTER_V1__)add('./season-command-center-v1.js?v=1','data-wh-command-center')};if(window.WorkhorseDecisionEngine){command();return}add('./workhorse-decision-engine-v1.js?v=1','data-wh-decision-engine',command)}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
- if(!saved().length){
-   const ids=rows.map(r=>String(r.dataset.id||'')).filter(Boolean);
-   if(ids.length)try{localStorage.setItem(key,JSON.stringify(ids))}catch(_){ }
- }
- loadUi();
- loadDetail();
- loadMatchupReference();
- loadMatchupExpanded();
- loadInjuryStatus();
- loadOwnerControl();
- loadInsights();
- loadCompare();
- loadMatchupTrends();
- loadRegressionFix();
- loadCardPolish();
- loadRosTiers();
- loadRosChangeFix();
+ if(!saved().length){const ids=rows.map(r=>String(r.dataset.id||'')).filter(Boolean);if(ids.length)try{localStorage.setItem(key,JSON.stringify(ids))}catch(_){ }}
+ loadUi();loadDetail();loadMatchupReference();loadMatchupExpanded();loadInjuryStatus();loadOwnerControl();loadInsights();loadCompare();loadMatchupTrends();loadRegressionFix();loadCardPolish();loadRosTiers();loadRosChangeFix();loadDecision();
  return true;
 }
-if(!seed()){
- const obs=new MutationObserver(()=>{if(seed())obs.disconnect()});
- obs.observe(document.documentElement,{childList:true,subtree:true});
- setTimeout(()=>obs.disconnect(),15000);
-}
+if(!seed()){const obs=new MutationObserver(()=>{if(seed())obs.disconnect()});obs.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>obs.disconnect(),15000)}
 })();
