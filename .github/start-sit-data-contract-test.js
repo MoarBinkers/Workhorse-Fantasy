@@ -2,6 +2,11 @@
 const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 const must=[
+  "label:'Latest role'",
+  "Clear role edge",
+  "sits out again",
+  "latestRoleScore:latestRole.score",
+  "function latestRoleContext(p,id)",
   "https://api.sleeper.com/stats/nfl/${season}/${w}?season_type=regular",
   "https://api.sleeper.com/projections/nfl/${SEASON}/${week}?season_type=regular",
   "providerProjection:weeklyProjection",
