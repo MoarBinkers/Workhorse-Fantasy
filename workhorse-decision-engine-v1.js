@@ -16,7 +16,7 @@ function fantasyPoints(s,format='ppr'){
  const recMult=format==='standard'?0:format==='half'?0.5:1;
  const direct=format==='ppr'?first(s,'pts_ppr','fpts_ppr','fantasy_points_ppr'):format==='half'?first(s,'pts_half_ppr','fpts_half_ppr'):first(s,'pts_std','fpts_std');
  if(direct!=null)return direct;
- return rec*recMult+num(first(s,'pass_yd'))*.04+num(first(s,'pass_td'))*4-num(first(s,'pass_int','int'))*2+num(first(s,'rush_yd'))*.1+num(first(s,'rush_td'))*6+num(first(s,'rec_yd'))*.1+num(first(s,'rec_td'))*6+num(first(s,'pass_2pt'))*2+num(first(s,'rush_2pt'))*2+num(first(s,'rec_2pt'))*2-num(first(s,'fum_lost','fumbles_lost'))*2;
+ return rec*recMult+num(first(s,'pass_yd'))*.04+num(first(s,'pass_td'))*4-num(first(s,'pass_int','int'))+num(first(s,'rush_yd'))*.1+num(first(s,'rush_td'))*6+num(first(s,'rec_yd'))*.1+num(first(s,'rec_td'))*6+num(first(s,'pass_2pt'))*2+num(first(s,'rush_2pt'))*2+num(first(s,'rec_2pt'))*2-num(first(s,'fum_lost','fumbles_lost'))*2;
 }
 
 function metricAverage(stats,fn){const a=(stats||[]).filter(played).map(fn).filter(v=>v!=null&&Number.isFinite(Number(v)));return a.length?mean(a):null}
@@ -86,7 +86,7 @@ function trendSeries(pos,stats,format='ppr'){
  return (stats||[]).map((s,i)=>({week:i+1,played:played(s),ppr:played(s)?fantasyPoints(s,format):null,usage:played(s)?usageScore(pos,[s]).score:null,targets:targets(s),carries:carries(s),routes:routes(s),snap:snapPct(s),opps:played(s)?opportunities(pos,s):null}));
 }
 
-function injuryPenalty(status){const x=String(status||'').toLowerCase();if(!x)return 0;if(/out|ir|pup|suspend/.test(x))return .45;if(/doubtful/.test(x))return .28;if(/questionable|limited/.test(x))return .10;return 0}
+function injuryPenalty(status){const x=String(status||'').toLowerCase();if(!x)return 0;if(/(^|\b)(out|ir|pup|suspended|suspend|sus|na|dnr)(\b|$)/.test(x))return 1;if(/doubtful/.test(x))return .34;if(/questionable/.test(x))return .08;if(/limited|dnp|did not practice/.test(x))return .06;return 0}
 function startSitScore(input={}){
  const pos=String(input.pos||'').toUpperCase(),stats=input.stats||[],format=input.format||'ppr',proj=projection(pos,stats,format),usage=usageScore(pos,stats),role=roleChange(pos,stats),rank=Number(input.weeklyRank),rankComponent=Number.isFinite(rank)&&rank>0?100*clamp(1-(rank-1)/120,0,1):null;
  if(proj.points==null)return {score:null,projection:proj,usage,role,reasons:['Not enough 2026 game data to grade this player safely.']};
@@ -170,7 +170,7 @@ function startSitScoreV2(input={}){
  const rankComponent=Number.isFinite(rank)&&rank>0?100*clamp(1-(rank-1)/120,0,1):null;
  if(proj.points==null)return {score:null,eligible:false,projection:proj,usage,role,reasons:['Not enough current or prior-season data to grade this player safely.']};
  const status=String(input.injuryStatus||'').toLowerCase();
- if(/(^|\b)(out|ir|pup|suspended|sus)(\b|$)/.test(status)){
+ if(/(^|\b)(out|ir|pup|suspended|suspend|sus|na|dnr)(\b|$)/.test(status)){
    return {score:0,eligible:false,projection:proj,usage,usageSource,role,injuryPenalty:1,reasons:[`Unavailable: ${input.injuryStatus||'Out'}`]};
  }
  const projectionComponent=100*clamp((proj.points-5)/22,0,1);
@@ -183,7 +183,7 @@ function startSitScoreV2(input={}){
  const roleBoost=role.key==='major_up'?6:role.direction==='up'?3:role.key==='major_down'?-6:role.direction==='down'?-3:0;
  const newsAdjustment=clamp(Number(input.newsAdjustment)||0,-7,7),contextAdjustment=clamp(Number(input.contextAdjustment)||0,-7,7);
  score+=roleBoost+newsAdjustment+contextAdjustment;
- const inj=injuryPenalty(input.injuryStatus);
+ const rawRisk=Number(input.injuryRisk),inj=Number.isFinite(rawRisk)?clamp(rawRisk,0,1):injuryPenalty(input.injuryStatus);
  score*=1-inj;
  const coverage=[
    proj.confidence/100,
