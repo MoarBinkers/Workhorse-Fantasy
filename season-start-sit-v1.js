@@ -7,6 +7,29 @@ const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Nu
 const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
+const VERIFIED_2025_PPR={
+ DAL:{QB:23.57,RB:25.91,WR:38.39,TE:12.23},WAS:{QB:19.56,RB:25.36,WR:34.39,TE:15.41},
+ NYJ:{QB:19.95,RB:28.00,WR:29.43,TE:14.70},ARI:{QB:17.54,RB:27.15,WR:29.82,TE:17.04},
+ CIN:{QB:18.17,RB:28.06,WR:23.59,TE:20.96},PIT:{QB:19.26,RB:19.78,WR:34.89,TE:16.71},
+ TEN:{QB:19.28,RB:21.83,WR:34.96,TE:14.16},TB:{QB:19.90,RB:22.53,WR:31.41,TE:15.82},
+ MIA:{QB:18.51,RB:24.96,WR:29.26,TE:15.85},SF:{QB:17.46,RB:23.70,WR:32.20,TE:15.05},
+ NYG:{QB:18.54,RB:25.96,WR:32.41,TE:11.34},IND:{QB:17.13,RB:20.35,WR:35.54,TE:15.09},
+ CHI:{QB:18.84,RB:22.19,WR:33.80,TE:13.04},BAL:{QB:18.17,RB:23.36,WR:35.35,TE:10.96},
+ DET:{QB:17.74,RB:19.49,WR:34.32,TE:13.48},LV:{QB:16.73,RB:23.28,WR:32.72,TE:10.04},
+ LAR:{QB:15.64,RB:20.74,WR:32.61,TE:12.44},ATL:{QB:16.79,RB:21.86,WR:32.52,TE:10.09},
+ JAX:{QB:16.21,RB:18.95,WR:31.08,TE:14.85},GB:{QB:15.48,RB:21.91,WR:30.86,TE:12.11},
+ CAR:{QB:14.05,RB:24.26,WR:26.77,TE:13.58},NE:{QB:15.06,RB:19.26,WR:27.73,TE:13.54},
+ NO:{QB:14.59,RB:20.92,WR:27.56,TE:12.46},SEA:{QB:14.23,RB:19.23,WR:25.58,TE:14.65},
+ CLE:{QB:13.43,RB:21.82,WR:25.89,TE:12.04},KC:{QB:15.43,RB:19.53,WR:26.94,TE:10.99},
+ PHI:{QB:15.00,RB:23.12,WR:26.07,TE:8.34},DEN:{QB:14.43,RB:17.16,WR:26.91,TE:13.68},
+ HOU:{QB:13.31,RB:19.71,WR:25.72,TE:12.50},BUF:{QB:13.68,RB:24.62,WR:25.44,TE:7.08},
+ LAC:{QB:12.70,RB:18.73,WR:26.75,TE:10.45},MIN:{QB:11.71,RB:19.93,WR:23.54,TE:10.76}
+};
+function verifiedPpr25(team,pos){
+ const value=VERIFIED_2025_PPR?.[team]?.[pos];if(value==null)return null;
+ const values=Object.entries(VERIFIED_2025_PPR).map(([tm,x])=>({tm,value:x[pos]})).sort((a,b)=>a.value-b.value);
+ return {value,rank:values.findIndex(x=>x.tm===team)+1}
+}
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
 const token=v=>String(v||'').toLowerCase();
 function load(k,f=[]){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(_){return f}}
