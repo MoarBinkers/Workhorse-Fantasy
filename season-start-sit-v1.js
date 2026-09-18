@@ -188,39 +188,62 @@ async function scheduleFor(season,w){
   try{const r=await fetch(url,{cache:'no-store'});if(r.ok){data=await r.json();break}}catch(_){}
  }
  const map=new Map();
- for(const ev of data?.events||[]){const c=ev?.competitions?.[0],teams=c?.competitors||[];if(teams.length<2)continue;for(const a of teams){const b=teams.find(x=>x!==a),team=normTeam(a?.team?.abbreviation),opp=normTeam(b?.team?.abbreviation);if(team&&opp)map.set(team,{opp})}}
+ for(const ev of data?.events||[]){
+  const c=ev?.competitions?.[0],teams=c?.competitors||[];if(teams.length<2)continue;
+  const state=String(ev?.status?.type?.state||'').toLowerCase();
+  const completed=ev?.status?.type?.completed===true||state==='post'||season<SEASON||(season===SEASON&&w<week);
+  for(const a of teams){
+   const b=teams.find(x=>x!==a),team=normTeam(a?.team?.abbreviation),opp=normTeam(b?.team?.abbreviation);
+   if(team&&opp)map.set(team,{opp,completed})
+  }
+ }
  scheduleCache.set(key,map);return map
 }
+function matchupFantasyPoints(s,format='ppr'){
+ const rec=E.num(E.first(s,'rec','receptions')),recMult=format==='ppr'?1:format==='half'?.5:0;
+ return E.num(E.first(s,'pass_yd'))*.04+E.num(E.first(s,'pass_td'))*4-E.num(E.first(s,'pass_int'))+
+  E.num(E.first(s,'rush_yd'))*.1+E.num(E.first(s,'rush_td'))*6+
+  rec*recMult+E.num(E.first(s,'rec_yd'))*.1+E.num(E.first(s,'rec_td'))*6+
+  2*(E.num(E.first(s,'pass_2pt'))+E.num(E.first(s,'rush_2pt'))+E.num(E.first(s,'rec_2pt')))-
+  2*E.num(E.first(s,'fum_lost'))
+}
 function defenseMetrics(pos,s){
- const base={ppr:E.fantasyPoints(s,'ppr'),half:E.fantasyPoints(s,'half'),std:E.fantasyPoints(s,'standard')};
- if(pos==='QB')return {...base,yards:E.num(E.first(s,'pass_yd')),td:E.num(E.first(s,'pass_td'))};
- if(pos==='RB')return {...base,yards:E.num(E.first(s,'rush_yd')),td:E.num(E.first(s,'rush_td'))};
- return {...base,yards:E.num(E.first(s,'rec_yd')),td:E.num(E.first(s,'rec_td'))}
+ const targets=E.targets(s),receptions=E.num(E.first(s,'rec','receptions')),carries=E.carries(s);
+ const passAtt=E.num(E.first(s,'pass_att')),passYds=E.num(E.first(s,'pass_yd')),passTd=E.num(E.first(s,'pass_td'));
+ const rushYds=E.num(E.first(s,'rush_yd')),rushTd=E.num(E.first(s,'rush_td'));
+ const recYds=E.num(E.first(s,'rec_yd')),recTd=E.num(E.first(s,'rec_td'));
+ const base={ppr:matchupFantasyPoints(s,'ppr'),half:matchupFantasyPoints(s,'half'),std:matchupFantasyPoints(s,'standard'),
+  targets,receptions,carries,passAtt,passYds,passTd,rushYds,rushTd,recYds,recTd};
+ if(pos==='QB')return {...base,yards:passYds,td:passTd};
+ if(pos==='RB')return {...base,yards:rushYds,td:rushTd};
+ return {...base,yards:recYds,td:recTd}
 }
 function matchupCacheKey(season,through){return `wh_start_sit_matchup_v3::${season}::${through}`}
 function readMatchupCache(season,through){
  try{const x=JSON.parse(localStorage.getItem(matchupCacheKey(season,through))||'null');return x?.table?x:null}catch(_){return null}
 }
 async function buildMatchupReference(season,through){
- const cached=readMatchupCache(season,through);if(cached)return cached;
+ const cached=readMatchupCache(season,through);if(cached?.method==='raw-box-score-v2')return cached;
  const table={},positions=['QB','RB','WR','TE'];let attributed=0,skipped=0;
+ const keys=['ppr','half','std','yards','td','targets','receptions','carries','passAtt','passYds','passTd','rushYds','rushTd','recYds','recTd'];
  const packs=await Promise.all(Array.from({length:through},async(_,i)=>{const w=i+1;const [sched,stats]=await Promise.all([scheduleFor(season,w),weekStats(season,w)]);return {sched,stats}}));
- const bucket=(team,pos)=>{table[team]??={};table[team][pos]??={games:0,totals:{ppr:0,half:0,std:0,yards:0,td:0},avg:{},ranks:{}};return table[team][pos]};
+ const bucket=(team,pos)=>{table[team]??={};table[team][pos]??={games:0,totals:Object.fromEntries(keys.map(k=>[k,0])),avg:{},ranks:{}};return table[team][pos]};
  for(const {sched,stats} of packs){
-  for(const team of sched.keys())for(const pos of positions)bucket(team,pos).games++;
+  for(const [team,g] of sched.entries())if(g?.completed!==false)for(const pos of positions)bucket(team,pos).games++;
   for(const entry of statRows(Object.fromEntries(stats))){
    const pos=historicalPos(entry);if(!positions.includes(pos))continue;
-   const team=historicalTeam(entry),game=sched.get(team);if(!team||!game?.opp){skipped++;continue}
+   const team=historicalTeam(entry),game=sched.get(team);if(!team||!game?.opp||game.completed===false){skipped++;continue}
    attributed++;
-   const b=bucket(game.opp,pos),m=defenseMetrics(pos,entry.stats);b.totals.ppr+=m.ppr;b.totals.half+=m.half;b.totals.std+=m.std;b.totals.yards+=m.yards;b.totals.td+=m.td
+   const b=bucket(game.opp,pos),m=defenseMetrics(pos,entry.stats);
+   for(const k of keys)b.totals[k]+=Number(m[k])||0
   }
  }
- for(const byPos of Object.values(table))for(const b of Object.values(byPos)){b.avg.ppr=b.games?b.totals.ppr/b.games:0;b.avg.half=b.games?b.totals.half/b.games:0;b.avg.std=b.games?b.totals.std/b.games:0;b.avg.yards=b.games?b.totals.yards/b.games:0;b.avg.td=b.games?b.totals.td/b.games:0}
+ for(const byPos of Object.values(table))for(const b of Object.values(byPos))for(const k of keys)b.avg[k]=b.games?b.totals[k]/b.games:0;
  for(const pos of positions)for(const metric of ['ppr','half','std','yards','td']){
   const list=Object.entries(table).filter(([,x])=>x?.[pos]?.games).map(([team,x])=>({team,value:x[pos].avg[metric]})).sort((a,b)=>a.value-b.value);
   list.forEach((x,i)=>{table[x.team][pos].ranks[metric]=i+1;table[x.team][pos].rankTotal=list.length})
  }
- const built={season,through,generatedAt:Date.now(),table,coverage:{attributed,skipped}};
+ const built={season,through,generatedAt:Date.now(),table,coverage:{attributed,skipped},method:'raw-box-score-v2'};
  try{localStorage.setItem(matchupCacheKey(season,through),JSON.stringify(built))}catch(_){}
  return built
 }
@@ -240,13 +263,19 @@ function rankScore(d){
 }
 function matchupFor(p,game){
  if(!game?.opp)return {score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
- const pos=p.position,opp=game.opp,d25=matchupCache[2025]?.table?.[opp]?.[pos]||null,d26=matchupCache[2026]?.table?.[opp]?.[pos]||null,s25=rankScore(d25),s26=rankScore(d26),games26=Number(d26?.games)||0;
+ const pos=p.position,opp=game.opp,raw25=matchupCache[2025]?.table?.[opp]?.[pos]||null,d26=matchupCache[2026]?.table?.[opp]?.[pos]||null;
+ let d25=raw25;
+ if(format==='ppr'&&raw25){
+  const v=verifiedPpr25(opp,pos);
+  if(v)d25={...raw25,avg:{...raw25.avg,ppr:v.value},ranks:{...raw25.ranks,ppr:v.rank},verifiedPpr:true}
+ }
+ const s25=rankScore(d25),s26=rankScore(d26),games26=Number(d26?.games)||0;
  let w26=games26>=5?.70:games26===4?.60:games26===3?.50:games26===2?.40:games26===1?.25:0,score=null;
  if(s25!=null&&s26!=null)score=s25*(1-w26)+s26*w26;else score=s26??s25;
  const cov25=matchupCache[2025]?.coverage,coverage25=cov25&&cov25.attributed+cov25.skipped?cov25.attributed/(cov25.attributed+cov25.skipped):1;
  const cov26=matchupCache[2026]?.coverage,coverage26=cov26&&cov26.attributed+cov26.skipped?cov26.attributed/(cov26.attributed+cov26.skipped):1;
  const sourceCoverage=Math.min(coverage25,coverage26||1);
- const confidence=score==null?0:Math.round(Math.min(90,((s25!=null?46:26)+games26*8)*sourceCoverage));
+ const confidence=score==null?0:Math.round(Math.min(90,((s25!=null?52:26)+games26*8)*sourceCoverage));
  return {score:score==null?null:Math.round(score),confidence,label:score==null?'Unknown':score>=66?'Favorable':score<=34?'Tough':'Neutral',opp,y2025:d25,y2026:d26,currentWeight:w26}
 }
 function avgMetric(stats,fn){const a=(stats||[]).filter(E.played).map(fn).filter(v=>v!=null&&Number.isFinite(Number(v)));return a.length?E.mean(a):null}
