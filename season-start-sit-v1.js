@@ -265,9 +265,11 @@ function matchupFor(p,game){
  if(!game?.opp)return {score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
  const pos=p.position,opp=game.opp,raw25=matchupCache[2025]?.table?.[opp]?.[pos]||null,d26=matchupCache[2026]?.table?.[opp]?.[pos]||null;
  let d25=raw25;
- if(format==='ppr'&&raw25){
+ if(format==='ppr'){
   const v=verifiedPpr25(opp,pos);
-  if(v)d25={...raw25,avg:{...raw25.avg,ppr:v.value},ranks:{...raw25.ranks,ppr:v.rank},verifiedPpr:true}
+  if(v)d25=raw25
+    ?{...raw25,avg:{...raw25.avg,ppr:v.value},ranks:{...raw25.ranks,ppr:v.rank},verifiedPpr:true}
+    :{games:17,avg:{ppr:v.value},ranks:{ppr:v.rank},rankTotal:32,verifiedPpr:true}
  }
  const s25=rankScore(d25),s26=rankScore(d26),games26=Number(d26?.games)||0;
  let w26=games26>=5?.70:games26===4?.60:games26===3?.50:games26===2?.40:games26===1?.25:0,score=null;
@@ -413,7 +415,7 @@ function styles(){
 #wh-startsit .propitem{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #172a34;padding:2px 0;font-size:11px}
 #wh-startsit .propitem:last-child{border-bottom:0}
 #wh-startsit .propitem span{color:#8296a1}#wh-startsit .propitem b{color:#eef4f7;white-space:nowrap}
-#wh-startsit .matchstack b{font-size:12px;color:#eef4f7}.matchstack small{color:#748994;font-size:10px;line-height:1.35}
+#wh-startsit .matchstack b{font-size:12px;color:#eef4f7}#wh-startsit .matchstack small{color:#748994;font-size:10px;line-height:1.35}
 #wh-startsit .source-note{margin-top:12px;color:#617884;font-size:10px;line-height:1.5}
 @media(max-width:820px){#wh-startsit .intro{display:block}#wh-startsit .weekpill{display:inline-block;margin-top:14px}#wh-startsit .controls{grid-template-columns:1fr}#wh-startsit .details-grid{grid-template-columns:1fr}}
 @media(max-width:580px){#wh-startsit .shell{width:min(100% - 20px,1180px);padding-top:24px}#wh-startsit .intro h1{font-size:40px}#wh-startsit .searchrow{grid-template-columns:1fr}#wh-startsit .run{width:100%}#wh-startsit .top{padding:13px 12px}#wh-startsit .brand{font-size:19px}#wh-startsit .tag{display:none}}
