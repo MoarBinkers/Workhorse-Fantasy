@@ -405,98 +405,76 @@ function fmt(v,d=1){return v==null||!Number.isFinite(Number(v))?'—':Number(v).
 function pct(v){return v==null||!Number.isFinite(Number(v))?'—':`${Math.round(Number(v)*100)}%`}
 function matchupTone(score){return score==null?'':score>=66?'good':score<=34?'bad':'neutral'}
 function matchupRank(d){const a=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(v=>v>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null}
-function sampleLabel(w,year){const n=Number(w?.games)||0;return n?`${year} avg · ${n} game${n===1?'':'s'}`:`${year} · no sample`}
+function scoringName(){return format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'}
+function sourceProjectionName(x){return x.weeklyProjection==null?'—':fmt(x.weeklyProjection,1)}
+function statusTone(x){return x.g?.eligible===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
+function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
+function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
+function matchupCell(x){const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),total=d?.rankTotal||32,source=x.mu?.y2026?'2026 sample':'2025 baseline';if(x.mu?.score==null)return matrixCell('—','No verified matchup');return matrixCell(`#${r||'—'} / ${total}`,`${x.mu.label} · ${d?fmt(d.avg?.ppr,1):'—'} ${scoringName()} pts allowed/G · ${source}`,matchupTone(x.mu.score))}
+function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
+function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
+function matrixRows(graded){
+ const rows=[
+  {label:'Workhorse projection',note:'Weekly estimate after verified context',cell:x=>matrixCell(x.g?.projection?.points==null?'—':fmt(x.g.projection.points,1),x.g?.projection?.floor==null?'':`${fmt(x.g.projection.floor,1)}–${fmt(x.g.projection.ceiling,1)} range`)},
+  {label:'Sleeper projection',note:'Current-week provider projection',cell:x=>matrixCell(sourceProjectionName(x),x.weeklyProjection==null?(projectionsLoaded?'Not supplied':'Projection feed unavailable'):'current week')},
+  {label:`2026 ${scoringName()} / G`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} games`)},
+  {label:'Last 3 fantasy / G',note:'Recent actual production',cell:x=>matrixCell(fmt(x.currentWork?.ppg,1),`${x.currentWork?.games||0} recent games`)},
+  {label:'Snap share',note:'Recent offensive snaps when supplied',cell:x=>matrixCell(pct(x.currentWork?.snap),'last 3 avg')},
+  {label:'Pass attempts / G',note:'Recent actual attempts',positions:['QB'],cell:x=>matrixCell(fmt(x.currentWork?.passAtt,1),'last 3 avg')},
+  {label:'Carries / G',note:'Recent actual rushing attempts',positions:['QB','RB','WR'],cell:x=>matrixCell(fmt(x.currentWork?.carries,1),'last 3 avg')},
+  {label:'Targets / G',note:'Recent actual targets',positions:['RB','WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.targets,1),'last 3 avg')},
+  {label:'Routes / G',note:'Only when Sleeper supplies routes',positions:['WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.routes,1),'last 3 avg')},
+  {label:'Red-zone looks / G',note:'Carries + targets in red zone when supplied',positions:['RB','WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.rz,1),'last 3 avg')},
+  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'#1 toughest · #32 easiest',cell:matchupCell},
+  {label:'Game environment',note:'Current line/total when available',cell:gameCell},
+  {label:'Workhorse weekly rank',note:'Your weekly board; never replaced by ADP',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':'not initialized')},
+  {label:'Role trend',note:'Recent verified workload vs prior games',cell:roleCell},
+  {label:'Player status',note:'Current Sleeper / owner status',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?`${Math.round(x.injuryRisk*100)}% model availability penalty`:'',statusTone(x))},
+  {label:'Model confidence',note:'Evidence coverage, not certainty',cell:x=>matrixCell(`${x.confidence||0}%`,x.confidence<50?'limited evidence':'')}
+ ];
+ return rows.filter(r=>{if(r.positions&&!graded.some(x=>r.positions.includes(x.p.position)))return false;const html=graded.map(x=>r.cell(x)).join('');return !/^([\s\S]*>—<[^]*)$/.test(html)||!graded.every(x=>r.cell(x).includes('>—<'))})
+}
+function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${r.cell(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
 function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
-function workloadBox(title,w){
- const rows=[['PPR / G',fmt(w?.ppg,1)],['Snap %',w?.snap==null?null:pct(w.snap)],['Weighted opps',fmt(w?.opps,1)],['Targets / G',fmt(w?.targets,1)],['Carries / G',fmt(w?.carries,1)],['Routes / G',fmt(w?.routes,1)],['Red-zone / G',fmt(w?.rz,1)],['Goal-line / G',fmt(w?.goal,1)]];
- const html=dataRows(rows);return `<div class="data-box"><h4>${esc(title)}</h4>${html||'<div class="drow"><span>No supported workload fields</span><b>—</b></div>'}</div>`
+function detailCard(x){
+ const p=x.g?.projection||{},d26=x.mu?.y2026,d25=x.mu?.y2025,r26=matchupRank(d26),r25=matchupRank(d25),st=status.get(String(x.id))||{};
+ const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`],['Workhorse projection',p.points==null?'—':`${fmt(p.points,1)} pts`],['Workhorse range',p.floor==null?'—':`${fmt(p.floor,1)}–${fmt(p.ceiling,1)}`],['2026 form baseline',p.currentBase==null?'—':fmt(p.currentBase,1)],['2025 form baseline',p.priorBase==null?'—':fmt(p.priorBase,1)],['Projection source',p.source||'—']];
+ const currentRows=[['2026 PPG',fmt(x.seasonWork?.ppg,1)],['Last 3 PPG',fmt(x.currentWork?.ppg,1)],['Snap share',pct(x.currentWork?.snap)],['Pass att / G',fmt(x.currentWork?.passAtt,1)],['Carries / G',fmt(x.currentWork?.carries,1)],['Targets / G',fmt(x.currentWork?.targets,1)],['Routes / G',fmt(x.currentWork?.routes,1)],['Red-zone looks / G',fmt(x.currentWork?.rz,1)]];
+ const matchupRows=[['Opponent',x.game?.opp||'—'],['2026 matchup rank',r26?`#${r26}/${d26?.rankTotal||32}`:'—'],['2026 positional PPR allowed / G',d26?fmt(d26.avg?.ppr,1):'—'],['2026 sample',d26?.games?`${d26.games} games`:'—'],['2025 matchup rank',r25?`#${r25}/${d25?.rankTotal||32}`:'—'],['2025 positional PPR allowed / G',d25?fmt(d25.avg?.ppr,1):'—'],['Current-season matchup weight',x.mu?.y2026?`${Math.round((x.mu.currentWeight||0)*100)}%`:'0%']];
+ const gameRows=[['Status',x.inj||'Active'],['Status updated',st.updated_at?new Date(st.updated_at).toLocaleString():'—'],['Game',x.game?`${x.game.home?'vs':'@'} ${x.game.opp}`:(scheduleLoaded?'BYE':'—')],['Game total',x.game?.total?fmt(x.game.total,1):'—'],['Team implied',x.game?.teamImplied?fmt(x.game.teamImplied,1):'—'],['Spread',Number.isFinite(x.game?.spread)?`${x.game.spread>0?'+':''}${fmt(x.game.spread,1)}`:'—']];
+ const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,3);
+ return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Projection</h4>${dataRows(projectionRows)}</div><div class="detail-section"><h4>2026 workload</h4>${dataRows(currentRows)}</div><div class="detail-section"><h4>Matchup</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
 }
-function matchupBox(x){
- const d25=x.mu?.y2025,d26=x.mu?.y2026,r25=matchupRank(d25),r26=matchupRank(d26),rows=[
-  ['Opponent',x.game?.opp||'—'],
-  ['Blended grade',x.mu?.score==null?'—':`${x.mu.score}/100 · ${x.mu.label}`],
-  ['2026 rank',r26?`#${r26}/${d26?.rankTotal||32}`:'—'],
-  ['2026 PPR allowed / G',d26?fmt(d26.avg?.ppr,1):'—'],
-  ['2026 sample',d26?.games?`${d26.games} game${d26.games===1?'':'s'}`:'—'],
-  ['2025 rank',r25?`#${r25}/${d25?.rankTotal||32}`:'—'],
-  ['2025 PPR allowed / G',d25?fmt(d25.avg?.ppr,1):'—'],
-  ['2026 matchup weight',x.mu?.y2026?`${Math.round((x.mu.currentWeight||0)*100)}%`:'0%']
- ];
- return `<div class="data-box"><h4>Opponent vs ${esc(x.p.position)}</h4>${dataRows(rows)}</div>`
-}
-function projectionBox(x){
- const p=x.g?.projection||{},rows=[
-  ['WH estimate',p.points==null?'—':`${fmt(p.points,1)} pts`],
-  ['Floor – ceiling',p.floor==null?'—':`${fmt(p.floor,1)} – ${fmt(p.ceiling,1)}`],
-  ['2026 model',p.currentBase==null?'—':fmt(p.currentBase,1)],
-  ['2025 baseline',p.priorBase==null?'—':fmt(p.priorBase,1)],
-  ['Projection blend',p.source==='blend'?`${Math.round((p.currentWeight||0)*100)}% 2026 / ${Math.round((p.priorWeight||0)*100)}% 2025`:p.source||'—'],
-  ['Team changed',x.teamChanged?'Yes · 2025 discounted':'No']
- ];
- return `<div class="data-box"><h4>Projection foundation</h4>${dataRows(rows)}</div>`
-}
-function gameBox(x){
- const g=x.game,st=status.get(String(x.id))||{},rows=[
-  ['Game',g?`${g.home?'vs':'@'} ${g.opp}`:'No game / bye'],
-  ['Game total',g?.total?fmt(g.total,1):'—'],
-  ['Team implied',g?.teamImplied?fmt(g.teamImplied,1):'—'],
-  ['Spread',Number.isFinite(g?.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)}`:'—'],
-  ['Weather',g?.weather||'Not supplied by ESPN scoreboard'],
-  ['Player status',x.inj||'Active'],
-  ['Status updated',st.updated_at?new Date(st.updated_at).toLocaleString():'—']
- ];
- return `<div class="data-box"><h4>Game & availability</h4>${dataRows(rows)}</div>`
-}
-function newsBox(x){
- const rows=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,4);
- if(!rows.length)return `<div class="data-box full"><h4>Relevant news</h4><div class="drow"><span>No recent matched player news</span><b>—</b></div></div>`;
- return `<div class="data-box full"><h4>Relevant news</h4>${rows.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join('')}</div>`
-}
-function detailPanel(x){return `<details class="data"><summary>All supporting data</summary><div class="data-grid">${workloadBox(sampleLabel(x.currentWork,'2026'),x.currentWork)}${workloadBox(sampleLabel(x.priorWork,'2025'),x.priorWork)}${matchupBox(x)}${projectionBox(x)}${gameBox(x)}${newsBox(x)}</div></details>`}
-function statCard(x,i){
- const g=x.g||{},p=x.p,proj=g.projection||{},inj=x.inj||'Active',game=x.game,rank=x.rank?`#${x.rank}`:'—',mu=x.mu||{};
- const role=g.role||{direction:'flat',label:'Not enough data'},score=g.score==null?'—':g.score;
- const badges=[
-  `<span class="badge ${g.injuryPenalty?'bad':''}">${esc(inj)}</span>`,
-  `<span class="badge ${matchupTone(mu.score)}">${esc(mu.label||'Matchup unknown')} matchup</span>`,
-  `<span class="badge ${role.direction==='up'?'good':role.direction==='down'?'bad':''}">${esc(role.label||'Role unknown')}</span>`
- ].join('');
- const keyReasons=(g.reasons||[]).filter(r=>!/Projection blend:/.test(r)).slice(0,3);
- const gameLine=game?[game.total?`O/U ${fmt(game.total,1)}`:'',game.teamImplied?`Team ${fmt(game.teamImplied,1)}`:'',game.weather||''].filter(Boolean).join(' · '):'';
- return `<article class="card ${i===0&&g.eligible?'top':''}"><div class="phead"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.full_name)}</h3><small>${esc(p.position)} · ${esc(p.team||'FA')} · ${game?`${game.home?'vs':'@'} ${esc(game.opp)}`:(scheduleLoaded?'BYE':'Opponent unavailable')}</small></div><div class="score ${g.injuryPenalty>=.2?'bad':''}">${score}<span>Decision</span></div></div>${badges}<div class="metrics"><div class="metric"><b>${proj.points!=null?fmt(proj.points,1):'—'}</b><span>Projection</span></div><div class="metric"><b>${g.usage?.score??'—'}</b><span>Usage</span></div><div class="metric"><b class="${matchupTone(mu.score)}">${mu.score??'—'}</b><span>Matchup</span></div><div class="metric"><b>${rank}</b><span>WH rank</span></div><div class="metric"><b>${x.confidence??0}%</b><span>Confidence</span></div></div><div class="why"><strong>Why</strong><ul class="reasons">${keyReasons.length?keyReasons.map(r=>`<li>${esc(r)}</li>`).join(''):'<li>Not enough trustworthy evidence to add a specific driver.</li>'}</ul>${gameLine?`<div class="game">${esc(gameLine)}</div>`:''}</div>${detailPanel(x)}</article>`
+function renderDetails(graded){return `<div class="details-grid">${graded.map(detailCard).join('')}</div>`}
+function edgeLabel(a,b){if(!a||a.g?.score==null)return 'Not enough data';if(!b||b.g?.score==null)return 'Data edge';const d=a.g.score-b.g.score,low=Math.min(a.confidence,b.confidence);if(d<3.5)return low<55?'Toss-up · limited confidence':'Toss-up';if(low<48)return d>=8?'Lean · limited confidence':'Toss-up · limited confidence';if(d>=10)return 'Clear edge';if(d>=5)return 'Lean';return 'Slight edge'}
+function callout(a,b){
+ if(!a)return '<div class="warning">None of the selected players is currently a valid lineup option. Bye, unavailable and already-started players are excluded.</div>';
+ if(!b)return `<div class="call"><small>Only actionable option</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player currently eligible for this lineup slot.</p></div>`;
+ const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',usage:'Verified usage',rank:'Workhorse rank',matchup:'Matchup',environment:'Game environment'};
+ for(const k of Object.keys(labels))if(ca[k]!=null&&cb[k]!=null&&ca[k]-cb[k]>=7)drivers.push(labels[k]);
+ if((a.newsCtx?.adjustment||0)>(b.newsCtx?.adjustment||0)+1.5)drivers.push('News / availability');
+ if((a.teamCtx?.adjustment||0)>(b.teamCtx?.adjustment||0)+1.5)drivers.push('Team / QB context');
+ const cls=toss?'call knot':'call',headline=toss?'Too close to force':`Start ${esc(a.p.full_name)}`,copy=toss?`${esc(a.p.full_name)} has the small model edge, but the evidence gap is not strong enough for a confident call.`:`${esc(a.p.full_name)} has the stronger current-week profile over ${esc(b.p.full_name)}.`;
+ return `<div class="${cls}"><small>${esc(edge)}</small><h2>${headline}</h2><p>${copy}</p>${drivers.length?`<div class="drivers">${[...new Set(drivers)].slice(0,4).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`
 }
 async function compare(){
- const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Analyzing current evidence…';
+ const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Checking projections, stats, matchup and news…';
  try{
   await ensureMatchups();
   const graded=await Promise.all(selected.map(grade));
   graded.sort((a,b)=>{const ae=!!a.g?.eligible&&!a.g?.locked,be=!!b.g?.eligible&&!b.g?.locked;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
-  const valid=graded.filter(x=>x.g?.eligible&&!x.g?.locked&&x.g?.score!=null),a=valid[0],b=valid[1];let hero;
-  if(!a){
-   hero='<div class="warning">None of the selected players is currently a valid lineup option. Bye, unavailable and already-started players are excluded from the recommendation.</div>';
-  }else if(!b){
-   hero=`<div class="winner"><small>ONLY ACTIONABLE OPTION</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player currently eligible for this lineup slot.</p></div>`;
-  }else{
-   const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[];
-   const ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',usage:'Usage',rank:'Workhorse rank',matchup:'Matchup',environment:'Game environment'};
-   for(const k of Object.keys(labels)){if(ca[k]!=null&&cb[k]!=null&&ca[k]-cb[k]>=7)drivers.push(labels[k])}
-   if((a.newsCtx?.adjustment||0)>(b.newsCtx?.adjustment||0)+1.5)drivers.push('News / availability');
-   if((a.teamCtx?.adjustment||0)>(b.teamCtx?.adjustment||0)+1.5)drivers.push('Team / QB context');
-   const headline=toss?'No forced pick':`Start ${esc(a.p.full_name)}`;
-   const copy=toss?`${esc(a.p.full_name)} has the slight model edge, but the gap is too small to call it a strong recommendation.`:`${esc(a.p.full_name)} has the better full-evidence profile in this comparison.`;
-   hero=`<div class="winner"><small>${esc(edge.toUpperCase())}</small><h2>${headline}</h2><p>${copy}</p>${drivers.length?`<div class="drivers">${[...new Set(drivers)].slice(0,4).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`;
-  }
+  const valid=graded.filter(x=>x.g?.eligible&&!x.g?.locked&&x.g?.score!=null),a=valid[0],b=valid[1];
   const warnings=[];
-  if(!scheduleLoaded)warnings.push('The current ESPN schedule could not be verified, so opponent, matchup and game-environment inputs were excluded rather than guessed.');
+  if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified, so Workhorse excluded them instead of substituting another source.');
+  else if(graded.some(x=>x.g?.eligible&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player. That field is excluded for that player.');
+  if(!scheduleLoaded)warnings.push('The current ESPN schedule could not be verified, so opponent, matchup and game-environment inputs were excluded instead of guessed.');
   if(!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rank is not initialized in this browser, so rank is excluded instead of being replaced with Sleeper ADP.');
-  if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one eligible player has limited evidence coverage. Workhorse lowered confidence instead of filling missing stats with estimates.');
-  if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('A current-season defensive matchup sample is only one game, so 2025 still carries most of the matchup weight.');
-  if(slot==='SUPERFLEX'&&graded.some(x=>x.p.position==='QB')&&graded.some(x=>x.p.position!=='QB'))warnings.push('Superflex mode compares QBs and skill players directly; weekly-rank weight is reduced so a 1QB ranking cannot dominate the decision.');
-  document.querySelector('#ss-output').innerHTML=hero+`<div class="cards">${graded.map(statCard).join('')}</div>`+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Sources: Workhorse weekly rankings · Sleeper player stats and status · Workhorse news feed · ESPN schedule/odds. 2025 data is a fading baseline only. Unsupported or missing fields are shown as — and excluded from scoring.</div>`;
-  st.textContent=`Week ${week} · ${format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'} · ${valid.length} actionable`;
- }catch(e){
-  console.error(e);document.querySelector('#ss-output').innerHTML='<div class="warning">Workhorse could not verify enough of the requested evidence to complete this comparison. No recommendation was forced.</div>';st.textContent='Unavailable';
- }finally{btn.disabled=selected.length<2}
+  if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one eligible player has limited evidence coverage. Confidence is reduced rather than filling missing stats with estimates.');
+  if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('At least one 2026 opponent-vs-position sample is only one game; 2025 still carries most of that matchup context.');
+  document.querySelector('#ss-output').innerHTML=callout(a,b)+renderMatrix(graded)+renderDetails(graded)+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Weekly projection: Sleeper current-week projection when supplied. Matchup: Workhorse opponent-vs-position calculation from actual game stats. Schedule/odds: ESPN. News/status: Workhorse feed + Sleeper status. Missing fields are shown as — and are not backfilled with guesses.</div>`;
+  st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable`;
+ }catch(e){console.error(e);document.querySelector('#ss-output').innerHTML='<div class="warning">Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.</div>';st.textContent='Unavailable'}
+ finally{btn.disabled=selected.length<2}
 }
 function bind(){document.querySelector('#ss-search').oninput=renderSearch;document.querySelector('#ss-results').onclick=e=>{const b=e.target.closest('[data-add]');if(!b||selected.length>=4)return;selected.push(String(b.dataset.add));document.querySelector('#ss-search').value='';document.querySelector('#ss-results').classList.remove('open');renderPicked()};document.querySelector('#ss-picked').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;selected=selected.filter(x=>x!==String(b.dataset.remove));renderPicked()};document.querySelector('#slot-seg').onclick=e=>{const b=e.target.closest('[data-slot]');if(b)switchSlot(b.dataset.slot)};document.querySelector('#format-seg').onclick=e=>{const b=e.target.closest('[data-format]');if(!b)return;format=b.dataset.format;document.querySelectorAll('[data-format]').forEach(x=>x.classList.toggle('active',x===b))};document.querySelector('#ss-run').onclick=compare;document.addEventListener('click',e=>{if(!e.target.closest('.searchbox'))document.querySelector('#ss-results')?.classList.remove('open')})}
 async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();document.querySelector('#ss-week-pill').textContent=week;await Promise.all([loadPool(),loadStatus(),loadGames(),loadProjections()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
