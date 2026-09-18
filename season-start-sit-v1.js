@@ -767,7 +767,8 @@ function roleShareCell(x){
 }
 function targetShareCell(x){
  const r=x.latestRole||{};
- return matrixCell(r.targetShare==null?'—':pct(r.targetShare),r.targets!=null&&r.teamPassAttempts!=null?`${r.targets} targets / ${r.teamPassAttempts} team pass attempts`:'')
+ const sub=r.targets==null?'':r.teamPassAttempts!=null?`${r.targets} targets / ${r.teamPassAttempts} team pass attempts`:`${r.targets} targets${r.verifiedSource?` · ${r.verifiedSource}`:''}`;
+ return matrixCell(r.targetShare==null?'—':pct(r.targetShare),sub)
 }
 function routeCell(x){
  const r=x.latestRole||{},lg=x.latestGame||{};
@@ -799,17 +800,16 @@ function seasonPpgCell(x){
  return matrixCell('—','No completed-game stat found')
 }
 function matrixRows(graded){
- const hasReceiver=graded.some(x=>x.p.position==='WR'||x.p.position==='TE'),hasRb=graded.some(x=>x.p.position==='RB');
  const rows=[
   {label:'Week projection',note:'Current-week verified projection',cell:x=>matrixCell(sourceProjectionName(x),projectionSourceText(x))},
-  {label:'Player props',note:'Live consensus markets fetched for the selected player',cell:propsCell},
+  {label:'Player props',note:'Current-week verified betting markets',cell:propsCell},
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:seasonPpgCell},
-  {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
-  {label:'Primary opportunity',note:'WR/TE = target share · RB = share of RB carries',cell:roleShareCell},
-  ...(hasReceiver?[{label:'Target share',note:'Targets ÷ team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetShareCell(x):matrixCell('—','')},{label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
-  ...(hasRb?[{label:'RB target share',note:'Verified share of team targets',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets} targets${x.latestRole?.verifiedSource?` · ${x.latestRole.verifiedSource}`:''}`:''):matrixCell('—','')}]:[]),
-  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + 2025 box-score baseline shown separately',cell:matchupCell},
-  {label:'Game line',note:'Current team spread / total when available',cell:gameCell},
+  {label:'Last game',note:'Exact box-score usage',cell:latestStatCell},
+  {label:'Primary opportunity',note:'WR/TE = target share · RB = RB carry share',cell:roleShareCell},
+  {label:'Target share',note:'Verified share of team passing targets',cell:targetShareCell},
+  {label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:routeCell},
+  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + 2025 box-score baseline',cell:matchupCell},
+  {label:'Game line',note:'Spread · total · implied team points',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
   {label:'Role news',note:'Confirmed coach/injury context only',cell:x=>matrixCell(x.newsCtx?.forwardRoleBoost>0?'Trending up':x.newsCtx?.forwardRoleBoost<0?'Trending down':'No confirmed change',x.newsCtx?.reasons?.[0]||'No verified role-change report',x.newsCtx?.forwardRoleBoost>0?'good':x.newsCtx?.forwardRoleBoost<0?'bad':'')},
   {label:'Player status',note:'Current availability designation',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?'Availability risk applied':'',statusTone(x))}
