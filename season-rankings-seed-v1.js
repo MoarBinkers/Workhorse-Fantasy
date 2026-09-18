@@ -24,7 +24,7 @@ function loadRegressionFix(){if(window.__WH_REGRESSION_FIX_V2__)return;add('./se
 function loadCardPolish(){if(window.__WH_CARD_POLISH_V1__)return;add('./season-card-polish-v1.js?v=1','data-wh-card-polish')}
 function loadRosTiers(){if(isWeekly||window.__WH_ROS_TIERS_V4__)return;add('./season-ros-tiers-v4.js?v=5','data-wh-ros-tiers-v4')}
 function loadRosChangeFix(){if(isWeekly||window.__WH_ROS_CHANGE_FIX_V1__)return;add('./season-ros-change-fix-v1.js?v=2','data-wh-ros-change-fix')}
-function loadDecision(){const command=()=>{if(!window.__WH_COMMAND_CENTER_V1__)add('./season-command-center-v1.js?v=1','data-wh-command-center')};if(window.WorkhorseDecisionEngine){command();return}add('./workhorse-decision-engine-v1.js?v=6','data-wh-decision-engine',command)}
+function loadDecision(){const command=()=>{if(!window.__WH_COMMAND_CENTER_V1__)add('./season-command-center-v1.js?v=1','data-wh-command-center')};if(window.WorkhorseDecisionEngine){command();return}add('./workhorse-decision-engine-v1.js?v=7','data-wh-decision-engine',command)}
 function seed(){
  const rows=[...document.querySelectorAll('#rank-rows .rank-row[data-id]')];
  if(!rows.length)return false;
