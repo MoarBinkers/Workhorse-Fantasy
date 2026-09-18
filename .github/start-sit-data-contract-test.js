@@ -3,6 +3,9 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
+  "Projection data is incomplete; lineup eligibility is unchanged.",
+  "scheduleLoaded=games.size>=20",
+  "function coreFallbackScore(",
   "2026 matchup unavailable",
   "2025 matchup unavailable",
   "Core verified data fallback",
@@ -50,4 +53,5 @@ if(!propsFn.includes('&season=${SEASON}&week=${week}'))throw new Error('Live pro
 if(propsFn.indexOf('/functions/v1/get-player-props')>propsFn.indexOf('/rest/v1/player_prop_lines'))throw new Error('Live prop endpoint must be checked before local cache');
 
 if(s.includes('Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.'))throw new Error('all-or-nothing failure message returned');
+if(s.includes('None of the selected players is currently a valid lineup option'))throw new Error('misleading all-invalid lineup message returned');
 console.log('PASS: Start/Sit data contracts');
