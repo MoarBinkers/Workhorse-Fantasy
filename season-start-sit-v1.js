@@ -7,29 +7,6 @@ const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Nu
 const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
-const VERIFIED_2025_PPR={
- DAL:{QB:23.57,RB:25.91,WR:38.39,TE:12.23},WAS:{QB:19.56,RB:25.36,WR:34.39,TE:15.41},
- NYJ:{QB:19.95,RB:28.00,WR:29.43,TE:14.70},ARI:{QB:17.54,RB:27.15,WR:29.82,TE:17.04},
- CIN:{QB:18.17,RB:28.06,WR:23.59,TE:20.96},PIT:{QB:19.26,RB:19.78,WR:34.89,TE:16.71},
- TEN:{QB:19.28,RB:21.83,WR:34.96,TE:14.16},TB:{QB:19.90,RB:22.53,WR:31.41,TE:15.82},
- MIA:{QB:18.51,RB:24.96,WR:29.26,TE:15.85},SF:{QB:17.46,RB:23.70,WR:32.20,TE:15.05},
- NYG:{QB:18.54,RB:25.96,WR:32.41,TE:11.34},IND:{QB:17.13,RB:20.35,WR:35.54,TE:15.09},
- CHI:{QB:18.84,RB:22.19,WR:33.80,TE:13.04},BAL:{QB:18.17,RB:23.36,WR:35.35,TE:10.96},
- DET:{QB:17.74,RB:19.49,WR:34.32,TE:13.48},LV:{QB:16.73,RB:23.28,WR:32.72,TE:10.04},
- LAR:{QB:15.64,RB:20.74,WR:32.61,TE:12.44},ATL:{QB:16.79,RB:21.86,WR:32.52,TE:10.09},
- JAX:{QB:16.21,RB:18.95,WR:31.08,TE:14.85},GB:{QB:15.48,RB:21.91,WR:30.86,TE:12.11},
- CAR:{QB:14.05,RB:24.26,WR:26.77,TE:13.58},NE:{QB:15.06,RB:19.26,WR:27.73,TE:13.54},
- NO:{QB:14.59,RB:20.92,WR:27.56,TE:12.46},SEA:{QB:14.23,RB:19.23,WR:25.58,TE:14.65},
- CLE:{QB:13.43,RB:21.82,WR:25.89,TE:12.04},KC:{QB:15.43,RB:19.53,WR:26.94,TE:10.99},
- PHI:{QB:15.00,RB:23.12,WR:26.07,TE:8.34},DEN:{QB:14.43,RB:17.16,WR:26.91,TE:13.68},
- HOU:{QB:13.31,RB:19.71,WR:25.72,TE:12.50},BUF:{QB:13.68,RB:24.62,WR:25.44,TE:7.08},
- LAC:{QB:12.70,RB:18.73,WR:26.75,TE:10.45},MIN:{QB:11.71,RB:19.93,WR:23.54,TE:10.76}
-};
-function verifiedPpr25(team,pos){
- const value=VERIFIED_2025_PPR?.[team]?.[pos];if(value==null)return null;
- const values=Object.entries(VERIFIED_2025_PPR).map(([tm,x])=>({tm,value:x[pos]})).sort((a,b)=>a.value-b.value);
- return {value,rank:values.findIndex(x=>x.tm===team)+1}
-}
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
 const token=v=>String(v||'').toLowerCase();
 function load(k,f=[]){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(_){return f}}
@@ -218,12 +195,12 @@ function defenseMetrics(pos,s){
  if(pos==='RB')return {...base,yards:rushYds,td:rushTd};
  return {...base,yards:recYds,td:recTd}
 }
-function matchupCacheKey(season,through){return `wh_start_sit_matchup_v3::${season}::${through}`}
+function matchupCacheKey(season,through){return `wh_start_sit_matchup_v4::${season}::${through}`}
 function readMatchupCache(season,through){
  try{const x=JSON.parse(localStorage.getItem(matchupCacheKey(season,through))||'null');return x?.table?x:null}catch(_){return null}
 }
 async function buildMatchupReference(season,through){
- const cached=readMatchupCache(season,through);if(cached?.method==='raw-box-score-v2')return cached;
+ const cached=readMatchupCache(season,through);if(cached?.method==='raw-box-score-v3')return cached;
  const table={},positions=['QB','RB','WR','TE'];let attributed=0,skipped=0;
  const keys=['ppr','half','std','yards','td','targets','receptions','carries','passAtt','passYds','passTd','rushYds','rushTd','recYds','recTd'];
  const packs=await Promise.all(Array.from({length:through},async(_,i)=>{const w=i+1;const [sched,stats]=await Promise.all([scheduleFor(season,w),weekStats(season,w)]);return {sched,stats}}));
@@ -243,7 +220,7 @@ async function buildMatchupReference(season,through){
   const list=Object.entries(table).filter(([,x])=>x?.[pos]?.games).map(([team,x])=>({team,value:x[pos].avg[metric]})).sort((a,b)=>a.value-b.value);
   list.forEach((x,i)=>{table[x.team][pos].ranks[metric]=i+1;table[x.team][pos].rankTotal=list.length})
  }
- const built={season,through,generatedAt:Date.now(),table,coverage:{attributed,skipped},method:'raw-box-score-v2'};
+ const built={season,through,generatedAt:Date.now(),table,coverage:{attributed,skipped},method:'raw-box-score-v3'};
  try{localStorage.setItem(matchupCacheKey(season,through),JSON.stringify(built))}catch(_){}
  return built
 }
@@ -263,14 +240,7 @@ function rankScore(d){
 }
 function matchupFor(p,game){
  if(!game?.opp)return {score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
- const pos=p.position,opp=game.opp,raw25=matchupCache[2025]?.table?.[opp]?.[pos]||null,d26=matchupCache[2026]?.table?.[opp]?.[pos]||null;
- let d25=raw25;
- if(format==='ppr'){
-  const v=verifiedPpr25(opp,pos);
-  if(v)d25=raw25
-    ?{...raw25,avg:{...raw25.avg,ppr:v.value},ranks:{...raw25.ranks,ppr:v.rank},verifiedPpr:true}
-    :{games:17,avg:{ppr:v.value},ranks:{ppr:v.rank},rankTotal:32,verifiedPpr:true}
- }
+ const pos=p.position,opp=game.opp,d25=matchupCache[2025]?.table?.[opp]?.[pos]||null,d26=matchupCache[2026]?.table?.[opp]?.[pos]||null;
  const s25=rankScore(d25),s26=rankScore(d26),games26=Number(d26?.games)||0;
  let w26=games26>=5?.70:games26===4?.60:games26===3?.50:games26===2?.40:games26===1?.25:0,score=null;
  if(s25!=null&&s26!=null)score=s25*(1-w26)+s26*w26;else score=s26??s25;
@@ -280,7 +250,6 @@ function matchupFor(p,game){
  const confidence=score==null?0:Math.round(Math.min(90,((s25!=null?52:26)+games26*8)*sourceCoverage));
  return {score:score==null?null:Math.round(score),confidence,label:score==null?'Unknown':score>=66?'Favorable':score<=34?'Tough':'Neutral',opp,y2025:d25,y2026:d26,currentWeight:w26}
 }
-
 function newsContext(items,injury){
  const now=Date.now(),market=[],reasons=[];
  const recent=(items||[]).filter(n=>{
@@ -597,8 +566,8 @@ function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds
 function matchupLine(d,pos){
  if(!d)return '';
  const pts=fmt(d.avg?.[matchupPointKey()],1);
- if(pos==='WR'||pos==='TE')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.targets,1)} tgt/G · ${fmt(d.avg?.receptions,1)} rec/G · ${fmt(d.avg?.recYds,1)} yds/G · ${fmt(d.avg?.recTd,2)} TD/G`;
- if(pos==='RB')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.carries,1)} car/G · ${fmt(d.avg?.rushYds,1)} rush yds/G · ${fmt(d.avg?.targets,1)} tgt/G · ${fmt(d.avg?.recYds,1)} rec yds/G`;
+ if(pos==='WR'||pos==='TE')return `all ${pos}s combined: ${pts} ${scoringName()} pts/G · ${fmt(d.avg?.targets,1)} tgt/G · ${fmt(d.avg?.receptions,1)} rec/G · ${fmt(d.avg?.recYds,1)} yds/G · ${fmt(d.avg?.recTd,2)} TD/G`;
+ if(pos==='RB')return `all RBs combined: ${pts} ${scoringName()} pts/G · ${fmt(d.avg?.carries,1)} car/G · ${fmt(d.avg?.rushYds,1)} rush yds/G · ${fmt(d.avg?.targets,1)} tgt/G · ${fmt(d.avg?.recYds,1)} rec yds/G`;
  if(pos==='QB')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.passYds,1)} pass yds/G · ${fmt(d.avg?.passTd,2)} pass TD/G · ${fmt(d.avg?.rushYds,1)} rush yds/G`;
  return `${pts} ${scoringName()} pts/G`
 }
@@ -632,7 +601,7 @@ function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=
 function matchupDetailRows(prefix,d,pos){
  if(!d)return [[`${prefix} sample`,'—']];
  const pts=d.avg?.[matchupPointKey()];
- const rows=[[`${prefix} ${scoringName()} points allowed / G`,fmt(pts,1)]];
+ const rows=[[`${prefix} all ${pos}s combined ${scoringName()} points / G`,fmt(pts,1)]];
  if(pos==='QB')rows.push(
   [`${prefix} pass attempts / G`,fmt(d.avg?.passAtt,1)],
   [`${prefix} pass yards / G`,fmt(d.avg?.passYds,1)],
@@ -656,7 +625,6 @@ function matchupDetailRows(prefix,d,pos){
   [`${prefix} ${pos} rec TD / G`,fmt(d.avg?.recTd,2)]
  );
  rows.push([`${prefix} completed games`,String(d.games||0)]);
- if(prefix==='2025'&&d.verifiedPpr&&format==='ppr')rows.push(['2025 PPR source','Externally cross-checked baseline']);
  return rows
 }
 function detailCard(x){
