@@ -12,7 +12,7 @@ const must=[
   "label:'Last game'",
   "label:'Target share'",
   "label:'Routes & efficiency'",
-  "label:'Opponent vs ",
+  "function matchupCell(x)",
   'function renderMatrix(graded)',
   'function renderDetails(graded)',
   'styles();shell();bind();'
