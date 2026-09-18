@@ -343,7 +343,6 @@ async function latestRoleContext(p,id){
   const snap=E.snapPct(row),targets=E.targets(row),carries=E.carries(row),rz=E.rz(row),routes=E.routes(row);
   const targetShare=totalTargets>0?targets/totalTargets:null;
   const targetRate=teamPassAttempts>0?targets/teamPassAttempts:null;
-  const routeParticipation=teamPassAttempts>0&&routes>0?Math.min(1,routes/teamPassAttempts):null;
   const targetsPerRoute=routes>0?targets/routes:null;
   const rushShare=totalCarries>0?carries/totalCarries:null;
   const rzShare=totalRz>0?rz/totalRz:null;
@@ -362,15 +361,14 @@ async function latestRoleContext(p,id){
    if(snap!=null)parts.push([roleNorm(snap,.70,1),1]);
   }
   const wt=parts.reduce((a,x)=>a+x[1],0),score=wt?parts.reduce((a,[v,w])=>a+v*w,0)/wt:null;
-  const confidence=Math.round(Math.min(100,50+(targetShare!=null||rushShare!=null?25:0)+(routeParticipation!=null?10:0)+(snap!=null?10:0)+(rzShare!=null?5:0)));
+  const confidence=Math.round(Math.min(100,50+(targetShare!=null||rushShare!=null?30:0)+(routes>0?5:0)+(snap!=null?10:0)+(rzShare!=null?5:0)));
   const bits=[];
   if(pos==='RB'&&rushShare!=null)bits.push(`${Math.round(rushShare*100)}% RB carry share`);
   if(['RB','WR','TE'].includes(pos)&&targetShare!=null)bits.push(`${Math.round(targetShare*100)}% team-target share`);
-  if((pos==='WR'||pos==='TE')&&routeParticipation!=null)bits.push(`${Math.round(routeParticipation*100)}% route participation`);
   if(snap!=null)bits.push(`${Math.round(snap*100)}% snaps`);
-  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,targetRate,routeParticipation,targetsPerRoute,rushShare,rzShare,targets,carries,routes,rz,totalTargets,teamPassAttempts,label:bits.join(' · ')||'Role data unavailable'};
+  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,targetRate,targetsPerRoute,rushShare,rzShare,targets,carries,routes,rz,totalTargets,totalCarries,teamPassAttempts,label:bits.join(' · ')||'Role data unavailable'};
  }
- return {week:null,score:null,confidence:0,snap:null,targetShare:null,targetRate:null,routeParticipation:null,targetsPerRoute:null,rushShare:null,rzShare:null,label:'Role data unavailable'}
+ return {week:null,score:null,confidence:0,snap:null,targetShare:null,targetRate:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,totalCarries:null,teamPassAttempts:null,label:'Role data unavailable'}
 }
 function availabilityRisk(injury,newsCtx){
  const st=String(injury||'').toLowerCase();
@@ -575,7 +573,7 @@ function latestStatCell(x){
 }
 function roleShareCell(x){
  const r=x.latestRole||{},p=x.p.position;
- if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carries · ${r.carries??'—'}/${r.rushShare!=null&&r.carries!=null?Math.round(r.carries/r.rushShare):'—'} · ${r.snap==null?'—':pct(r.snap)} snaps`);
+ if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carries · ${r.carries??'—'}/${r.totalCarries??'—'} · ${r.snap==null?'—':pct(r.snap)} snaps`);
  if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.targets??'—'}/${r.totalTargets??'—'} team targets · ${r.snap==null?'—':pct(r.snap)} snaps`);
  if(p==='QB')return matrixCell(r.snap==null?'—':pct(r.snap),'snap share');
  return matrixCell('—','')
@@ -588,7 +586,7 @@ function routeCell(x){
  const r=x.latestRole||{},lg=x.latestGame||{};
  const tprr=r.targetsPerRoute==null?'—':pct(r.targetsPerRoute);
  const yprr=lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—';
- return matrixCell(r.routeParticipation==null?'—':pct(r.routeParticipation),`${r.routes??lg.routes??'—'} routes · ${tprr} targets/route · ${yprr} yds/route`)
+ return matrixCell(r.routes??lg.routes??'—',`${tprr} targets/route · ${yprr} yds/route`)
 }
 function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds':'rec yds'}
 function matchupLine(d,pos){
@@ -614,7 +612,7 @@ function matrixRows(graded){
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} game${x.seasonWork?.games===1?'':'s'}`)},
   {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
   {label:'Primary opportunity share',note:'WR/TE = share of team targets · RB = share of RB carries',cell:roleShareCell},
-  ...(hasReceiver?[{label:'Target rate',note:'Targets divided by team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetRateCell(x):matrixCell('—','')},{label:'Route involvement',note:'Route participation · targets/route · yards/route',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
+  ...(hasReceiver?[{label:'Target rate',note:'Targets divided by team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetRateCell(x):matrixCell('—','')},{label:'Routes & efficiency',note:'Raw routes · targets per route · yards per route',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
   ...(hasRb?[{label:'RB target share',note:'RB targets divided by all team player targets',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets}/${x.latestRole.totalTargets} team targets`:''):matrixCell('—','')}]:[]),
   {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + verified 2025 baseline shown separately',cell:matchupCell},
   {label:'Game line',note:'Current team spread / total when available',cell:gameCell},
@@ -663,7 +661,6 @@ function detailCard(x){
  const wrEfficiency=[
   ['Team target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.totalTargets??'—'} team targets`],
   ['Targets / team pass attempts',lr.targetRate==null?'—':`${pct(lr.targetRate)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'}`],
-  ['Route participation',pct(lr.routeParticipation)],
   ['Targets per route',pct(lr.targetsPerRoute)],
   ['Yards per route',lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—'],
   ['Air yards',fmt(lg.airYds,0)]
