@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=4)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=5)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -186,9 +186,10 @@ function startSitScoreV2(input={}){
  const env=environmentScore(pos,input.environment||{}),envComponent=env.score;
  const rankWeight=Number.isFinite(Number(input.rankWeight))?Math.max(0,Number(input.rankWeight)):.14;
  const providerBacked=proj.providerPoints!=null;
+ const latestRole=Number(input.latestRoleScore),roleComponent=Number.isFinite(latestRole)?clamp(latestRole,0,100):null;
  let parts=providerBacked
-   ?[[projectionComponent,.55],[usage.score,.22],[rankComponent,Math.min(rankWeight,.10)],[matchupComponent,.08],[envComponent,.05]]
-   :[[projectionComponent,.45],[usage.score,.19],[rankComponent,rankWeight],[matchupComponent,.12],[envComponent,.10]];
+   ?[[projectionComponent,.44],[roleComponent,.24],[usage.score,.12],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.07],[envComponent,.05]]
+   :[[projectionComponent,.38],[roleComponent,.25],[usage.score,.14],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.10],[envComponent,.05]];
  parts=parts.filter(([v,w])=>v!=null&&w>0);
  const weight=parts.reduce((a,x)=>a+x[1],0);
  let score=parts.reduce((a,[v,w])=>a+v*w,0)/Math.max(.01,weight);
@@ -199,6 +200,7 @@ function startSitScoreV2(input={}){
  score*=1-inj;
  const coverage=[
    proj.confidence/100,
+   roleComponent!=null?clamp(Number(input.latestRoleConfidence??80)/100,0,1):null,
    usage.score!=null?usage.confidence/100:null,
    matchupComponent!=null?clamp(Number(input.matchupConfidence??60)/100,0,1):null,
    rankComponent!=null?1:null,
@@ -212,6 +214,7 @@ function startSitScoreV2(input={}){
  else if(proj.source==='blend')reasons.push(`Form baseline: ${Math.round(proj.currentWeight*100)}% 2026 · ${Math.round(proj.priorWeight*100)}% 2025`);
  else if(proj.source==='prior')reasons.push('Using 2025 as a reduced-confidence baseline because 2026 game data is not available yet');
  else if(proj.source==='owner')reasons.push('Owner projection override is active');
+ if(roleComponent!=null)reasons.push(`Latest role ${Math.round(roleComponent)}/100${input.latestRoleLabel?` · ${input.latestRoleLabel}`:''}`);
  if(usage.score!=null)reasons.push(`Usage ${usage.score}/100${usageSource==='2025 baseline'?' · 2025 baseline':''}`);
  if(role.key!=='insufficient')reasons.push(role.label);
  if(rankComponent!=null)reasons.push(`Workhorse weekly rank #${rank}`);
@@ -220,10 +223,10 @@ function startSitScoreV2(input={}){
  if(newsAdjustment)reasons.push(`News context ${newsAdjustment>0?'+':''}${newsAdjustment.toFixed(1)}`);
  if(contextAdjustment)reasons.push(`Team context ${contextAdjustment>0?'+':''}${contextAdjustment.toFixed(1)}`);
  if(inj)reasons.push(`Availability penalty applied for ${input.injuryStatus}`);
- return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
+ return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:4,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:5,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
