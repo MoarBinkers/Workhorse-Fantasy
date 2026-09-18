@@ -320,6 +320,166 @@ async function grade(id){
  return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
+function styles(){
+ if(document.querySelector('#wh-startsit-css'))return;
+ document.head.insertAdjacentHTML('beforeend',`<style id="wh-startsit-css">
+#wh-startsit{--bg:#081018;--panel:#0d1720;--panel2:#101d27;--line:#203441;--text:#eef4f7;--muted:#91a3ae;--soft:#bdcad1;--gold:#e6c96f;--green:#7bd59b;--red:#e98994;--blue:#79bfe8;min-height:100vh;background:#081018;color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;padding-bottom:72px}
+#wh-startsit *{box-sizing:border-box}
+#wh-startsit button,#wh-startsit input{font:inherit}
+#wh-startsit .top{display:flex;align-items:center;gap:12px;padding:16px clamp(18px,3vw,40px);border-bottom:1px solid #182a34;background:#081018}
+#wh-startsit .brand{font-size:22px;font-weight:1000;letter-spacing:-.05em}
+#wh-startsit .tag{font-size:10px;font-weight:900;letter-spacing:.08em;background:var(--gold);color:#081018;padding:6px 8px;border-radius:999px}
+#wh-startsit .spacer{flex:1}
+#wh-startsit .back{color:#c7d3d9;text-decoration:none;border:1px solid #2a4350;border-radius:9px;padding:8px 11px;font-size:12px;font-weight:800}
+#wh-startsit .shell{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:34px 0 0}
+#wh-startsit .intro{display:flex;align-items:flex-start;justify-content:space-between;gap:28px;margin-bottom:22px}
+#wh-startsit .eyebrow{font-size:11px;color:var(--green);letter-spacing:.12em;font-weight:900;text-transform:uppercase}
+#wh-startsit .intro h1{font-size:clamp(36px,5vw,58px);line-height:1;letter-spacing:-.055em;margin:7px 0 10px}
+#wh-startsit .intro p{max-width:760px;margin:0;color:#9aabb4;font-size:14px;line-height:1.6}
+#wh-startsit .weekpill{border:1px solid #2a424f;background:#0b151d;border-radius:10px;padding:10px 12px;color:#a9bac3;font-size:12px;font-weight:800;white-space:nowrap}
+#wh-startsit .setup{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px;margin-bottom:16px}
+#wh-startsit .controls{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-bottom:14px}
+#wh-startsit .control label{display:block;font-size:11px;color:#8398a4;font-weight:850;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+#wh-startsit .seg{display:flex;gap:7px;flex-wrap:wrap}
+#wh-startsit .seg button{border:1px solid #2a4350;background:#09141b;color:#a4b4bd;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:850;cursor:pointer}
+#wh-startsit .seg button:hover{border-color:#476574;color:#d9e3e8}
+#wh-startsit .seg button.active{background:#eef4f7;color:#071018;border-color:#eef4f7}
+#wh-startsit .searchrow{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:10px;align-items:start}
+#wh-startsit .searchbox{position:relative}
+#wh-startsit .search{width:100%;border:1px solid #2a4553;border-radius:9px;background:#081219;color:#fff;padding:12px 13px;font-size:14px;outline:none}
+#wh-startsit .search:focus{border-color:#54788a;box-shadow:0 0 0 3px #2e526329}
+#wh-startsit .results{position:absolute;z-index:30;top:calc(100% + 5px);left:0;right:0;max-height:340px;overflow:auto;border:1px solid #2a4553;border-radius:10px;background:#09151d;box-shadow:0 18px 50px #0009;display:none}
+#wh-startsit .results.open{display:block}
+#wh-startsit .res{width:100%;display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center;text-align:left;border:0;border-top:1px solid #172a34;background:transparent;color:#edf3f6;padding:10px 12px;cursor:pointer}
+#wh-startsit .res:first-child{border-top:0}
+#wh-startsit .res:hover{background:#10212b}
+#wh-startsit .res img{width:38px;height:38px;border-radius:9px;object-fit:cover;object-position:center top;background:#11222c}
+#wh-startsit .res b{font-size:13px}
+#wh-startsit .res small{display:block;color:#8094a0;font-size:11px;margin-top:2px}
+#wh-startsit .res em{font-style:normal;color:#89d9a5;font-weight:900;font-size:11px}
+#wh-startsit .run{border:0;border-radius:9px;background:#eef4f7;color:#071018;padding:12px 15px;font-size:13px;font-weight:950;cursor:pointer;min-height:44px}
+#wh-startsit .run:disabled{opacity:.38;cursor:not-allowed}
+#wh-startsit .picked{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+#wh-startsit .chip{display:flex;align-items:center;gap:8px;border:1px solid #2b4654;background:#0a1720;border-radius:9px;padding:7px 9px}
+#wh-startsit .chip img{width:30px;height:30px;border-radius:7px;object-fit:cover;object-position:center top}
+#wh-startsit .chip b{font-size:12px}
+#wh-startsit .chip button{border:0;background:none;color:#8ba0ab;font-size:17px;cursor:pointer;padding:0 1px}
+#wh-startsit .status{display:block;color:#6f8591;font-size:11px;min-height:16px;margin-top:9px}
+#wh-startsit .call{margin-top:18px;border:1px solid #345846;border-left:4px solid var(--green);border-radius:13px;background:#0c1b16;padding:18px}
+#wh-startsit .call.knot{border-color:#5a4f2f;border-left-color:var(--gold);background:#19160d}
+#wh-startsit .call small{font-size:10px;letter-spacing:.1em;color:#8fd4a5;font-weight:900;text-transform:uppercase}
+#wh-startsit .call.knot small{color:#dbc27e}
+#wh-startsit .call h2{margin:6px 0 6px;font-size:26px;letter-spacing:-.035em}
+#wh-startsit .call p{margin:0;color:#afbec5;font-size:13px;line-height:1.5}
+#wh-startsit .drivers{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+#wh-startsit .drivers span{border:1px solid #355544;border-radius:999px;padding:5px 8px;color:#9bd4ad;font-size:11px;font-weight:800}
+#wh-startsit .compare-panel{margin-top:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+#wh-startsit .compare-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #1b303b}
+#wh-startsit .compare-head h3{margin:0;font-size:15px}
+#wh-startsit .compare-head span{color:#718793;font-size:11px}
+#wh-startsit .matrix-wrap{overflow-x:auto}
+#wh-startsit .matrix{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
+#wh-startsit .matrix th,#wh-startsit .matrix td{border-top:1px solid #182b35;padding:12px 14px;vertical-align:middle}
+#wh-startsit .matrix thead th{border-top:0;background:#0a151d}
+#wh-startsit .matrix th:first-child,#wh-startsit .matrix td:first-child{width:190px;text-align:left}
+#wh-startsit .matrix th:not(:first-child),#wh-startsit .matrix td:not(:first-child){text-align:center}
+#wh-startsit .rowlabel strong{display:block;font-size:12px;color:#dbe5ea}
+#wh-startsit .rowlabel small{display:block;font-size:10px;color:#6f8590;margin-top:3px;line-height:1.35}
+#wh-startsit .playercol{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
+#wh-startsit .playercol img{width:38px;height:38px;border-radius:9px;object-fit:cover;object-position:center top;background:#11222c}
+#wh-startsit .playercol div{text-align:left;min-width:0}
+#wh-startsit .playercol b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wh-startsit .playercol small{display:block;color:#778d99;font-size:10px;margin-top:2px}
+#wh-startsit .val{font-size:15px;font-weight:900;color:#e8eff2}
+#wh-startsit .sub{display:block;color:#708692;font-size:10px;font-weight:700;margin-top:3px;line-height:1.35}
+#wh-startsit .good{color:var(--green)!important}
+#wh-startsit .bad{color:var(--red)!important}
+#wh-startsit .neutral{color:var(--gold)!important}
+#wh-startsit .winner-cell{background:#0d1d17}
+#wh-startsit .details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+#wh-startsit details.player-data{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:0 14px}
+#wh-startsit details.player-data>summary{list-style:none;cursor:pointer;padding:13px 0;font-size:12px;font-weight:900;color:#c2cfd5}
+#wh-startsit details.player-data>summary::-webkit-details-marker{display:none}
+#wh-startsit details.player-data>summary:after{content:'+';float:right;color:#718792;font-size:16px}
+#wh-startsit details.player-data[open]>summary:after{content:'−'}
+#wh-startsit .detail-body{border-top:1px solid #1a2d37;padding:12px 0 14px}
+#wh-startsit .detail-section{margin-top:13px}
+#wh-startsit .detail-section:first-child{margin-top:0}
+#wh-startsit .detail-section h4{margin:0 0 7px;font-size:10px;color:#718894;text-transform:uppercase;letter-spacing:.08em}
+#wh-startsit .drow{display:flex;justify-content:space-between;gap:16px;border-top:1px solid #142730;padding:6px 0;color:#8da0aa;font-size:11px}
+#wh-startsit .drow:first-of-type{border-top:0}
+#wh-startsit .drow b{color:#d1dce1;font-size:11px;text-align:right}
+#wh-startsit .newsline{border-top:1px solid #142730;padding:7px 0}
+#wh-startsit .newsline:first-child{border-top:0}
+#wh-startsit .newsline b{display:block;color:#c4d0d6;font-size:11px;line-height:1.4}
+#wh-startsit .newsline small{display:block;color:#6e8490;font-size:10px;margin-top:3px}
+#wh-startsit .warning{margin-top:12px;border:1px solid #5a492f;border-radius:10px;background:#18140c;padding:11px 12px;color:#d2b980;font-size:11px;line-height:1.5}
+#wh-startsit .empty{margin-top:18px;border:1px dashed #2a4350;border-radius:12px;padding:28px;text-align:center;color:#7d919c;font-size:13px}
+#wh-startsit .source-note{margin-top:12px;color:#617884;font-size:10px;line-height:1.5}
+@media(max-width:820px){#wh-startsit .intro{display:block}#wh-startsit .weekpill{display:inline-block;margin-top:14px}#wh-startsit .controls{grid-template-columns:1fr}#wh-startsit .details-grid{grid-template-columns:1fr}}
+@media(max-width:580px){#wh-startsit .shell{width:min(100% - 20px,1180px);padding-top:24px}#wh-startsit .intro h1{font-size:40px}#wh-startsit .searchrow{grid-template-columns:1fr}#wh-startsit .run{width:100%}#wh-startsit .top{padding:13px 12px}#wh-startsit .brand{font-size:19px}#wh-startsit .tag{display:none}}
+</style>`)
+}
+function shell(){
+ document.body.innerHTML=`<div id="wh-startsit">
+  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
+  <main class="shell">
+   <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, news, game environment and your Workhorse ranking. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
+   <section class="setup"><div class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></div>
+   <div class="searchrow"><div class="searchbox"><input id="ss-search" class="search" placeholder="Search players…" autocomplete="off"><div id="ss-results" class="results"></div></div><button id="ss-run" class="run" disabled>Compare</button></div><div id="ss-picked" class="picked"></div><span id="ss-status" class="status"></span></section>
+   <section id="ss-output"><div class="empty">Add at least two eligible players to compare.</div></section>
+  </main>
+ </div>`
+}
+function renderSearch(){const q=token(document.querySelector('#ss-search')?.value).trim(),box=document.querySelector('#ss-results');if(!box)return;if(!q){box.classList.remove('open');box.innerHTML='';return}const picked=new Set(selected),matches=[...pool.values()].filter(p=>compatible(p)&&!picked.has(String(p.player_id))&&token(`${p.full_name} ${p.team} ${p.position}`).includes(q)).slice(0,25);box.innerHTML=matches.map(p=>`<button class="res" data-add="${esc(p.player_id)}"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(p.player_id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><span><b>${esc(p.full_name)}</b><br><small>${esc(p.position)} · ${esc(p.team||'FA')}</small></span><em>＋</em></button>`).join('')||'<div style="padding:13px;color:#758b99;font-size:9px">No eligible matches.</div>';box.classList.add('open')}
+function renderPicked(){const box=document.querySelector('#ss-picked');box.innerHTML=selected.map(id=>{const p=pool.get(id);return `<div class="chip"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><b>${esc(p?.full_name||'Player')}</b><button data-remove="${esc(id)}" aria-label="Remove">×</button></div>`}).join('');document.querySelector('#ss-run').disabled=selected.length<2}
+function switchSlot(next){slot=next;selected=selected.filter(id=>{const p=pool.get(id);return p&&compatible(p,next)});document.querySelectorAll('[data-slot]').forEach(b=>b.classList.toggle('active',b.dataset.slot===slot));renderPicked();renderSearch();document.querySelector('#ss-output').innerHTML='<div class="empty">Choose at least two eligible players.</div>'}
+function fmt(v,d=1){return v==null||!Number.isFinite(Number(v))?'—':Number(v).toFixed(d)}
+function pct(v){return v==null||!Number.isFinite(Number(v))?'—':`${Math.round(Number(v)*100)}%`}
+function matchupTone(score){return score==null?'':score>=66?'good':score<=34?'bad':'neutral'}
+function matchupRank(d){const a=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(v=>v>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null}
+function scoringName(){return format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'}
+function sourceProjectionName(x){return x.weeklyProjection==null?'—':fmt(x.weeklyProjection,1)}
+function statusTone(x){return x.g?.eligible===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
+function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
+function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
+function matchupCell(x){const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),total=d?.rankTotal||32,source=x.mu?.y2026?'2026 sample':'2025 baseline';if(x.mu?.score==null)return matrixCell('—','No verified matchup');return matrixCell(`#${r||'—'} / ${total}`,`${x.mu.label} · ${d?fmt(d.avg?.[matchupPointKey()],1):'—'} ${scoringName()} pts allowed/G · ${source}`,matchupTone(x.mu.score))}
+function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
+function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
+function matrixRows(graded){
+ const rows=[
+  {label:'Workhorse projection',note:'Weekly estimate after verified context',cell:x=>matrixCell(x.g?.projection?.points==null?'—':fmt(x.g.projection.points,1),x.g?.projection?.floor==null?'':`${fmt(x.g.projection.floor,1)}–${fmt(x.g.projection.ceiling,1)} range`)},
+  {label:'Sleeper projection',note:'Current-week provider projection',cell:x=>matrixCell(sourceProjectionName(x),x.weeklyProjection==null?(projectionsLoaded?'Not supplied':'Projection feed unavailable'):'current week')},
+  {label:`2026 ${scoringName()} / G`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} games`)},
+  {label:'Last 3 fantasy / G',note:'Recent actual production',cell:x=>matrixCell(fmt(x.currentWork?.ppg,1),`${x.currentWork?.games||0} recent games`)},
+  {label:'Snap share',note:'Recent offensive snaps when supplied',cell:x=>matrixCell(pct(x.currentWork?.snap),'last 3 avg')},
+  {label:'Pass attempts / G',note:'Recent actual attempts',positions:['QB'],cell:x=>matrixCell(fmt(x.currentWork?.passAtt,1),'last 3 avg')},
+  {label:'Carries / G',note:'Recent actual rushing attempts',positions:['QB','RB','WR'],cell:x=>matrixCell(fmt(x.currentWork?.carries,1),'last 3 avg')},
+  {label:'Targets / G',note:'Recent actual targets',positions:['RB','WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.targets,1),'last 3 avg')},
+  {label:'Routes / G',note:'Only when Sleeper supplies routes',positions:['WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.routes,1),'last 3 avg')},
+  {label:'Red-zone looks / G',note:'Carries + targets in red zone when supplied',positions:['RB','WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.rz,1),'last 3 avg')},
+  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'#1 toughest · #32 easiest',cell:matchupCell},
+  {label:'Game environment',note:'Current line/total when available',cell:gameCell},
+  {label:'Workhorse weekly rank',note:'Your weekly board; never replaced by ADP',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':'not initialized')},
+  {label:'Role trend',note:'Recent verified workload vs prior games',cell:roleCell},
+  {label:'Player status',note:'Current Sleeper / owner status',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?`${Math.round(x.injuryRisk*100)}% model availability penalty`:'',statusTone(x))},
+  {label:'Model confidence',note:'Evidence coverage, not certainty',cell:x=>matrixCell(`${x.confidence||0}%`,x.confidence<50?'limited evidence':'')}
+ ];
+ return rows.filter(r=>{if(r.positions&&!graded.some(x=>r.positions.includes(x.p.position)))return false;const html=graded.map(x=>r.cell(x)).join('');return !/^([\s\S]*>—<[^]*)$/.test(html)||!graded.every(x=>r.cell(x).includes('>—<'))})
+}
+function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${r.cell(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
+function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
+function detailCard(x){
+ const p=x.g?.projection||{},d26=x.mu?.y2026,d25=x.mu?.y2025,r26=matchupRank(d26),r25=matchupRank(d25),st=status.get(String(x.id))||{};
+ const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`],['Workhorse projection',p.points==null?'—':`${fmt(p.points,1)} pts`],['Workhorse range',p.floor==null?'—':`${fmt(p.floor,1)}–${fmt(p.ceiling,1)}`],['2026 form baseline',p.currentBase==null?'—':fmt(p.currentBase,1)],['2025 form baseline',p.priorBase==null?'—':fmt(p.priorBase,1)],['Projection source',p.source==='provider_blend'?'Sleeper weekly + Workhorse form':p.source==='provider'?'Sleeper weekly':p.source==='owner'?'Owner override':p.source==='blend'?'2026 + 2025 form':p.source==='current'?'2026 form':p.source==='prior'?'2025 baseline':'—']];
+ const currentRows=[['2026 PPG',fmt(x.seasonWork?.ppg,1)],['Last 3 PPG',fmt(x.currentWork?.ppg,1)],['Snap share',pct(x.currentWork?.snap)],['Pass att / G',fmt(x.currentWork?.passAtt,1)],['Carries / G',fmt(x.currentWork?.carries,1)],['Targets / G',fmt(x.currentWork?.targets,1)],['Routes / G',fmt(x.currentWork?.routes,1)],['Red-zone looks / G',fmt(x.currentWork?.rz,1)]];
+ const matchupRows=[['Opponent',x.game?.opp||'—'],['2026 matchup rank',r26?`#${r26}/${d26?.rankTotal||32}`:'—'],[`2026 positional ${scoringName()} allowed / G`,d26?fmt(d26.avg?.[matchupPointKey()],1):'—'],['2026 sample',d26?.games?`${d26.games} games`:'—'],['2025 matchup rank',r25?`#${r25}/${d25?.rankTotal||32}`:'—'],[`2025 positional ${scoringName()} allowed / G`,d25?fmt(d25.avg?.[matchupPointKey()],1):'—'],['Current-season matchup weight',x.mu?.y2026?`${Math.round((x.mu.currentWeight||0)*100)}%`:'0%']];
+ const gameRows=[['Status',x.inj||'Active'],['Status updated',st.updated_at?new Date(st.updated_at).toLocaleString():'—'],['Game',x.game?`${x.game.home?'vs':'@'} ${x.game.opp}`:(scheduleLoaded?'BYE':'—')],['Game total',x.game?.total?fmt(x.game.total,1):'—'],['Team implied',x.game?.teamImplied?fmt(x.game.teamImplied,1):'—'],['Spread',Number.isFinite(x.game?.spread)?`${x.game.spread>0?'+':''}${fmt(x.game.spread,1)}`:'—']];
+ const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,3);
+ return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Projection</h4>${dataRows(projectionRows)}</div><div class="detail-section"><h4>2026 workload</h4>${dataRows(currentRows)}</div><div class="detail-section"><h4>Matchup</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
+}
+function renderDetails(graded){return `<div class="details-grid">${graded.map(detailCard).join('')}</div>`}
+
 function edgeLabel(a,b){
  if(!a||a.g?.score==null)return 'Not enough data';
  if(!b||b.g?.score==null)return 'Data edge';
