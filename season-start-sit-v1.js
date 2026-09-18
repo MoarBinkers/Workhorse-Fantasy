@@ -515,12 +515,17 @@ function mergeVerifiedRole(p,id,base){
  const out={...(base||{})};
  const n=(key)=>Number.isFinite(Number(v[key]))?Number(v[key]):null;
  if(n('snap_pct')!=null)out.snap=n('snap_pct')/100;
- if(n('target_share_pct')!=null)out.targetShare=n('target_share_pct')/100;
- if(n('route_pct')!=null)out.routeParticipation=n('route_pct')/100;
- if(n('rb_carry_share_pct')!=null)out.rushShare=n('rb_carry_share_pct')/100;
  if(n('targets')!=null)out.targets=n('targets');
+ if(n('team_targets')!=null)out.teamTargets=n('team_targets');
+ if(out.targets!=null&&out.teamTargets>0)out.targetShare=out.targets/out.teamTargets;
+ else if(n('target_share_pct')!=null)out.targetShare=n('target_share_pct')/100;
+ out.targetDistribution=out.targetShare;
+ if(n('rb_carry_share_pct')!=null)out.rushShare=n('rb_carry_share_pct')/100;
  if(n('carries')!=null)out.carries=n('carries');
+ const routeVerified=v.route_pct_available===true||v.route_pct_available==='true'||n('route_pct')!=null;
+ if(n('route_pct')!=null)out.routeParticipation=n('route_pct')/100;
  if(n('routes')!=null)out.routes=n('routes');
+ if(String(p.position||'').toUpperCase()==='RB'&&!routeVerified){out.routeParticipation=null;out.routes=null;out.targetsPerRoute=null}
  if(n('team_pass_attempts')!=null)out.teamPassAttempts=n('team_pass_attempts');
  if(n('team_rb_carries')!=null)out.totalCarries=n('team_rb_carries');
  if(out.routes>0&&out.targets!=null)out.targetsPerRoute=out.targets/out.routes;
@@ -810,7 +815,7 @@ function roleShareCell(x){
 }
 function targetShareCell(x){
  const r=x.latestRole||{};
- const sub=r.targets==null?'':r.teamPassAttempts!=null?`${r.targets} targets / ${r.teamPassAttempts} team pass attempts`:`${r.targets} targets${r.verifiedSource?` · ${r.verifiedSource}`:''}`;
+ const sub=r.targets==null?'':r.teamTargets!=null?`${r.targets} targets / ${r.teamTargets} team targets`:`${r.targets} targets${r.verifiedSource?` · ${r.verifiedSource}`:''}`;
  return matrixCell(r.targetShare==null?'—':pct(r.targetShare),sub)
 }
 function routeCell(x){
@@ -850,7 +855,7 @@ function matrixRows(graded){
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:seasonPpgCell},
   {label:'Last game',note:'Exact box-score usage',cell:latestStatCell},
   {label:'Primary opportunity',note:'WR/TE = target share · RB = RB carry share',cell:roleShareCell},
-  {label:'Target share',note:'Verified share of team passing targets',cell:targetShareCell},
+  {label:'Target share',note:'Targets ÷ total team targets',cell:targetShareCell},
   {label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:routeCell},
   {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + 2025 box-score baseline',cell:matchupCell},
   {label:'Game line',note:'Spread · total · implied team points',cell:gameCell},
@@ -876,7 +881,7 @@ function detailCard(x){
  const projectionRows=[['Week projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts · ${projectionSourceText(x)}`]];
  let propRows=[];try{propRows=(x.props||[]).map(p=>[p.label||propLabel(p.market),`${propValue(p)}${propOdds(p)?` · ${propOdds(p)}`:''} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
  const wrEfficiency=[
-  ['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'} team pass attempts`],
+  ['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamTargets??'—'} team targets`],
   ['Route participation',pct(lr.routeParticipation)],
   ['Targets per route',pct(lr.targetsPerRoute)],
   ['Yards per route',lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—'],
@@ -884,7 +889,7 @@ function detailCard(x){
   ['aDOT',lg.adot==null?'—':fmt(lg.adot,1)]
  ];
  const lastRows=x.p.position==='RB'
-  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'} targets${lr.verifiedSource?` · ${lr.verifiedSource}`:''}`],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
+  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamTargets??'—'} team targets${lr.verifiedSource?` · ${lr.verifiedSource}`:''}`],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
   :x.p.position==='WR'||x.p.position==='TE'
    ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Routes',fmt(lg.routes,0)],...wrEfficiency,['Red-zone opportunities',fmt(lg.rz,0)]]
    :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
@@ -947,7 +952,7 @@ async function compare(){
   try{matrix=renderMatrix(graded)}catch(e){console.warn('matrix render failed',e);matrix='<div class="warning">Comparison table is temporarily unavailable; the recommendation above is still active.</div>'}
   let details='';
   try{details=renderDetails(graded)}catch(e){console.warn('details render failed',e)}
-  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. WR/TE target share = targets ÷ team pass attempts. Routes, route participation, TPRR and YPRR support receiver role. Player props are current-week, source-stamped markets when verified. Matchups show all players at the position combined from completed box scores. Missing optional inputs are excluded instead of guessed.</div>`;
+  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. Routes, route participation, TPRR and YPRR support receiver role. Player props are current-week, source-stamped markets when verified. Matchups show all players at the position combined from completed box scores. Missing optional inputs are excluded instead of guessed.</div>`;
   st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable · ${weekSource}`;
  }catch(e){
   console.error('Start/Sit core comparison failure',e);
