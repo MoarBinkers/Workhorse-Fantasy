@@ -129,24 +129,36 @@ function parseSpread(details,team){
  const fav=normTeam(m[1]),line=Number(m[2]);if(!Number.isFinite(line))return null;
  return normTeam(team)===fav?line:-line
 }
+function storeGameRows(rows){
+ games.clear();
+ for(const row of rows||[]){
+  const tm=normTeam(row?.team),opp=normTeam(row?.opp);if(!tm||!opp)continue;
+  const state=String(row?.state||'pre'),kickoff=row?.date?Date.parse(row.date):NaN;
+  const locked=state==='in'||state==='post'||(Number.isFinite(kickoff)&&kickoff<Date.now()-300000);
+  games.set(tm,{opp,home:!!row.home,total:Number(row.total)||0,details:String(row.details||''),date:row.date||'',state,locked,spread:Number.isFinite(Number(row.spread))?Number(row.spread):null,teamImplied:Number.isFinite(Number(row.teamImplied))?Number(row.teamImplied):null,weather:String(row.weather||'')})
+ }
+ scheduleLoaded=games.size>=20;
+ return scheduleLoaded
+}
 async function loadGames(){
  games.clear();scheduleLoaded=false;
  try{
+  const r=await fetch(`${SB}/functions/v1/get-week-games?season=${SEASON}&week=${week}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const j=await r.json();if(Array.isArray(j?.games)&&j.games.length&&storeGameRows(j.games))return}
+ }catch(e){console.warn('server game feed unavailable',e)}
+ try{
   const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${SEASON}&seasontype=2&week=${week}`,{cache:'no-store'});if(!r.ok)return;
-  const d=await r.json();
+  const d=await r.json(),rows=[];
   for(const ev of d?.events||[]){
    const c=ev?.competitions?.[0],teams=c?.competitors||[],odds=c?.odds?.[0]||{},state=c?.status?.type?.state||'pre';
    for(const a of teams){
-    const b=teams.find(x=>x!==a),tm=normTeam(a?.team?.abbreviation),opp=normTeam(b?.team?.abbreviation);
-    if(!tm||!opp)continue;
-    const total=Number(odds?.overUnder)||0,details=odds?.details||'',spread=parseSpread(details,tm);
-    const teamImplied=total&&Number.isFinite(spread)?total/2-spread/2:null;
-    const weather=c?.weather?.displayValue||ev?.weather?.displayValue||c?.weather?.conditionId||'';
-    const kickoff=ev?.date?Date.parse(ev.date):NaN,locked=state==='in'||state==='post'||(Number.isFinite(kickoff)&&kickoff<Date.now()-300000);games.set(tm,{opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,locked,spread,teamImplied,weather:String(weather||'')})
+    const b=teams.find(x=>x!==a),tm=normTeam(a?.team?.abbreviation),opp=normTeam(b?.team?.abbreviation);if(!tm||!opp)continue;
+    const total=Number(odds?.overUnder)||0,details=odds?.details||'',spread=parseSpread(details,tm),teamImplied=total&&Number.isFinite(spread)?total/2-spread/2:null;
+    rows.push({team:tm,opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,spread,teamImplied,weather:String(c?.weather?.displayValue||ev?.weather?.displayValue||'')})
    }
   }
-  scheduleLoaded=games.size>=20;
- }catch(_){}
+  storeGameRows(rows)
+ }catch(e){console.warn('direct ESPN game feed unavailable',e)}
 }
 async function history(id){
  const out=[];for(let w=1;w<week;w++)out.push((await weekStats(SEASON,w)).get(String(id))||{});return out
@@ -180,15 +192,15 @@ async function loadPropsFor(p){
  const k=String(p.player_id);if(propsCache.has(k))return propsCache.get(k);
  let rows=[];
  try{
-  const u=`${SB}/functions/v1/get-player-props?player=${encodeURIComponent(p.full_name||'')}&position=${encodeURIComponent(p.position||'')}&season=${SEASON}&week=${week}`;
-  const r=await fetch(u,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
-  if(r.ok){const j=await r.json();if(Array.isArray(j?.props))rows.push(...j.props)}
- }catch(_){}
- try{
   const pk=encodeURIComponent(playerKey(p));
   const r=await fetch(`${SB}/rest/v1/player_prop_lines?select=market,line,over_odds,under_odds,source,source_url,observed_at&season=eq.${SEASON}&week=eq.${week}&player_key=eq.${pk}&order=observed_at.desc&limit=20`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
   if(r.ok){const cached=await r.json();if(Array.isArray(cached))rows.push(...cached)}
- }catch(_){}
+ }catch(e){console.warn('verified prop cache unavailable',e)}
+ try{
+  const u=`${SB}/functions/v1/get-player-props?player=${encodeURIComponent(p.full_name||'')}&position=${encodeURIComponent(p.position||'')}&season=${SEASON}&week=${week}`;
+  const r=await fetch(u,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const j=await r.json();if(Array.isArray(j?.props))rows.push(...j.props)}
+ }catch(e){console.warn('live prop feed unavailable',e)}
  const now=Date.now(),seen=new Set(),fresh=[];
  for(const x of rows){
   const age=(now-new Date(x.observed_at||0).getTime())/36e5;
@@ -883,6 +895,6 @@ async function compare(){
 }
 
 function bind(){document.querySelector('#ss-search').oninput=renderSearch;document.querySelector('#ss-results').onclick=e=>{const b=e.target.closest('[data-add]');if(!b||selected.length>=4)return;selected.push(String(b.dataset.add));document.querySelector('#ss-search').value='';document.querySelector('#ss-results').classList.remove('open');renderPicked()};document.querySelector('#ss-picked').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;selected=selected.filter(x=>x!==String(b.dataset.remove));renderPicked()};document.querySelector('#slot-seg').onclick=e=>{const b=e.target.closest('[data-slot]');if(b)switchSlot(b.dataset.slot)};document.querySelector('#format-seg').onclick=e=>{const b=e.target.closest('[data-format]');if(!b)return;format=b.dataset.format;document.querySelectorAll('[data-format]').forEach(x=>x.classList.toggle('active',x===b))};document.querySelector('#ss-run').onclick=compare;document.addEventListener('click',e=>{if(!e.target.closest('.searchbox'))document.querySelector('#ss-results')?.classList.remove('open')})}
-async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();document.querySelector('#ss-week-pill').textContent=week;await Promise.all([loadPool(),loadStatus(),loadGames(),loadProjections()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
+async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();document.querySelector('#ss-week-pill').textContent=week;await Promise.all([loadPool(),loadStatus(),loadGames(),loadProjections(),loadVerifiedWeeklyData()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
 start();
 })();
