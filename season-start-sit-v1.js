@@ -4,7 +4,7 @@ if(window.__WH_START_SIT_V1__)return;window.__WH_START_SIT_V1__=true;
 const E=window.WorkhorseDecisionEngine;if(!E){document.body.innerHTML='<div style="padding:40px;color:white">Workhorse decision engine could not load.</div>';return}
 const SB='https://ytfwbvdzhrebupcftmhs.supabase.co',KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k',SEASON=2026;
 const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Number(qs.get('week')||0)||0)),format='ppr',slot='FLEX',selected=[];
-const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),newsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
+const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
@@ -127,6 +127,24 @@ async function loadNewsFor(p){
  }
  newsCache.set(k,clean);return clean
 }
+async function loadPropsFor(p){
+ const k=String(p.player_id);if(propsCache.has(k))return propsCache.get(k);
+ let rows=[];
+ try{
+  const pk=encodeURIComponent(playerKey(p));
+  const r=await fetch(`${SB}/rest/v1/player_prop_lines?select=market,line,over_odds,under_odds,source,source_url,observed_at&season=eq.${SEASON}&week=eq.${week}&player_key=eq.${pk}&order=observed_at.desc&limit=10`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok)rows=await r.json()
+ }catch(_){}
+ const now=Date.now(),seen=new Set(),fresh=[];
+ for(const x of rows){
+  const age=(now-new Date(x.observed_at||0).getTime())/36e5;
+  if(!Number.isFinite(age)||age>24)continue;
+  if(seen.has(x.market))continue;
+  seen.add(x.market);fresh.push(x)
+ }
+ propsCache.set(k,fresh);return fresh
+}
+
 function newsContext(items,injury){
  const now=Date.now(),market=[],reasons=[];
  const recent=(items||[]).filter(n=>{
@@ -306,9 +324,22 @@ function workload(pos,stats,limit=3){
   ppg:avgMetric(a,s=>E.fantasyPoints(s,format))
  }
 }
+
+function latestGameStats(pos,stats){
+ const row=[...(stats||[])].reverse().find(E.played);if(!row)return null;
+ const rec=E.num(E.first(row,'rec','receptions')),targets=E.targets(row),carries=E.carries(row);
+ return {
+  fantasy:E.fantasyPoints(row,format),
+  snap:E.snapPct(row),
+  passAtt:E.first(row,'pass_att'),passYds:E.first(row,'pass_yd'),passTd:E.first(row,'pass_td'),
+  carries,rushYds:E.first(row,'rush_yd'),rushTd:E.first(row,'rush_td'),
+  targets,rec,recYds:E.first(row,'rec_yd'),recTd:E.first(row,'rec_td'),
+  touches:carries+rec,routes:E.routes(row),rz:E.rz(row),goal:E.goalLine(row)
+ }
+}
 async function grade(id){
- const p=pool.get(String(id)),current=await history(id),priorPromise=priorHistory(id),newsPromise=loadNewsFor(p),rolePromise=latestRoleContext(p,id);
- const game=games.get(normTeam(p.team))||null,prior=await priorPromise,news=await newsPromise,latestRole=await rolePromise,custom=customMeta(id);
+ const p=pool.get(String(id)),current=await history(id),priorPromise=priorHistory(id),newsPromise=loadNewsFor(p),propsPromise=loadPropsFor(p),rolePromise=latestRoleContext(p,id);
+ const game=games.get(normTeam(p.team))||null,prior=await priorPromise,news=await newsPromise,props=await propsPromise,latestRole=await rolePromise,custom=customMeta(id);
  const inj=injuryText(id),rank=format==='ppr'?whRank(id):null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p),mu=matchupFor(p,game);
  const priorTeam=[...prior].reverse().map(s=>normTeam(textFirst(s,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection),weeklyProjection=providerProjection(id);
@@ -317,7 +348,7 @@ async function grade(id){
  const forwardRoleScore=latestRole.score==null?(newsCtx.forwardRoleBoost?Math.max(0,Math.min(100,50+newsCtx.forwardRoleBoost)):null):Math.max(0,Math.min(100,latestRole.score+(newsCtx.forwardRoleBoost||0)));
  const forwardRoleLabel=newsCtx.forwardRoleBoost?`${latestRole.label||'Latest role'} · coach/news adjustment ${newsCtx.forwardRoleBoost>0?'+':''}${newsCtx.forwardRoleBoost}`:latestRole.label;
  const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight});
- return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:latestGameStats(p.position,current),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
 function styles(){
