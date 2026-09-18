@@ -197,7 +197,7 @@ async function latestRoleContext(p,id){
   const team=normTeam(textFirst(row,'team','tm','team_abbr')||p.team);
   if(!team)continue;
   const peers=[...m.entries()].filter(([pid,x])=>normTeam(textFirst(x,'team','tm','team_abbr'))===team&&E.played(x));
-  const totalTargets=peers.reduce((a,[,x])=>a+E.targets(x),0),totalCarries=peers.reduce((a,[,x])=>a+E.carries(x),0),totalRz=peers.reduce((a,[,x])=>a+E.rz(x),0);
+  const totalTargets=peers.reduce((a,[,x])=>a+E.targets(x),0),totalCarries=peers.reduce((a,[pid,x])=>{const pp=String(textFirst(x,'position','pos')||pool.get(String(pid))?.position||status.get(String(pid))?.position||'').toUpperCase();return a+(pp==='RB'?E.carries(x):0)},0),totalRz=peers.reduce((a,[,x])=>a+E.rz(x),0);
   const snap=E.snapPct(row),targets=E.targets(row),carries=E.carries(row),rz=E.rz(row);
   const targetShare=totalTargets>0?targets/totalTargets:null,rushShare=totalCarries>0?carries/totalCarries:null,rzShare=totalRz>0?rz/totalRz:null,pos=String(p.position||'').toUpperCase();
   const parts=[];
@@ -217,7 +217,7 @@ async function latestRoleContext(p,id){
   const confidence=Math.round(Math.min(100,55+(snap!=null?15:0)+(targetShare!=null||rushShare!=null?20:0)+(rzShare!=null?10:0)));
   const bits=[];
   if(snap!=null)bits.push(`${Math.round(snap*100)}% snaps`);
-  if(pos==='RB'&&rushShare!=null)bits.push(`${Math.round(rushShare*100)}% rush share`);
+  if(pos==='RB'&&rushShare!=null)bits.push(`${Math.round(rushShare*100)}% RB carry share`);
   if(['RB','WR','TE'].includes(pos)&&targetShare!=null)bits.push(`${Math.round(targetShare*100)}% target share`);
   if(rzShare!=null&&totalRz>0)bits.push(`${Math.round(rzShare*100)}% red-zone share`);
   return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,rushShare,rzShare,targets,carries,rz,label:bits.join(' · ')||'Role data unavailable'};
@@ -491,17 +491,17 @@ function latestStatCell(x){
 }
 function roleShareCell(x){
  const r=x.latestRole||{},p=x.p.position;
- if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`${r.snap==null?'—':pct(r.snap)} snaps${r.targetShare!=null?` · ${pct(r.targetShare)} tgt share`:''}`);
+ if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carry share · ${r.snap==null?'—':pct(r.snap)} snaps${r.targetShare!=null?` · ${pct(r.targetShare)} target share`:''}`);
  if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.snap==null?'—':pct(r.snap)} snaps${r.rzShare!=null?` · ${pct(r.rzShare)} RZ share`:''}`);
  if(p==='QB')return matrixCell(r.snap==null?'—':pct(r.snap),'snap share');
  return matrixCell('—','')
 }
 function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds':'rec yds'}
 function matchupCell(x){
- const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),source=x.mu?.y2026?'2026':'2025';
+ const d=x.mu?.y2026||x.mu?.y2025,source=x.mu?.y2026?'2026':'2025';
  if(!d)return matrixCell('—','No verified matchup sample');
  const pts=fmt(d.avg?.[matchupPointKey()],1),yds=fmt(d.avg?.yards,1),td=fmt(d.avg?.td,2);
- return matrixCell(r?`#${r}`:'—',`${pts} ${scoringName()} pts/G · ${yds} ${matchupYardLabel(x.p.position)}/G · ${td} TD/G · ${source}`,matchupTone(x.mu?.score))
+ return matrixCell(`${pts} ${scoringName()} pts/G`,`${yds} ${matchupYardLabel(x.p.position)}/G · ${td} TD/G · ${source}`,matchupTone(x.mu?.score))
 }
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
@@ -533,12 +533,12 @@ function detailCard(x){
    :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
  const matchupRows=[
   ['Opponent',x.game?.opp||'—'],
-  ['2026 matchup rank',r26?`#${r26}`:'—'],
+  ['2026 matchup rank',r26?`#${r26} (combined pts/yds/TD)`:'—'],
   [`2026 ${scoringName()} points allowed / G`,d26?fmt(d26.avg?.[matchupPointKey()],1):'—'],
   [`2026 ${matchupYardLabel(x.p.position)} allowed / G`,d26?fmt(d26.avg?.yards,1):'—'],
   ['2026 TD allowed / G',d26?fmt(d26.avg?.td,2):'—'],
   ['2026 sample',d26?.games?`${d26.games} game${d26.games===1?'':'s'}`:'—'],
-  ['2025 matchup rank',r25?`#${r25}`:'—'],
+  ['2025 matchup rank',r25?`#${r25} (combined pts/yds/TD)`:'—'],
   [`2025 ${scoringName()} points allowed / G`,d25?fmt(d25.avg?.[matchupPointKey()],1):'—'],
   [`2025 ${matchupYardLabel(x.p.position)} allowed / G`,d25?fmt(d25.avg?.yards,1):'—'],
   ['2025 TD allowed / G',d25?fmt(d25.avg?.td,2):'—']
