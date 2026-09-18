@@ -4,7 +4,7 @@ if(window.__WH_START_SIT_V1__)return;window.__WH_START_SIT_V1__=true;
 const E=window.WorkhorseDecisionEngine;if(!E){document.body.innerHTML='<div style="padding:40px;color:white">Workhorse decision engine could not load.</div>';return}
 const SB='https://ytfwbvdzhrebupcftmhs.supabase.co',KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k',SEASON=2026;
 const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Number(qs.get('week')||0)||0)),format='ppr',slot='FLEX',selected=[];
-const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),newsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};
+const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),newsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
@@ -35,7 +35,7 @@ function ingest(data){
 async function weekStats(season,w){
  const key=`${season}:${w}`;if(weeks.has(key))return weeks.get(key);
  let data=null;
- for(const u of [`https://api.sleeper.app/v1/stats/nfl/regular/${season}/${w}`,`https://api.sleeper.com/stats/nfl/${season}/${w}?season_type=regular`]){
+ for(const u of [`https://api.sleeper.com/stats/nfl/${season}/${w}?season_type=regular`,`https://api.sleeper.app/v1/stats/nfl/regular/${season}/${w}`]){
   try{const r=await fetch(u,{cache:'no-store'});if(r.ok){data=await r.json();break}}catch(_){}
  }
  const m=ingest(data);weeks.set(key,m);return m
@@ -61,10 +61,10 @@ function parseSpread(details,team){
  return normTeam(team)===fav?line:-line
 }
 async function loadGames(){
- games.clear();
+ games.clear();scheduleLoaded=false;
  try{
   const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${SEASON}&seasontype=2&week=${week}`,{cache:'no-store'});if(!r.ok)return;
-  const d=await r.json();
+  const d=await r.json();scheduleLoaded=true;
   for(const ev of d?.events||[]){
    const c=ev?.competitions?.[0],teams=c?.competitors||[],odds=c?.odds?.[0]||{},state=c?.status?.type?.state||'pre';
    for(const a of teams){
@@ -72,7 +72,8 @@ async function loadGames(){
     if(!tm||!opp)continue;
     const total=Number(odds?.overUnder)||0,details=odds?.details||'',spread=parseSpread(details,tm);
     const teamImplied=total&&Number.isFinite(spread)?total/2-spread/2:null;
-    games.set(tm,{opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,locked:state!=='pre',spread,teamImplied})
+    const weather=c?.weather?.displayValue||ev?.weather?.displayValue||c?.weather?.conditionId||'';
+    games.set(tm,{opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,locked:state!=='pre',spread,teamImplied,weather:String(weather||'')})
    }
   }
  }catch(_){}
@@ -260,7 +261,7 @@ async function grade(id){
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection);
  const rankWeight=slot==='SUPERFLEX'?.04:.14;
  const injuryRisk=availabilityRisk(inj,newsCtx);
- const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,teamChanged,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:!game,rankWeight});
+ const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,teamChanged,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight});
  return {id:String(id),p,current,prior,inj,injuryRisk,rank,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current),priorWork:workload(p.position,prior)}
 }
 
@@ -439,7 +440,7 @@ function statCard(x,i){
  ].join('');
  const keyReasons=(g.reasons||[]).filter(r=>!/Projection blend:/.test(r)).slice(0,3);
  const gameLine=game?[game.total?`O/U ${fmt(game.total,1)}`:'',game.teamImplied?`Team ${fmt(game.teamImplied,1)}`:'',game.weather||''].filter(Boolean).join(' · '):'';
- return `<article class="card ${i===0&&g.eligible?'top':''}"><div class="phead"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.full_name)}</h3><small>${esc(p.position)} · ${esc(p.team||'FA')} · ${game?`${game.home?'vs':'@'} ${esc(game.opp)}`:'BYE / no game'}</small></div><div class="score ${g.injuryPenalty>=.2?'bad':''}">${score}<span>Decision</span></div></div>${badges}<div class="metrics"><div class="metric"><b>${proj.points!=null?fmt(proj.points,1):'—'}</b><span>Projection</span></div><div class="metric"><b>${g.usage?.score??'—'}</b><span>Usage</span></div><div class="metric"><b class="${matchupTone(mu.score)}">${mu.score??'—'}</b><span>Matchup</span></div><div class="metric"><b>${rank}</b><span>WH rank</span></div><div class="metric"><b>${x.confidence??0}%</b><span>Confidence</span></div></div><div class="why"><strong>Why</strong><ul class="reasons">${keyReasons.length?keyReasons.map(r=>`<li>${esc(r)}</li>`).join(''):'<li>Not enough trustworthy evidence to add a specific driver.</li>'}</ul>${gameLine?`<div class="game">${esc(gameLine)}</div>`:''}</div>${detailPanel(x)}</article>`
+ return `<article class="card ${i===0&&g.eligible?'top':''}"><div class="phead"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.full_name)}</h3><small>${esc(p.position)} · ${esc(p.team||'FA')} · ${game?`${game.home?'vs':'@'} ${esc(game.opp)}`:(scheduleLoaded?'BYE':'Opponent unavailable')}</small></div><div class="score ${g.injuryPenalty>=.2?'bad':''}">${score}<span>Decision</span></div></div>${badges}<div class="metrics"><div class="metric"><b>${proj.points!=null?fmt(proj.points,1):'—'}</b><span>Projection</span></div><div class="metric"><b>${g.usage?.score??'—'}</b><span>Usage</span></div><div class="metric"><b class="${matchupTone(mu.score)}">${mu.score??'—'}</b><span>Matchup</span></div><div class="metric"><b>${rank}</b><span>WH rank</span></div><div class="metric"><b>${x.confidence??0}%</b><span>Confidence</span></div></div><div class="why"><strong>Why</strong><ul class="reasons">${keyReasons.length?keyReasons.map(r=>`<li>${esc(r)}</li>`).join(''):'<li>Not enough trustworthy evidence to add a specific driver.</li>'}</ul>${gameLine?`<div class="game">${esc(gameLine)}</div>`:''}</div>${detailPanel(x)}</article>`
 }
 async function compare(){
  const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Analyzing current evidence…';
@@ -463,6 +464,7 @@ async function compare(){
    hero=`<div class="winner"><small>${esc(edge.toUpperCase())}</small><h2>${headline}</h2><p>${copy}</p>${drivers.length?`<div class="drivers">${[...new Set(drivers)].slice(0,4).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`;
   }
   const warnings=[];
+  if(!scheduleLoaded)warnings.push('The current ESPN schedule could not be verified, so opponent, matchup and game-environment inputs were excluded rather than guessed.');
   if(!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rank is not initialized in this browser, so rank is excluded instead of being replaced with Sleeper ADP.');
   if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one eligible player has limited evidence coverage. Workhorse lowered confidence instead of filling missing stats with estimates.');
   if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('A current-season defensive matchup sample is only one game, so 2025 still carries most of the matchup weight.');
@@ -474,6 +476,6 @@ async function compare(){
  }finally{btn.disabled=selected.length<2}
 }
 function bind(){document.querySelector('#ss-search').oninput=renderSearch;document.querySelector('#ss-results').onclick=e=>{const b=e.target.closest('[data-add]');if(!b||selected.length>=4)return;selected.push(String(b.dataset.add));document.querySelector('#ss-search').value='';document.querySelector('#ss-results').classList.remove('open');renderPicked()};document.querySelector('#ss-picked').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;selected=selected.filter(x=>x!==String(b.dataset.remove));renderPicked()};document.querySelector('#slot-seg').onclick=e=>{const b=e.target.closest('[data-slot]');if(b)switchSlot(b.dataset.slot)};document.querySelector('#format-seg').onclick=e=>{const b=e.target.closest('[data-format]');if(!b)return;format=b.dataset.format;document.querySelectorAll('[data-format]').forEach(x=>x.classList.toggle('active',x===b))};document.querySelector('#ss-run').onclick=compare;document.addEventListener('click',e=>{if(!e.target.closest('.searchbox'))document.querySelector('#ss-results')?.classList.remove('open')})}
-async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();await Promise.all([loadPool(),loadStatus(),loadGames()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
+async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();document.querySelector('#ss-week-pill').textContent=week;await Promise.all([loadPool(),loadStatus(),loadGames()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
 start();
 })();
