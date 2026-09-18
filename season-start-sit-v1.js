@@ -7,7 +7,7 @@ const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Nu
 const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),verifiedUsage=new Map(),verifiedProjections=new Map(),playerBundleCache=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const VERIFIED_FALLBACKS={
  '9754':{
-  usage:{season:2026,week:1,player_id:'9754',player_name:'Quentin Johnston',team:'LAC',position:'WR',snap_pct:78.4,routes:26,route_pct:74.3,targets:6,target_share_pct:22.2,receptions:2,receiving_yards:17,receiving_td:0,carries:0,rushing_yards:0,rushing_td:0,touches:2,total_yards:17,air_yards:39,adot:6.5,team_pass_attempts:27,source:'PlayerProfiler Week 1 verified usage'},
+  usage:{season:2026,week:1,player_id:'9754',player_name:'Quentin Johnston',team:'LAC',position:'WR',snap_pct:78.4,routes:26,route_pct:74.3,route_pct_available:true,targets:6,target_share_pct:22.2,team_targets:27,receptions:2,receiving_yards:17,receiving_td:0,carries:0,rushing_yards:0,rushing_td:0,touches:2,total_yards:17,air_yards:39,adot:6.5,team_pass_attempts:27,source:'PlayerProfiler Week 1 verified usage'},
   projection:{season:2026,week:2,player_id:'9754',ppr_points:10.0,source:'Stat Pick Week 2'},
   props:[
    {market:'receptions',label:'Receptions',line:3.5,over_odds:-162,under_odds:122,source:'Stat Pick Week 2',source_url:'https://www.statpick.ai/start-sit/compare/quentin-johnston-vs-rome-odunze',observed_at:'2026-09-18T21:45:00Z'},
@@ -16,7 +16,7 @@ const VERIFIED_FALLBACKS={
   ]
  },
  '13286':{
-  usage:{season:2026,week:1,player_id:'13286',player_name:'Jadarian Price',team:'SEA',position:'RB',snap_pct:48.0,routes:null,route_pct:40.7,targets:2,target_share_pct:8.3,receptions:2,receiving_yards:6,receiving_td:0,carries:10,rushing_yards:52,rushing_td:0,touches:12,total_yards:58,rb_carry_share_pct:45.5,team_rb_carries:22,source:'FF Today + FantasyPros Week 1 verified usage'},
+  usage:{season:2026,week:1,player_id:'13286',player_name:'Jadarian Price',team:'SEA',position:'RB',snap_pct:48.0,routes:11,route_pct:40.7,route_pct_available:true,targets:2,target_share_pct:8.3,team_targets:24,receptions:2,receiving_yards:6,receiving_td:0,carries:10,rushing_yards:52,rushing_td:0,touches:12,total_yards:58,rb_carry_share_pct:45.5,team_rb_carries:22,team_pass_attempts:24,source:'FantasyPros + Fantasy Points Week 1 verified usage'},
   projection:{season:2026,week:2,player_id:'13286',ppr_points:13.2,source:'Stat Pick Week 2'},
   props:[
    {market:'rushing_yards',label:'Rush yds',line:60.5,over_odds:-113,under_odds:-111,source:'Stat Pick Week 2',source_url:'https://www.statpick.ai/start-sit/compare/jadarian-price-vs-jacory-croskey-merritt',observed_at:'2026-09-18T21:45:00Z'},
@@ -594,7 +594,8 @@ function emergencyGrade(id,reason=''){
 }
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
- try{await loadStartSitPlayerBundle(p)}catch(e){console.warn('player bundle prefetch failed',id,e)}
+ let bundle=null;
+ try{bundle=await loadStartSitPlayerBundle(p)}catch(e){console.warn('player bundle prefetch failed',id,e)}
  let current=[],prior=[],news=[],props=[],latestRole={week:null,score:null,confidence:0,label:'Role data unavailable'};
  try{current=await history(id)}catch(e){console.warn('history unavailable',id,e)}
  try{prior=await priorHistory(id)}catch(e){console.warn('prior history unavailable',id,e)}
