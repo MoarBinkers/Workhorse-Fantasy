@@ -2,7 +2,7 @@
 const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 const must=[
-  "label:'Latest role'",
+  "label:'Expected role'",
   "Clear role edge",
   "sits out again",
   "latestRoleScore:latestRole.score",
