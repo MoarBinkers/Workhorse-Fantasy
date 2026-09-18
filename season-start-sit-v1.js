@@ -12,7 +12,25 @@ const token=v=>String(v||'').toLowerCase();
 function load(k,f=[]){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(_){return f}}
 function whRank(id){const a=load(`wh_week_master_v3::${week}`,[]);const i=Array.isArray(a)?a.map(String).indexOf(String(id)):-1;return i<0?null:i+1}
 async function currentWeek(){if(week)return week;try{const r=await fetch('https://api.sleeper.app/v1/state/nfl',{cache:'no-store'});if(r.ok){const x=await r.json();week=Math.max(1,Math.min(18,Number(x?.week)||1));return week}}catch(_){}return week=1}
-function ingest(data){const m=new Map();if(Array.isArray(data)){for(const r of data){const id=r?.player_id||r?.player?.player_id;if(id)m.set(String(id),r?.stats||r||{})}}else if(data&&typeof data==='object')for(const [id,r] of Object.entries(data))m.set(String(id),r?.stats||r||{});return m}
+function ingest(data){
+ const m=new Map();
+ const pack=(r)=>{
+  const base={...(r?.stats||r||{})};
+  const team=r?.team||r?.player?.team||base.team||base.tm||base.team_abbr;
+  const position=r?.position||r?.player?.position||base.position||base.pos;
+  const gp=r?.gp??r?.stats?.gp??base.gp;
+  if(team!=null&&base.team==null)base.team=team;
+  if(position!=null&&base.position==null)base.position=position;
+  if(gp!=null&&base.gp==null)base.gp=gp;
+  return base;
+ };
+ if(Array.isArray(data)){
+  for(const r of data){const id=r?.player_id||r?.player?.player_id;if(id)m.set(String(id),pack(r))}
+ }else if(data&&typeof data==='object'){
+  for(const [id,r] of Object.entries(data))if(!String(id).startsWith('TEAM_'))m.set(String(id),pack(r));
+ }
+ return m
+}
 
 async function weekStats(season,w){
  const key=`${season}:${w}`;if(weeks.has(key))return weeks.get(key);
@@ -128,7 +146,7 @@ function statRows(data){
  else if(data&&typeof data==='object'){for(const [id,row] of Object.entries(data)){if(!id.startsWith('TEAM_'))out.push({id:String(id),row,stats:row?.stats||row})}}
  return out
 }
-function historicalTeam(entry){return normTeam(textFirst(entry.row,'team','tm','team_abbr')||entry.row?.player?.team||textFirst(entry.stats,'team','tm','team_abbr')||pool.get(entry.id)?.team||status.get(entry.id)?.team)}
+function historicalTeam(entry){return normTeam(textFirst(entry.row,'team','tm','team_abbr')||entry.row?.player?.team||textFirst(entry.stats,'team','tm','team_abbr'))}
 function historicalPos(entry){return String(textFirst(entry.row,'position','pos')||entry.row?.player?.position||textFirst(entry.stats,'position','pos')||pool.get(entry.id)?.position||status.get(entry.id)?.position||'').toUpperCase()}
 async function scheduleFor(season,w){
  const key=`${season}:${w}`;if(scheduleCache.has(key))return scheduleCache.get(key);
@@ -145,20 +163,21 @@ function defenseMetrics(pos,s){
  if(pos==='RB')return {ppr:E.fantasyPoints(s,'ppr'),yards:E.num(E.first(s,'rush_yd')),td:E.num(E.first(s,'rush_td'))};
  return {ppr:E.fantasyPoints(s,'ppr'),yards:E.num(E.first(s,'rec_yd')),td:E.num(E.first(s,'rec_td'))}
 }
+function matchupCacheKey(season,through){return `wh_start_sit_matchup_v2::${season}::${through}`}
 function readMatchupCache(season,through){
- const key=season===2025?'wh_matchup_reference_v2::2025':`wh_matchup_reference_v3::${season}::${through}`;
- try{const x=JSON.parse(localStorage.getItem(key)||'null');return x?.table?x:null}catch(_){return null}
+ try{const x=JSON.parse(localStorage.getItem(matchupCacheKey(season,through))||'null');return x?.table?x:null}catch(_){return null}
 }
 async function buildMatchupReference(season,through){
  const cached=readMatchupCache(season,through);if(cached)return cached;
- const table={},positions=['QB','RB','WR','TE'];
+ const table={},positions=['QB','RB','WR','TE'];let attributed=0,skipped=0;
  const packs=await Promise.all(Array.from({length:through},async(_,i)=>{const w=i+1;const [sched,stats]=await Promise.all([scheduleFor(season,w),weekStats(season,w)]);return {sched,stats}}));
  const bucket=(team,pos)=>{table[team]??={};table[team][pos]??={games:0,totals:{ppr:0,yards:0,td:0},avg:{},ranks:{}};return table[team][pos]};
  for(const {sched,stats} of packs){
   for(const team of sched.keys())for(const pos of positions)bucket(team,pos).games++;
   for(const entry of statRows(Object.fromEntries(stats))){
    const pos=historicalPos(entry);if(!positions.includes(pos))continue;
-   const team=historicalTeam(entry),game=sched.get(team);if(!team||!game?.opp)continue;
+   const team=historicalTeam(entry),game=sched.get(team);if(!team||!game?.opp){skipped++;continue}
+   attributed++;
    const b=bucket(game.opp,pos),m=defenseMetrics(pos,entry.stats);b.totals.ppr+=m.ppr;b.totals.yards+=m.yards;b.totals.td+=m.td
   }
  }
@@ -167,8 +186,8 @@ async function buildMatchupReference(season,through){
   const list=Object.entries(table).filter(([,x])=>x?.[pos]?.games).map(([team,x])=>({team,value:x[pos].avg[metric]})).sort((a,b)=>a.value-b.value);
   list.forEach((x,i)=>{table[x.team][pos].ranks[metric]=i+1;table[x.team][pos].rankTotal=list.length})
  }
- const built={season,through,generatedAt:Date.now(),table};
- try{localStorage.setItem(season===2025?'wh_matchup_reference_v2::2025':`wh_matchup_reference_v3::${season}::${through}`,JSON.stringify(built))}catch(_){}
+ const built={season,through,generatedAt:Date.now(),table,coverage:{attributed,skipped}};
+ try{localStorage.setItem(matchupCacheKey(season,through),JSON.stringify(built))}catch(_){}
  return built
 }
 async function ensureMatchups(){
@@ -177,13 +196,22 @@ async function ensureMatchups(){
  if(through&&!matchupCache[2026])matchupCache[2026]=await buildMatchupReference(2026,through);
  return matchupCache
 }
-function rankScore(d){const r=Number(d?.ranks?.ppr),n=Number(d?.rankTotal)||32;return r>0&&n>1?Math.round((r-1)/(n-1)*100):null}
+function rankScore(d){
+ const total=Number(d?.rankTotal)||32;
+ const ranks=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(r=>r>0);
+ if(!ranks.length||total<=1)return null;
+ const avg=ranks.reduce((a,b)=>a+b,0)/ranks.length;
+ return Math.round((avg-1)/(total-1)*100)
+}
 function matchupFor(p,game){
  if(!game?.opp)return {score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
  const pos=p.position,opp=game.opp,d25=matchupCache[2025]?.table?.[opp]?.[pos]||null,d26=matchupCache[2026]?.table?.[opp]?.[pos]||null,s25=rankScore(d25),s26=rankScore(d26),games26=Number(d26?.games)||0;
  let w26=games26>=5?.70:games26===4?.60:games26===3?.50:games26===2?.40:games26===1?.25:0,score=null;
  if(s25!=null&&s26!=null)score=s25*(1-w26)+s26*w26;else score=s26??s25;
- const confidence=score==null?0:Math.round(Math.min(88,(s25!=null?48:28)+games26*8));
+ const cov25=matchupCache[2025]?.coverage,coverage25=cov25&&cov25.attributed+cov25.skipped?cov25.attributed/(cov25.attributed+cov25.skipped):1;
+ const cov26=matchupCache[2026]?.coverage,coverage26=cov26&&cov26.attributed+cov26.skipped?cov26.attributed/(cov26.attributed+cov26.skipped):1;
+ const sourceCoverage=Math.min(coverage25,coverage26||1);
+ const confidence=score==null?0:Math.round(Math.min(90,((s25!=null?46:26)+games26*8)*sourceCoverage));
  return {score:score==null?null:Math.round(score),confidence,label:score==null?'Unknown':score>=66?'Favorable':score<=34?'Tough':'Neutral',opp,y2025:d25,y2026:d26,currentWeight:w26}
 }
 function avgMetric(stats,fn){const a=(stats||[]).filter(E.played).map(fn).filter(v=>v!=null&&Number.isFinite(Number(v)));return a.length?E.mean(a):null}
