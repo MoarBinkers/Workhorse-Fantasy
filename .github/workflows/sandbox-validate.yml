@@ -103,7 +103,7 @@ jobs:
             'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
             'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=8' in page,
-            'start sit and signals routes remain': "v==='start-sit'||v==='signals'" in page and 'season-start-sit-v1.js?v=25' in page and 'season-market-signals-v1.js?v=1' in page,
+            'start sit and signals routes remain': "v==='start-sit'||v==='signals'" in page and 'season-start-sit-v1.js?v=26' in page and 'season-market-signals-v1.js?v=1' in page,
             'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=8' in Path('season-rankings-seed-v1.js').read_text(),
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
