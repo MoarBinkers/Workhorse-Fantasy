@@ -4,7 +4,7 @@ if(window.__WH_START_SIT_V1__)return;window.__WH_START_SIT_V1__=true;
 const E=window.WorkhorseDecisionEngine;if(!E){document.body.innerHTML='<div style="padding:40px;color:white">Workhorse decision engine could not load.</div>';return}
 const SB='https://ytfwbvdzhrebupcftmhs.supabase.co',KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k',SEASON=2026;
 const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Number(qs.get('week')||0)||0)),weekSource=week?'url':'unresolved',format='ppr',slot='FLEX',selected=[];
-const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),verifiedUsage=new Map(),verifiedProjections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
+const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),verifiedUsage=new Map(),verifiedProjections=new Map(),playerBundleCache=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
@@ -93,6 +93,21 @@ async function loadProjections(){
   if(hasPoints)projections.set(String(id),row);
  }
  projectionsLoaded=true
+}
+async function loadStartSitPlayerBundle(p){
+ const id=String(p?.player_id||'');if(!id)return null;
+ if(playerBundleCache.has(id))return playerBundleCache.get(id);
+ let out=null;
+ try{
+  const r=await fetch(`${SB}/functions/v1/get-startsit-player-data?season=${SEASON}&week=${week}&player_id=${encodeURIComponent(id)}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){
+   out=await r.json();
+   if(out?.usage)verifiedUsage.set(id,out.usage);
+   if(out?.projection)verifiedProjections.set(id,out.projection);
+   if(Array.isArray(out?.props)&&out.props.length)propsCache.set(id,out.props);
+  }
+ }catch(e){console.warn('unified Start/Sit player data unavailable',id,e)}
+ playerBundleCache.set(id,out);return out
 }
 async function loadVerifiedWeeklyData(){
  verifiedUsage.clear();verifiedProjections.clear();
@@ -201,7 +216,7 @@ async function loadNewsFor(p){
  newsCache.set(k,clean);return clean
 }
 async function loadPropsFor(p){
- const k=String(p.player_id);if(propsCache.has(k))return propsCache.get(k);
+ const k=String(p.player_id);if(propsCache.has(k)&&propsCache.get(k)?.length)return propsCache.get(k);
  let rows=[];
  try{
   const pk=encodeURIComponent(playerKey(p));
@@ -553,6 +568,7 @@ function mergeVerifiedGame(p,id,base){
 }
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
+ try{await loadStartSitPlayerBundle(p)}catch(e){console.warn('player bundle prefetch failed',id,e)}
  let current=[],prior=[],news=[],props=[],latestRole={week:null,score:null,confidence:0,label:'Role data unavailable'};
  try{current=await history(id)}catch(e){console.warn('history unavailable',id,e)}
  try{prior=await priorHistory(id)}catch(e){console.warn('prior history unavailable',id,e)}
