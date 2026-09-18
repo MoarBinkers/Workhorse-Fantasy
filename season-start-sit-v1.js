@@ -623,7 +623,11 @@ function matrixRows(graded){
  ];
  return rows
 }
-function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${r.cell(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
+function safeMatrixCell(row,x){
+ try{return row.cell(x)}catch(e){console.warn('Start/Sit cell render failed',row?.label,x?.p?.full_name,e);return matrixCell('—','Data unavailable')}
+}
+function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${safeMatrixCell(r,x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
+
 function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
 function matchupDetailRows(prefix,d,pos){
  if(!d)return [[`${prefix} sample`,'—']];
@@ -676,7 +680,10 @@ function detailCard(x){
  const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,5);
  return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Current week & betting lines</h4>${dataRows(projectionRows)}${propRows.length?dataRows(propRows):'<div class="drow"><span>Verified player props</span><b>—</b></div>'}</div><div class="detail-section"><h4>Last game — exact usage</h4>${dataRows(lastRows)}</div><div class="detail-section"><h4>Matchup — position allowed stats</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
 }
-function renderDetails(graded){return `<div class="details-grid">${graded.map(detailCard).join('')}</div>`}
+function safeDetailCard(x){
+ try{return detailCard(x)}catch(e){console.warn('Start/Sit detail render failed',x?.p?.full_name,e);return `<details class="player-data"><summary>${esc(x?.p?.full_name||'Player')} · supporting data</summary><div class="detail-body"><div class="warning">Some optional supporting data is unavailable. The recommendation above still uses verified core data.</div></div></details>`}
+}
+function renderDetails(graded){return `<div class="details-grid">${graded.map(safeDetailCard).join('')}</div>`}
 
 function edgeLabel(a,b){
  if(!a||a.g?.score==null)return 'Not enough data';
