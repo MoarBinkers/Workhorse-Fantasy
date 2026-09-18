@@ -9,7 +9,7 @@ const stdev=a=>{if(a.length<2)return 0;const m=mean(a);return Math.sqrt(mean(a.m
 const first=(o,...keys)=>{for(const k of keys)if(o&&o[k]!=null&&o[k]!==''&&Number.isFinite(Number(o[k])))return Number(o[k]);return null};
 const sum=(o,...keys)=>keys.reduce((t,k)=>t+num(o?.[k]),0);
 const hasAny=(o,keys)=>keys.some(k=>o&&o[k]!=null&&o[k]!==''&&Number.isFinite(Number(o[k])));
-const played=s=>!!s&&(fantasyPoints(s,'ppr')!==0||hasAny(s,['pass_att','rush_att','rec_tgt','targets','rec','off_snp','snap_pct','off_snp_pct','routes','routes_run']));
+const played=s=>!!s&&((first(s,'gp','games_played')??0)>0||fantasyPoints(s,'ppr')!==0||hasAny(s,['pass_att','rush_att','rec_tgt','targets','rec','off_snp','snap_pct','off_snp_pct','routes','routes_run']));
 
 function fantasyPoints(s,format='ppr'){
  const rec=num(first(s,'rec'));
