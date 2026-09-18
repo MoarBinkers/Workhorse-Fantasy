@@ -2,7 +2,7 @@
 const assert=require('assert');
 require('../workhorse-decision-engine-v1.js');
 const E=global.WorkhorseDecisionEngine;
-assert(E&&E.version>=4,'decision engine loads');
+assert(E&&E.version>=5,'decision engine loads');
 const rb=[
  {rush_att:12,rec_tgt:2,rec:2,rush_yd:45,rec_yd:12,pts_ppr:8.7,snap_pct:.48,rush_rz_att:2},
  {rush_att:16,rec_tgt:4,rec:3,rush_yd:72,rec_yd:26,pts_ppr:14.8,snap_pct:.61,rush_rz_att:3},
@@ -37,3 +37,22 @@ assert(bye.eligible===false&&bye.score===0,'bye player is not actionable');
 const provider=E.startSitScoreV2({pos:'RB',currentStats:rb.slice(-2),priorStats:prior,format:'ppr',providerProjection:18.4,matchupScore:55,matchupConfidence:70,environment:{gameTotal:45}});
 assert(provider.projection.providerPoints===18.4,'provider projection anchors weekly model');
 assert(provider.projection.source==='provider_blend','provider projection blends with verified form when both exist');
+
+const qjLike=E.startSitScoreV2({
+ pos:'WR',currentStats:[{pts_ppr:3.7,rec_tgt:6,rec:2,rec_yd:17,off_snp_pct:.78}],
+ priorStats:[
+  {pts_ppr:13.2,rec_tgt:6,rec:4,rec_yd:68,off_snp_pct:.82},
+  {pts_ppr:14.6,rec_tgt:7,rec:4,rec_yd:74,off_snp_pct:.84},
+  {pts_ppr:13.9,rec_tgt:6,rec:4,rec_yd:70,off_snp_pct:.81}
+ ],
+ format:'ppr',providerProjection:11.3,latestRoleScore:70,latestRoleConfidence:90,
+ matchupScore:52,matchupConfidence:55,environment:{teamImplied:25.5,gameTotal:43.5,home:true},
+ newsAdjustment:2.5
+});
+const priceLike=E.startSitScoreV2({
+ pos:'RB',currentStats:[{pts_ppr:7.8,rush_att:10,rush_yd:52,rec_tgt:2,rec:2,rec_yd:6,off_snp_pct:.48}],
+ priorStats:[],format:'ppr',providerProjection:9.5,latestRoleScore:36,latestRoleConfidence:90,
+ matchupScore:58,matchupConfidence:45,environment:{teamImplied:20.5,gameTotal:41,home:false},
+ newsAdjustment:0
+});
+assert(qjLike.score-priceLike.score>=6,'strong role plus teammate opportunity must materially beat committee role');
