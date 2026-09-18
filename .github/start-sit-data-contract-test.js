@@ -2,6 +2,9 @@
 const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 const must=[
+  "Prop display unavailable",
+  "try{",
+  "function ago(iso)",
   "matchupYardLabel",
   "No verified line",
   "age>24",
@@ -34,4 +37,5 @@ if(s.includes("bye:!game"))throw new Error('Schedule failure must not be treated
 if(/search_rank[\s\S]{0,600}teamContext/.test(s))throw new Error('Start/Sit must not infer starting QB from search rank');
 if(s.includes("label:'Workhorse projection'")||s.includes("['Workhorse projection'"))throw new Error('Workhorse projection must stay hidden from Start/Sit UI');
 if(s.includes('/32'))throw new Error('Matchup rank should not display /32');
+if((s.match(/ago\(/g)||[]).length>0&&!s.includes('function ago(iso)'))throw new Error('Start/Sit prop timestamp helper is missing');
 console.log('PASS: Start/Sit data contracts');
