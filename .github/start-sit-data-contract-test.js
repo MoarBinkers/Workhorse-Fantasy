@@ -13,7 +13,6 @@ const must=[
   "function weeklyOrder()",
   "source:'saved+normalized'",
   "function explicitAvailability({inj,game})",
-  "const valid=graded.filter(x=>x.availability?.actionable&&x.g?.score!=null)",
   "function coreFallbackScore(",
   "const emergencyRank=(rank??workhorseRank",
   "Core verified data fallback",
@@ -63,6 +62,6 @@ if(propsFn.indexOf('/functions/v1/get-player-props')<0)throw new Error('Live pro
 if(!propsFn.includes('&season=${SEASON}&week=${week}'))throw new Error('Live prop endpoint must be week-scoped');
 if(propsFn.indexOf('/functions/v1/get-player-props')>propsFn.indexOf('/rest/v1/player_prop_lines'))throw new Error('Live prop endpoint must be checked before local cache');
 
-if(s.includes("const valid=graded.filter(x=>x.availability?.actionable&&x.g?.score!=null)"))throw new Error('selected active player may not disappear after grade rejection');
+if(!s.includes("const valid=graded.filter(x=>x.availability?.actionable)"))throw new Error('selected active players must survive score/model failures');
 if(s.includes('Workhorse could not produce a score from the available core data'))throw new Error('score-failure warning returned');
 console.log('PASS: Start/Sit current-week, actionability, data and prop contracts');
