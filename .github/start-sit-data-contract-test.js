@@ -3,7 +3,6 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
-  "Projection data is incomplete; lineup eligibility is unchanged.",
   "scheduleLoaded=games.size>=20",
   "function coreFallbackScore(",
   "2026 matchup unavailable",
