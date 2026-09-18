@@ -23,7 +23,7 @@ const style=(s.match(/<style id="wh-startsit-css">([\s\S]*?)<\/style>/)||[])[1]|
 if(!style)throw new Error('Scoped Start/Sit stylesheet missing');
 for(const selector of style.match(/(^|\})\s*([^@][^{]+)\{/g)||[]){
   const raw=selector.replace(/^\}/,'').trim().replace(/\{$/,'').trim();
-  if(raw && !raw.startsWith('#wh-startsit') && !raw.startsWith('from') && !raw.startsWith('to')){
+  if(raw && !raw.startsWith('#wh-startsit') && !raw.startsWith('@media') && !raw.startsWith('from') && !raw.startsWith('to')){
     throw new Error('Start/Sit selector is not root-scoped: '+raw);
   }
 }
