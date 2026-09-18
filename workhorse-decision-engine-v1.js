@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=6)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=7)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -181,7 +181,8 @@ function startSitScoreV2(input={}){
  if(/(^|\b)(out|ir|pup|suspended|suspend|sus|na|dnr)(\b|$)/.test(status)){
    return {score:0,eligible:false,projection:proj,usage,usageSource,role,injuryPenalty:1,reasons:[`Unavailable: ${input.injuryStatus||'Out'}`]};
  }
- const projectionComponent=100*clamp((proj.points-5)/22,0,1);
+ const projectionInput=proj.providerPoints!=null?proj.providerPoints:proj.points;
+ const projectionComponent=100*clamp((projectionInput-5)/22,0,1);
  const matchup=Number(input.matchupScore),matchupComponent=Number.isFinite(matchup)?clamp(matchup,0,100):null;
  const env=environmentScore(pos,input.environment||{}),envComponent=env.score;
  const rankWeight=Number.isFinite(Number(input.rankWeight))?Math.max(0,Number(input.rankWeight)):.14;
@@ -233,7 +234,7 @@ function startSitScoreV2(input={}){
  return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:6,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:7,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
