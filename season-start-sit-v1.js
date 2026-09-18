@@ -456,6 +456,77 @@ function emergencyGrade(id,reason=''){
  const g={score:rankScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{rank:rankScore},projection:{points:null,source:'rank-emergency'},reasons:['Emergency fallback · Workhorse weekly rank only']};
  return {id:String(id),p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection:null,latestRole:{week:null,score:null,confidence:0,label:'Role data unavailable'},forwardRoleScore:null,forwardRoleLabel:'Role data unavailable',g,availability,confidence:25,game,news:[],props:[],newsCtx:{adjustment:0,reasons:[],forwardRoleBoost:0},teamCtx:{adjustment:0,reasons:[]},mu:{score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null},teamChanged:false,latestGame:null,currentWork:{games:0},seasonWork:{games:0},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
 }
+
+function roleScoreFromVerified(p,v,base){
+ const pos=String(p.position||'').toUpperCase(),parts=[];
+ const targetShare=Number.isFinite(Number(v?.target_share_pct))?Number(v.target_share_pct)/100:base?.targetShare;
+ const routeParticipation=Number.isFinite(Number(v?.route_pct))?Number(v.route_pct)/100:base?.routeParticipation;
+ const routes=Number.isFinite(Number(v?.routes))?Number(v.routes):base?.routes;
+ const targets=Number.isFinite(Number(v?.targets))?Number(v.targets):base?.targets;
+ const tprr=routes>0&&targets!=null?targets/routes:base?.targetsPerRoute;
+ const snap=Number.isFinite(Number(v?.snap_pct))?Number(v.snap_pct)/100:base?.snap;
+ const rushShare=Number.isFinite(Number(v?.rb_carry_share_pct))?Number(v.rb_carry_share_pct)/100:base?.rushShare;
+ if(pos==='WR'||pos==='TE'){
+  if(targetShare!=null)parts.push([roleNorm(targetShare,.08,.30),.55]);
+  if(routeParticipation!=null)parts.push([roleNorm(routeParticipation,.55,.95),.20]);
+  if(tprr!=null)parts.push([roleNorm(tprr,.08,.28),.12]);
+  if(snap!=null)parts.push([roleNorm(snap,.45,.90),.08]);
+ }else if(pos==='RB'){
+  if(rushShare!=null)parts.push([roleNorm(rushShare,.20,.70),.44]);
+  if(snap!=null)parts.push([roleNorm(snap,.30,.75),.24]);
+  if(targetShare!=null)parts.push([roleNorm(targetShare,.02,.16),.18]);
+ }
+ if(!parts.length)return base?.score??null;
+ const wt=parts.reduce((a,x)=>a+x[1],0);return Math.round(parts.reduce((a,[v,w])=>a+v*w,0)/wt)
+}
+function mergeVerifiedRole(p,id,base){
+ const v=verifiedUsageFor(id);if(!v)return base;
+ const out={...(base||{})};
+ const n=(key)=>Number.isFinite(Number(v[key]))?Number(v[key]):null;
+ if(n('snap_pct')!=null)out.snap=n('snap_pct')/100;
+ if(n('target_share_pct')!=null)out.targetShare=n('target_share_pct')/100;
+ if(n('route_pct')!=null)out.routeParticipation=n('route_pct')/100;
+ if(n('rb_carry_share_pct')!=null)out.rushShare=n('rb_carry_share_pct')/100;
+ if(n('targets')!=null)out.targets=n('targets');
+ if(n('carries')!=null)out.carries=n('carries');
+ if(n('routes')!=null)out.routes=n('routes');
+ if(n('team_pass_attempts')!=null)out.teamPassAttempts=n('team_pass_attempts');
+ if(n('team_rb_carries')!=null)out.totalCarries=n('team_rb_carries');
+ if(out.routes>0&&out.targets!=null)out.targetsPerRoute=out.targets/out.routes;
+ out.score=roleScoreFromVerified(p,v,out);
+ out.confidence=Math.max(Number(out.confidence)||0,95);
+ const bits=[];
+ if(p.position==='RB'&&out.rushShare!=null)bits.push(`${Math.round(out.rushShare*1000)/10}% RB carry share`);
+ if(['RB','WR','TE'].includes(p.position)&&out.targetShare!=null)bits.push(`${Math.round(out.targetShare*1000)/10}% target share`);
+ if(out.snap!=null)bits.push(`${Math.round(out.snap*1000)/10}% snaps`);
+ out.label=bits.join(' · ')||out.label||'Verified usage';
+ out.verifiedSource=v.source||'Verified usage';
+ return out
+}
+function mergeVerifiedGame(p,id,base){
+ const v=verifiedUsageFor(id);if(!v)return base;
+ const out={...(base||{})},n=(key)=>Number.isFinite(Number(v[key]))?Number(v[key]):null;
+ if(n('snap_pct')!=null)out.snap=n('snap_pct')/100;
+ if(n('carries')!=null)out.carries=n('carries');
+ if(n('rushing_yards')!=null)out.rushYds=n('rushing_yards');
+ if(n('rushing_td')!=null)out.rushTd=n('rushing_td');
+ if(n('targets')!=null)out.targets=n('targets');
+ if(n('receptions')!=null)out.rec=n('receptions');
+ if(n('receiving_yards')!=null)out.recYds=n('receiving_yards');
+ if(n('receiving_td')!=null)out.recTd=n('receiving_td');
+ if(n('touches')!=null)out.touches=n('touches');
+ if(n('routes')!=null)out.routes=n('routes');
+ if(n('red_zone_opportunities')!=null)out.rz=n('red_zone_opportunities');
+ if(n('goal_line_opportunities')!=null)out.goal=n('goal_line_opportunities');
+ if(n('air_yards')!=null)out.airYds=n('air_yards');
+ if(n('adot')!=null)out.adot=n('adot');
+ if(out.fantasy==null){
+  const synthetic={rush_att:out.carries||0,rush_yd:out.rushYds||0,rush_td:out.rushTd||0,rec_tgt:out.targets||0,rec:out.rec||0,rec_yd:out.recYds||0,rec_td:out.recTd||0};
+  out.fantasy=E.fantasyPoints(synthetic,format)
+ }
+ out.verifiedSource=v.source||'Verified usage';
+ return out
+}
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
  let current=[],prior=[],news=[],props=[],latestRole={week:null,score:null,confidence:0,label:'Role data unavailable'};
@@ -464,6 +535,7 @@ async function grade(id){
  try{news=await loadNewsFor(p)}catch(e){console.warn('news unavailable',id,e)}
  try{props=await loadPropsFor(p)}catch(e){console.warn('props unavailable',id,e)}
  try{latestRole=await latestRoleContext(p,id)}catch(e){console.warn('role unavailable',id,e)}
+ latestRole=mergeVerifiedRole(p,id,latestRole)
  const game=games.get(normTeam(p.team))||null,custom=customMeta(id);
  const inj=injuryText(id),workhorseRank=whRank(id),rank=format==='ppr'?workhorseRank:null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p);
  let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
@@ -486,7 +558,7 @@ async function grade(id){
   g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,rank:rank?Math.round(100*Math.max(0,Math.min(1,1-(rank-1)/120))):null,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · weekly rank, role, recent production and matchup when available']}
  }
  const availability=explicitAvailability({inj,game});
- return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:latestGameStats(p.position,current),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:mergeVerifiedGame(p,id,latestGameStats(p.position,current)),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
 function styles(){
@@ -699,7 +771,7 @@ function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.co
 function matrixRows(graded){
  const hasReceiver=graded.some(x=>x.p.position==='WR'||x.p.position==='TE'),hasRb=graded.some(x=>x.p.position==='RB');
  const rows=[
-  {label:'Sleeper projection',note:'Current-week projection from Sleeper',cell:x=>matrixCell(sourceProjectionName(x),x.weeklyProjection==null?(projectionsLoaded?'Not supplied':'Projection feed unavailable'):'this week')},
+  {label:'Week projection',note:'Current-week verified projection',cell:x=>matrixCell(sourceProjectionName(x),projectionSourceText(x))},
   {label:'Player props',note:'Live consensus markets fetched for the selected player',cell:propsCell},
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} game${x.seasonWork?.games===1?'':'s'}`)},
   {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
