@@ -206,149 +206,39 @@ async function grade(id){
  return {id:String(id),p,current,prior,inj,rank,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current),priorWork:workload(p.position,prior)}
 }
 
-function edgeLabel(a,b){
- if(!a||a.g?.score==null)return 'Not enough data';
- if(!b||b.g?.score==null)return 'Only actionable option';
- const d=a.g.score-b.g.score,low=Math.min(a.confidence,b.confidence);
- if(d<3.5)return low<55?'Toss-up · limited confidence':'Toss-up';
- if(low<48)return d>=8?'Lean · limited confidence':'Toss-up · limited confidence';
- if(d>=10)return 'Clear edge';
- if(d>=5)return 'Lean';
- return 'Slight edge'
-}
-
+function edgeLabel(a,b){if(!a||a.g.score==null)return 'Not enough data';if(!b||b.g.score==null)return 'Data edge';const d=a.g.score-b.g.score,low=Math.min(a.confidence,b.confidence);if(low<45)return d>=6?'Lean · limited data':'Toss-up · limited data';if(d>=9)return 'Clear edge';if(d>=4)return 'Lean';return 'Toss-up'}
 function styles(){document.head.insertAdjacentHTML('beforeend',`<style>
 :root{color-scheme:dark;--bg:#071018;--panel:#0c1720;--line:#203543;--text:#eef5f8;--muted:#8195a3;--gold:#e8cb72;--green:#79dda0;--red:#ed8f99;--blue:#7bc9ff}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 75% -10%,#18354d 0,#09141d 34%,var(--bg) 70%);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select{font:inherit}.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:13px clamp(15px,3vw,38px);border-bottom:1px solid #1b303d;background:#071018ee;backdrop-filter:blur(14px)}.brand{font-size:21px;font-weight:1000;letter-spacing:-.05em}.tag{font-size:8px;font-weight:950;letter-spacing:.12em;background:var(--gold);color:#071018;padding:5px 7px;border-radius:99px}.spacer{flex:1}.back{color:#c2d2dc;text-decoration:none;border:1px solid #2a4558;border-radius:8px;padding:8px 10px;font-size:10px;font-weight:850}.shell{width:min(1080px,calc(100% - 28px));margin:auto;padding:42px 0 70px}.eyebrow{font-size:9px;color:var(--green);letter-spacing:.15em;font-weight:950}.hero h1{font-size:clamp(40px,6vw,68px);line-height:.96;letter-spacing:-.06em;margin:8px 0 12px}.hero p{max-width:760px;color:#90a4b2;font-size:13px;line-height:1.6}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:25px 0 16px}.control{padding:13px;border:1px solid var(--line);border-radius:12px;background:#0b1720}.control label{display:block;font-size:8px;letter-spacing:.1em;color:#8398a7;font-weight:950;text-transform:uppercase;margin-bottom:8px}.seg{display:flex;gap:5px;flex-wrap:wrap}.seg button{border:1px solid #2a4354;background:#0a151e;color:#9eb1be;border-radius:7px;padding:7px 9px;font-size:9px;font-weight:900;cursor:pointer}.seg button.active{background:#eaf2f6;color:#071019;border-color:#eaf2f6}.searchbox{position:relative}.search{width:100%;border:1px solid #2b4558;border-radius:10px;background:#071119;color:#fff;padding:11px 12px;font-size:12px}.results{position:absolute;z-index:20;top:calc(100% + 5px);left:0;right:0;max-height:330px;overflow:auto;border:1px solid #294253;border-radius:10px;background:#091720;box-shadow:0 18px 50px #0009;display:none}.results.open{display:block}.res{width:100%;display:grid;grid-template-columns:38px 1fr auto;gap:9px;align-items:center;text-align:left;border:0;border-top:1px solid #172b36;background:transparent;color:#e9f1f5;padding:8px 10px;cursor:pointer}.res:first-child{border-top:0}.res:hover{background:#0d202b}.res img{width:34px;height:34px;border-radius:8px;object-fit:cover;object-position:center top}.res b{font-size:11px}.res small{color:#758b99;font-size:8px}.res em{font-style:normal;color:#81dda5;font-weight:1000}.picked{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 20px}.chip{display:flex;align-items:center;gap:8px;border:1px solid #2c4758;background:#0b1922;border-radius:9px;padding:7px 9px}.chip img{width:28px;height:28px;border-radius:7px;object-fit:cover;object-position:center top}.chip b{font-size:10px}.chip button{border:0;background:none;color:#879aa7;font-size:16px;cursor:pointer}.run{border:0;border-radius:10px;background:#eef5f8;color:#071019;padding:11px 15px;font-size:11px;font-weight:1000;cursor:pointer}.run:disabled{opacity:.4;cursor:not-allowed}.status{margin-left:9px;color:#778d9b;font-size:9px}.winner{margin-top:22px;border:1px solid #435b3a;border-left:4px solid var(--green);border-radius:14px;background:linear-gradient(120deg,#102218,#0a1720 58%);padding:17px}.winner small{font-size:8px;letter-spacing:.12em;color:#90ddaa;font-weight:950}.winner h2{margin:6px 0;font-size:25px;letter-spacing:-.04em}.winner p{margin:0;color:#a3b5bf;font-size:11px;line-height:1.5}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.card{border:1px solid var(--line);border-radius:13px;background:#0a151e;padding:14px}.card.top{border-color:#3a5e49}.phead{display:grid;grid-template-columns:45px 1fr auto;gap:10px;align-items:center}.phead img{width:43px;height:43px;border-radius:10px;object-fit:cover;object-position:center top}.phead h3{margin:0;font-size:15px}.phead small{color:#768b98;font-size:8px}.score{font-size:24px;font-weight:1000;color:#f1d580}.score span{display:block;color:#708591;font-size:7px;text-align:right}.bad{color:var(--red)!important}.good{color:var(--green)!important}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:12px 0}.metric{border:1px solid #1c303b;border-radius:8px;padding:8px;background:#08141b}.metric b{font-size:13px}.metric span{display:block;margin-top:3px;color:#708692;font-size:7px;text-transform:uppercase}.reasons{margin:10px 0 0;padding-left:17px;color:#97aab5;font-size:9px;line-height:1.55}.game{margin-top:9px;padding-top:9px;border-top:1px solid #1a2e39;color:#8095a1;font-size:8px}.warning{margin-top:14px;border:1px solid #5f4931;border-radius:10px;background:#1c160d;padding:10px;color:#d8bd83;font-size:9px;line-height:1.5}.empty{margin-top:22px;border:1px dashed #2a4251;border-radius:12px;padding:25px;text-align:center;color:#748a98;font-size:11px}@media(max-width:720px){.controls,.cards{grid-template-columns:1fr}.shell{padding-top:30px}.hero h1{font-size:46px}.phead{grid-template-columns:42px 1fr auto}}
 </style>`)}
-function extraStyles(){
- if(document.querySelector('#ss-evidence-css'))return;
- document.head.insertAdjacentHTML('beforeend',`<style id="ss-evidence-css">
-.sourcebar{display:flex;gap:6px;flex-wrap:wrap;margin:15px 0 0}.sourcebar span{border:1px solid #294252;background:#0a161e;color:#8297a4;border-radius:999px;padding:5px 7px;font-size:7px;font-weight:900;letter-spacing:.04em}
-.card.locked-card{opacity:.78;border-color:#5a4933}.score.locked{font-size:13px;color:#d6b97b}.model-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:11px 0}.model{border:1px solid #1b303b;border-radius:8px;padding:7px;background:#08131a}.model b{font-size:11px}.model span{display:block;color:#6f8490;font-size:6.5px;text-transform:uppercase;margin-top:3px}.mbar{height:3px;border-radius:99px;background:#152832;margin-top:6px;overflow:hidden}.mbar i{display:block;height:100%;background:#79c9f7;border-radius:99px}
-.evidence{margin-top:11px;border-top:1px solid #1a2e39;padding-top:9px}.evidence>summary{cursor:pointer;color:#9db0bb;font-size:8px;font-weight:950;letter-spacing:.07em;text-transform:uppercase;list-style:none}.evidence>summary::-webkit-details-marker{display:none}.evidence>summary:after{content:"＋";float:right;color:#6f8795}.evidence[open]>summary:after{content:"−"}.egrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.esection{border:1px solid #1b303a;border-radius:9px;background:#08131a;padding:10px;min-width:0}.esection.full{grid-column:1/-1}.etitle{font-size:7px;color:#7c929f;font-weight:950;letter-spacing:.09em;text-transform:uppercase;margin-bottom:8px}.worktable{width:100%;border-collapse:collapse;font-size:8px}.worktable th{color:#657b88;text-align:right;font-size:6.5px;text-transform:uppercase;padding:0 0 5px}.worktable th:first-child,.worktable td:first-child{text-align:left}.worktable td{text-align:right;padding:5px 0;border-top:1px solid #132630;color:#a8bac4}.worktable tr:first-child td{border-top:0}.yearcards{display:grid;grid-template-columns:1fr 1fr;gap:6px}.yearcard{border:1px solid #1c313c;border-radius:8px;padding:8px}.yearcard strong{font-size:14px}.yearcard span{display:block;color:#6f8490;font-size:7px;margin-top:3px}.yearcard em{font-style:normal;font-size:7px;font-weight:900}.yearcard.good em{color:#80dca1}.yearcard.bad em{color:#e99aa4}.newslist{display:grid;gap:6px}.newsitem{border-top:1px solid #152832;padding-top:6px}.newsitem:first-child{border-top:0;padding-top:0}.newsitem a,.newsitem b{color:#c5d3db;font-size:8.5px;font-weight:850;text-decoration:none}.newsitem small{display:block;color:#657b88;font-size:6.5px;margin-top:3px}.newsitem p{margin:4px 0 0;color:#8195a1;font-size:7.5px;line-height:1.45}.badge{display:inline-flex;margin-right:5px;border:1px solid #314b59;border-radius:4px;padding:2px 4px;color:#8fa7b4;font-size:6px;font-weight:950;text-transform:uppercase}.badge.indirect{color:#d5bd79;border-color:#594d29}.contextlist{margin:0;padding-left:15px;color:#8ea2ad;font-size:8px;line-height:1.5}.data-note{margin-top:10px;color:#667e8c;font-size:7px;line-height:1.45}.hero-data{margin-top:12px;color:#7d929f;font-size:9px;line-height:1.5}.hero-data b{color:#b9cbd5}.metric small{display:block;color:#526a77;font-size:6px;margin-top:2px}.matchup-good{color:var(--green)!important}.matchup-bad{color:var(--red)!important}.matchup-neutral{color:var(--gold)!important}
-@media(max-width:720px){.model-grid{grid-template-columns:repeat(3,1fr)}.egrid{grid-template-columns:1fr}.esection.full{grid-column:auto}.yearcards{grid-template-columns:1fr 1fr}}
-</style>`)
-}
-
-
-function shell(){document.body.innerHTML=`<header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header><main class="shell"><section class="hero"><div class="eyebrow">WORKHORSE DECISION ENGINE</div><h1>Make the call.<br>Know every reason.</h1><p>Workhorse blends current production and workload with a fading 2025 baseline, position-specific opponent history, current defensive sample, weekly rankings, injuries, team context, news, and game environment. As 2026 data grows, last season automatically matters less.</p><div class="sourcebar"><span>WORKHORSE RANKS</span><span>SLEEPER 2026 STATS</span><span>SLEEPER 2025 BASELINE</span><span>WORKHORSE NEWS</span><span>INJURY STATUS</span><span>ESPN GAME + ODDS</span></div></section><section class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></section><div class="searchbox"><input id="ss-search" class="search" placeholder="Add 2–4 players…" autocomplete="off"><div id="ss-results" class="results"></div></div><div id="ss-picked" class="picked"></div><button id="ss-run" class="run" disabled>Compare Players</button><span id="ss-status" class="status"></span><section id="ss-output"><div class="empty">Choose at least two eligible players.</div></section></main>`}
-
+function shell(){document.body.innerHTML=`<header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header><main class="shell"><section class="hero"><div class="eyebrow">WORKHORSE DECISION ENGINE</div><h1>Make the call.<br>Know why.</h1><p>This tool weighs recent production, available workload data, role movement, your Workhorse weekly ranking, and live injury status. Missing data is excluded instead of guessed.</p></section><section class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></section><div class="searchbox"><input id="ss-search" class="search" placeholder="Add 2–4 players…" autocomplete="off"><div id="ss-results" class="results"></div></div><div id="ss-picked" class="picked"></div><button id="ss-run" class="run" disabled>Compare Players</button><span id="ss-status" class="status"></span><section id="ss-output"><div class="empty">Choose at least two eligible players.</div></section></main>`}
 function renderSearch(){const q=token(document.querySelector('#ss-search')?.value).trim(),box=document.querySelector('#ss-results');if(!box)return;if(!q){box.classList.remove('open');box.innerHTML='';return}const picked=new Set(selected),matches=[...pool.values()].filter(p=>compatible(p)&&!picked.has(String(p.player_id))&&token(`${p.full_name} ${p.team} ${p.position}`).includes(q)).slice(0,25);box.innerHTML=matches.map(p=>`<button class="res" data-add="${esc(p.player_id)}"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(p.player_id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><span><b>${esc(p.full_name)}</b><br><small>${esc(p.position)} · ${esc(p.team||'FA')}</small></span><em>＋</em></button>`).join('')||'<div style="padding:13px;color:#758b99;font-size:9px">No eligible matches.</div>';box.classList.add('open')}
 function renderPicked(){const box=document.querySelector('#ss-picked');box.innerHTML=selected.map(id=>{const p=pool.get(id);return `<div class="chip"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><b>${esc(p?.full_name||'Player')}</b><button data-remove="${esc(id)}" aria-label="Remove">×</button></div>`}).join('');document.querySelector('#ss-run').disabled=selected.length<2}
 function switchSlot(next){slot=next;selected=selected.filter(id=>{const p=pool.get(id);return p&&compatible(p,next)});document.querySelectorAll('[data-slot]').forEach(b=>b.classList.toggle('active',b.dataset.slot===slot));renderPicked();renderSearch();document.querySelector('#ss-output').innerHTML='<div class="empty">Choose at least two eligible players.</div>'}
-
-function fmt(v,d=1){return v==null||!Number.isFinite(Number(v))?'—':Number(v).toFixed(d)}
-function pct(v){return v==null?'—':`${Math.round(Number(v)*100)}%`}
-function ago(iso){if(!iso)return'';const ms=Date.now()-new Date(iso).getTime();if(!Number.isFinite(ms))return'';const h=Math.max(0,Math.floor(ms/36e5));return h<1?'just now':h<24?`${h}h ago`:`${Math.floor(h/24)}d ago`}
-function clsMatch(score){return score==null?'':score>=66?'matchup-good':score<=34?'matchup-bad':'matchup-neutral'}
-function workTable(x){
- const rows=[
-  ['PPR / G',x.currentWork.ppg,x.priorWork.ppg,1],['Snap',x.currentWork.snap,x.priorWork.snap,'pct'],
-  ['Weighted opps',x.currentWork.opps,x.priorWork.opps,1],['Targets',x.currentWork.targets,x.priorWork.targets,1],
-  ['Carries',x.currentWork.carries,x.priorWork.carries,1],['Routes',x.currentWork.routes,x.priorWork.routes,1],
-  ['Red-zone work',x.currentWork.rz,x.priorWork.rz,1],['Goal-line work',x.currentWork.goal,x.priorWork.goal,1]
- ];
- return `<table class="worktable"><thead><tr><th>Metric</th><th>2026 · last 3</th><th>2025 · last 3</th></tr></thead><tbody>${rows.map(([l,a,b,d])=>`<tr><td>${esc(l)}</td><td>${d==='pct'?pct(a):fmt(a,d)}</td><td>${d==='pct'?pct(b):fmt(b,d)}</td></tr>`).join('')}</tbody></table>`;
-}
-function yearCard(d,year){
- if(!d)return `<div class="yearcard"><strong>—</strong><span>${year}</span><em>No usable sample</em></div>`;
- const rank=Number(d.ranks?.ppr)||null,total=Number(d.rankTotal)||32;
- return `<div class="yearcard ${rank&&rank>21?'good':rank&&rank<=11?'bad':''}"><strong>${fmt(d.avg?.ppr,1)}</strong><span>${year} PPR allowed / G</span><em>${rank?`#${rank} of ${total} · #1 toughest`:'Unranked'} · ${d.games||0} games</em><div class="data-note">${d.avg?`${fmt(d.avg.yards,1)} primary yds/G · ${fmt(d.avg.td,2)} TD/G`:''}</div></div>`;
-}
-function newsHtml(x){
- const relevant=(x.news||[]).filter(n=>!Array.isArray(n.categories)||!n.categories.includes('trending')).slice(0,6);
- const market=(x.newsCtx?.market||[]).slice(0,2);
- if(!relevant.length&&!market.length)return '<div class="data-note">No recent Workhorse news matched this player. No news adjustment was invented.</div>';
- return `<div class="newslist">${relevant.map(n=>{
-  const cats=Array.isArray(n.categories)?n.categories:[];
-  const badge=cats.includes('indirect')?'<span class="badge indirect">TEAM EFFECT</span>':'<span class="badge">DIRECT</span>';
-  const title=esc(n.headline||'Player update'),copy=esc(n.fantasy_impact||n.summary||'');
-  const link=n.source_url?`<a href="${esc(n.source_url)}" target="_blank" rel="noopener">${title}</a>`:`<b>${title}</b>`;
-  return `<div class="newsitem">${badge}${link}<small>${esc(n.provider||'Source')} · ${esc(ago(n.published_at))}</small>${copy?`<p>${copy}</p>`:''}</div>`;
- }).join('')}${market.map(n=>`<div class="newsitem"><span class="badge">MARKET ONLY</span><b>${esc(n.headline||'Sleeper trend')}</b><small>${esc(n.provider||'Sleeper')} · not used as football evidence</small></div>`).join('')}</div>`;
-}
-function componentHtml(g){
- const c=g.components||{};
- const items=[['Projection',c.projection],['Usage',c.usage],['WH Rank',c.rank],['Matchup',c.matchup],['Game env',c.environment]];
- return `<div class="model-grid">${items.map(([l,v])=>`<div class="model"><b>${v==null?'—':Math.round(v)}</b><span>${esc(l)}</span><div class="mbar"><i style="width:${v==null?0:Math.max(0,Math.min(100,v))}%"></i></div></div>`).join('')}</div>`;
-}
-function contextHtml(x){
- const rows=[];
- if(x.newsCtx?.reasons?.length)rows.push(...x.newsCtx.reasons.map(r=>`News: ${r}`));
- if(x.teamCtx?.reasons?.length)rows.push(...x.teamCtx.reasons.map(r=>`Team: ${r}`));
- if(!rows.length)rows.push('No material negative or positive team-context adjustment was detected.');
- return `<ul class="contextlist">${rows.map(r=>`<li>${esc(r)}</li>`).join('')}</ul><div class="data-note">News adjustment ${x.newsCtx?.adjustment>0?'+':''}${fmt(x.newsCtx?.adjustment,1)} · Team/QB adjustment ${x.teamCtx?.adjustment>0?'+':''}${fmt(x.teamCtx?.adjustment,1)}</div>`;
-}
-function statCard(x,i){
- const g=x.g,p=x.p,proj=g.projection||{},inj=x.inj||'Active',game=x.game,rank=x.rank?`#${x.rank}`:'—',mu=x.mu||{},locked=!!g.locked,bye=!!g.bye;
- const role=g.role||{direction:'flat',label:'No current role signal'};
- const matchupLabel=mu.label||'Unknown';
- const opponent=game?`${game.home?'vs':'@'} ${game.opp}`:'BYE / no game';
- const gameLine=game?[game.total?`O/U ${game.total}`:'',game.teamImplied?`Team ${game.teamImplied.toFixed(1)}`:'',Number.isFinite(game.spread)?`${game.spread>0?'+':''}${game.spread}`:''].filter(Boolean).join(' · '):'';
- const blend=proj.source==='blend'?`${Math.round((proj.currentWeight||0)*100)}% 2026 / ${Math.round((proj.priorWeight||0)*100)}% 2025`:proj.source==='prior'?'2025 baseline only':proj.source==='owner'?'Owner override':proj.source==='current'?'2026 only':'No projection';
- return `<article class="card ${i===0&&!locked&&!bye?'top':''} ${locked?'locked-card':''}">
-  <div class="phead"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.full_name)}</h3><small>${esc(p.position)} · ${esc(p.team||'FA')} · ${esc(opponent)}</small></div><div class="score ${g.injuryPenalty>=.28?'bad':''} ${locked?'locked':''}">${locked?'LOCKED':g.score??'—'}<span>${locked?'Game started':'Decision score'}</span></div></div>
-  <div class="metrics">
-   <div class="metric"><b>${proj.points!=null?proj.points.toFixed(1):'—'}</b><span>WH estimate</span><small>${proj.floor!=null?`${proj.floor.toFixed(1)}–${proj.ceiling.toFixed(1)}`:''}</small></div>
-   <div class="metric"><b>${g.usage?.score??'—'}</b><span>Usage</span><small>${esc(g.usageSource||'2026')}</small></div>
-   <div class="metric"><b>${rank}</b><span>WH weekly rank</span></div>
-   <div class="metric"><b>${x.confidence}%</b><span>Confidence</span></div>
-   <div class="metric"><b class="${clsMatch(mu.score)}">${mu.score??'—'}</b><span>Matchup</span><small>${esc(matchupLabel)}</small></div>
-   <div class="metric"><b class="${g.injuryPenalty?'bad':''}">${esc(inj)}</b><span>Status</span></div>
-  </div>
-  ${componentHtml(g)}
-  <ul class="reasons">${(g.reasons||[]).slice(0,7).map(r=>`<li>${esc(r)}</li>`).join('')}</ul>
-  ${game?`<div class="game">${esc(gameLine||'Game context loaded')} · ${esc(opponent)}</div>`:''}
-  <details class="evidence"><summary>All evidence & data</summary><div class="egrid">
-   <section class="esection"><div class="etitle">Recent workload</div>${workTable(x)}</section>
-   <section class="esection"><div class="etitle">Opponent vs ${esc(p.position)}</div><div class="yearcards">${yearCard(mu.y2026,'2026')}${yearCard(mu.y2025,'2025')}</div><div class="data-note">${mu.y2026?`Current-season defense weight: ${Math.round((mu.currentWeight||0)*100)}%.`:''} 2025 automatically fades as the 2026 sample grows.</div></section>
-   <section class="esection full"><div class="etitle">Relevant news</div>${newsHtml(x)}</section>
-   <section class="esection"><div class="etitle">Team & availability context</div>${contextHtml(x)}</section>
-   <section class="esection"><div class="etitle">Projection foundation</div><div class="yearcards"><div class="yearcard"><strong>${proj.currentBase==null?'—':fmt(proj.currentBase,1)}</strong><span>2026 model</span><em>${proj.currentGames||0} games</em></div><div class="yearcard"><strong>${proj.priorBase==null?'—':fmt(proj.priorBase,1)}</strong><span>2025 baseline</span><em>${proj.priorGames||0} games</em></div></div><div class="data-note">${esc(blend)}${x.teamChanged?' · 2025 weight discounted because team changed.':''}</div></section>
-  </div></details>
- </article>`;
-}
-function leaderReasons(a,b){
- if(!a)return[];
- const ca=a.g.components||{},cb=b?.g?.components||{},labels={projection:'Projection',usage:'Usage',rank:'Workhorse rank',matchup:'Matchup',environment:'Game environment'};
- const out=[];
- for(const k of Object.keys(labels)){if(ca[k]!=null&&cb?.[k]!=null&&ca[k]-cb[k]>=7)out.push(`${labels[k]} edge`)}
- if((a.newsCtx?.adjustment||0)>(b?.newsCtx?.adjustment||0)+1.5)out.push('Better news/availability context');
- if((a.teamCtx?.adjustment||0)>(b?.teamCtx?.adjustment||0)+1.5)out.push('Better team/QB context');
- return out.slice(0,3);
-}
+function statCard(x,i){const g=x.g,p=x.p,proj=g.projection,inj=x.inj||'Active',game=x.game,rank=x.rank?`#${x.rank}`:'—';return `<article class="card ${i===0?'top':''}"><div class="phead"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><h3>${esc(p.full_name)}</h3><small>${esc(p.position)} · ${esc(p.team||'FA')} · ${game?`${game.home?'vs':'@'} ${esc(game.opp)}`:'Opponent unavailable'}</small></div><div class="score ${g.injuryPenalty>=.28?'bad':''}">${g.score??'—'}<span>Decision score</span></div></div><div class="metrics"><div class="metric"><b>${proj.points!=null?proj.points.toFixed(1):'—'}</b><span>WH estimate</span></div><div class="metric"><b>${g.usage.score??'—'}</b><span>Usage</span></div><div class="metric"><b>${rank}</b><span>WH weekly rank</span></div><div class="metric"><b>${x.confidence}%</b><span>Confidence</span></div><div class="metric"><b class="${g.role.direction==='up'?'good':g.role.direction==='down'?'bad':''}">${esc(g.role.label.replace('Major ',''))}</b><span>Role</span></div><div class="metric"><b class="${g.injuryPenalty?'bad':''}">${esc(inj)}</b><span>Status</span></div></div><ul class="reasons">${g.reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>${game?`<div class="game">${game.total?`Game total ${game.total} · `:''}${esc(game.details||'Schedule context available')}</div>`:''}</article>`}
 async function compare(){
- const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Loading every evidence layer…';
+ const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Analyzing…';
  try{
-  await ensureMatchups();
-  const graded=await Promise.all(selected.map(grade));
-  graded.sort((a,b)=>{const ae=a.g?.eligible&&!a.g?.locked,be=b.g?.eligible&&!b.g?.locked;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
-  const valid=graded.filter(x=>x.g?.eligible&&x.g?.score!=null&&!x.g?.locked),a=valid[0],b=valid[1];let hero;
+  const graded=await Promise.all(selected.map(grade));graded.sort((a,b)=>(b.g.score??-1)-(a.g.score??-1));
+  const valid=graded.filter(x=>x.g.score!=null),a=valid[0],b=valid[1];let hero;
   if(!a){
-   hero='<div class="warning">No selected player is currently actionable. Players who are out, on bye, or whose game has started are not used to force a recommendation.</div>';
-  }else if(!b){
-   hero=`<div class="winner"><small>ONLY ACTIONABLE OPTION</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player Workhorse can currently recommend into this slot.</p></div>`;
+   hero='<div class="warning">There is not enough completed 2026 game data to make a trustworthy call yet.</div>';
   }else{
-   const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),why=leaderReasons(a,b),inj=a.inj?` ${a.p.full_name} is currently listed ${a.inj}.`:'';
-   const headline=toss?'No forced pick':`Start ${esc(a.p.full_name)}`;
-   const copy=toss?`The evidence gap is too small to pretend there is a clear answer. ${esc(a.p.full_name)} has the slight model edge right now.`:`${esc(a.p.full_name)} leads the full Workhorse model${why.length?` on ${why.join(', ')}`:''}.`;
-   hero=`<div class="winner"><small>${esc(edge.toUpperCase())}</small><h2>${headline}</h2><p>${copy}${esc(inj)}</p><div class="hero-data"><b>${a.g.projection?.points?.toFixed(1)??'—'} pts</b> · ${a.g.usage?.score??'—'} usage · ${a.mu?.label||'unknown'} matchup · ${a.confidence}% confidence</div></div>`;
+   const edge=edgeLabel(a,b),inj=a.inj?` ${a.p.full_name} is currently listed ${a.inj}.`:'';
+   const headline=edge.startsWith('Toss')?'No forced pick':`Start ${esc(a.p.full_name)}`;
+   const copy=edge.startsWith('Toss')?`The model gap is too small to pretend there is a clear answer. ${esc(a.p.full_name)} currently has the slight edge.`:`${esc(a.p.full_name)} has the strongest combined projection, role, usage and Workhorse-rank profile in this comparison.`;
+   hero=`<div class="winner"><small>${esc(edge.toUpperCase())}</small><h2>${headline}</h2><p>${copy}${esc(inj)}</p></div>`;
   }
   const warnings=[];
-  if(!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rankings are not initialized in this browser, so weekly rank is excluded instead of being replaced with Sleeper ADP.');
-  if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one actionable player has limited evidence coverage; confidence is reduced rather than filled with guessed data.');
-  if(graded.some(x=>x.g?.locked))warnings.push('A selected player’s game has already started. That player is shown for context but excluded from the recommendation.');
-  if(graded.some(x=>x.teamChanged))warnings.push('At least one player changed teams; his 2025 player baseline is automatically discounted.');
-  if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('At least one 2026 defensive matchup sample is only one game; the 2025 opponent baseline carries most of the matchup weight.');
-  if(slot==='SUPERFLEX'&&graded.some(x=>x.p.position==='QB')&&graded.some(x=>x.p.position!=='QB'))warnings.push('Superflex mode compares QBs and skill players directly. Workhorse weekly rank is heavily down-weighted here so a 1QB-style rank list cannot dominate the decision.');
-  document.querySelector('#ss-output').innerHTML=hero+`<div class="cards">${graded.map(statCard).join('')}</div>`+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="data-note" style="margin-top:12px">Model inputs: Workhorse weekly rank · Sleeper 2026 player stats/usage · Sleeper 2025 player baseline · 2025 opponent-vs-position defense · 2026 defense through Week ${Math.max(0,week-1)} · Workhorse news · injury status · teammate/QB context · ESPN schedule and available odds. Missing fields are excluded, not fabricated.</div>`;
-  st.textContent=`Week ${week} · ${format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'} · full model`;
+  if(!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rankings are not initialized in this sandbox yet, so the model excluded weekly rank instead of substituting Sleeper ADP.');
+  if(graded.some(x=>x.confidence<45))warnings.push('At least one player has limited usable 2026 data, so confidence is reduced.');
+  if(slot==='SUPERFLEX'&&graded.some(x=>x.p.position==='QB')&&graded.some(x=>x.p.position!=='QB'))warnings.push('Superflex comparison is enabled; QB and skill-position scoring are intentionally being compared in the same lineup slot.');
+  document.querySelector('#ss-output').innerHTML=hero+`<div class="cards">${graded.map(statCard).join('')}</div>`+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'');
+  st.textContent=`Week ${week} · ${format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'}`;
  }catch(e){
-  console.error(e);document.querySelector('#ss-output').innerHTML='<div class="warning">Workhorse could not complete every required evidence layer. No recommendation was forced.</div>';st.textContent='Unavailable';
+  console.error(e);document.querySelector('#ss-output').innerHTML='<div class="warning">Workhorse could not complete this comparison. No recommendation was forced.</div>';st.textContent='Unavailable';
  }finally{btn.disabled=selected.length<2}
 }
-
 function bind(){document.querySelector('#ss-search').oninput=renderSearch;document.querySelector('#ss-results').onclick=e=>{const b=e.target.closest('[data-add]');if(!b||selected.length>=4)return;selected.push(String(b.dataset.add));document.querySelector('#ss-search').value='';document.querySelector('#ss-results').classList.remove('open');renderPicked()};document.querySelector('#ss-picked').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;selected=selected.filter(x=>x!==String(b.dataset.remove));renderPicked()};document.querySelector('#slot-seg').onclick=e=>{const b=e.target.closest('[data-slot]');if(b)switchSlot(b.dataset.slot)};document.querySelector('#format-seg').onclick=e=>{const b=e.target.closest('[data-format]');if(!b)return;format=b.dataset.format;document.querySelectorAll('[data-format]').forEach(x=>x.classList.toggle('active',x===b))};document.querySelector('#ss-run').onclick=compare;document.addEventListener('click',e=>{if(!e.target.closest('.searchbox'))document.querySelector('#ss-results')?.classList.remove('open')})}
-async function start(){styles();extraStyles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();await Promise.all([loadPool(),loadStatus(),loadGames()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
+async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();await Promise.all([loadPool(),loadStatus(),loadGames()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
 start();
 })();
