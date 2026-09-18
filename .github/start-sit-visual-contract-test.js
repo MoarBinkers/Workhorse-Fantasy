@@ -12,6 +12,8 @@ const must=[
   '#wh-startsit .details-grid{',
   'function renderMatrix(graded)',
   'function renderDetails(graded)',
+  "label:'Player props'",
+  "label:'Last game'",
   'styles();shell();bind();'
 ];
 for(const m of must){if(!s.includes(m))throw new Error('Start/Sit visual contract missing: '+m)}
