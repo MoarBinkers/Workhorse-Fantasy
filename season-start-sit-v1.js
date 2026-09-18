@@ -519,30 +519,57 @@ function matrixRows(graded){
 }
 function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${r.cell(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
 function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
+function matchupDetailRows(prefix,d,pos){
+ if(!d)return [[`${prefix} sample`,'—']];
+ const pts=d.avg?.[matchupPointKey()];
+ const rows=[[`${prefix} ${scoringName()} points allowed / G`,fmt(pts,1)]];
+ if(pos==='QB')rows.push(
+  [`${prefix} pass attempts / G`,fmt(d.avg?.passAtt,1)],
+  [`${prefix} pass yards / G`,fmt(d.avg?.passYds,1)],
+  [`${prefix} pass TD / G`,fmt(d.avg?.passTd,2)],
+  [`${prefix} QB rush yards / G`,fmt(d.avg?.rushYds,1)],
+  [`${prefix} QB rush TD / G`,fmt(d.avg?.rushTd,2)]
+ );
+ else if(pos==='RB')rows.push(
+  [`${prefix} RB carries / G`,fmt(d.avg?.carries,1)],
+  [`${prefix} RB rush yards / G`,fmt(d.avg?.rushYds,1)],
+  [`${prefix} RB rush TD / G`,fmt(d.avg?.rushTd,2)],
+  [`${prefix} RB targets / G`,fmt(d.avg?.targets,1)],
+  [`${prefix} RB receptions / G`,fmt(d.avg?.receptions,1)],
+  [`${prefix} RB rec yards / G`,fmt(d.avg?.recYds,1)],
+  [`${prefix} RB rec TD / G`,fmt(d.avg?.recTd,2)]
+ );
+ else rows.push(
+  [`${prefix} ${pos} targets / G`,fmt(d.avg?.targets,1)],
+  [`${prefix} ${pos} receptions / G`,fmt(d.avg?.receptions,1)],
+  [`${prefix} ${pos} rec yards / G`,fmt(d.avg?.recYds,1)],
+  [`${prefix} ${pos} rec TD / G`,fmt(d.avg?.recTd,2)]
+ );
+ rows.push([`${prefix} completed games`,String(d.games||0)]);
+ if(prefix==='2025'&&d.verifiedPpr&&format==='ppr')rows.push(['2025 PPR source','Externally cross-checked baseline']);
+ return rows
+}
 function detailCard(x){
- const d26=x.mu?.y2026,d25=x.mu?.y2025,r26=matchupRank(d26),r25=matchupRank(d25),st=status.get(String(x.id))||{},lg=x.latestGame||{},lr=x.latestRole||{};
+ const d26=x.mu?.y2026,d25=x.mu?.y2025,st=status.get(String(x.id))||{},lg=x.latestGame||{},lr=x.latestRole||{};
  const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`]];
- let propRows=[];try{propRows=(x.props||[]).map(p=>[propLabel(p.market),`${fmt(p.line,1)} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
- const lastRows=x.p.position==='RB'
-  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['Team rush share',pct(lr.rushShare)],['Team target share',pct(lr.targetShare)],['Red-zone share',pct(lr.rzShare)]]
-  :x.p.position==='WR'||x.p.position==='TE'
-   ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Team target share',pct(lr.targetShare)],['Red-zone share',pct(lr.rzShare)],['Routes',fmt(lg.routes,0)]]
-   :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
- const matchupRows=[
-  ['Opponent',x.game?.opp||'—'],
-  ['2026 matchup rank',r26?`#${r26} (combined pts/yds/TD)`:'—'],
-  [`2026 ${scoringName()} points allowed / G`,d26?fmt(d26.avg?.[matchupPointKey()],1):'—'],
-  [`2026 ${matchupYardLabel(x.p.position)} allowed / G`,d26?fmt(d26.avg?.yards,1):'—'],
-  ['2026 TD allowed / G',d26?fmt(d26.avg?.td,2):'—'],
-  ['2026 sample',d26?.games?`${d26.games} game${d26.games===1?'':'s'}`:'—'],
-  ['2025 matchup rank',r25?`#${r25} (combined pts/yds/TD)`:'—'],
-  [`2025 ${scoringName()} points allowed / G`,d25?fmt(d25.avg?.[matchupPointKey()],1):'—'],
-  [`2025 ${matchupYardLabel(x.p.position)} allowed / G`,d25?fmt(d25.avg?.yards,1):'—'],
-  ['2025 TD allowed / G',d25?fmt(d25.avg?.td,2):'—']
+ let propRows=[];try{propRows=(x.props||[]).map(p=>[p.label||propLabel(p.market),`${fmt(p.line,1)} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
+ const wrEfficiency=[
+  ['Team target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.totalTargets??'—'} team targets`],
+  ['Targets / team pass attempts',lr.targetRate==null?'—':`${pct(lr.targetRate)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'}`],
+  ['Route participation',pct(lr.routeParticipation)],
+  ['Targets per route',pct(lr.targetsPerRoute)],
+  ['Yards per route',lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—'],
+  ['Air yards',fmt(lg.airYds,0)]
  ];
+ const lastRows=x.p.position==='RB'
+  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Team target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.totalTargets??'—'}`],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
+  :x.p.position==='WR'||x.p.position==='TE'
+   ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Routes',fmt(lg.routes,0)],...wrEfficiency,['Red-zone opportunities',fmt(lg.rz,0)]]
+   :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
+ const matchupRows=[['Opponent',x.game?.opp||'—'],...matchupDetailRows('2026',d26,x.p.position),...matchupDetailRows('2025',d25,x.p.position)];
  const gameRows=[['Status',x.inj||'Active'],['Status updated',st.updated_at?new Date(st.updated_at).toLocaleString():'—'],['Game',x.game?`${x.game.home?'vs':'@'} ${x.game.opp}`:(scheduleLoaded?'BYE':'—')],['Game total',x.game?.total?fmt(x.game.total,1):'—'],['Team implied points',x.game?.teamImplied?fmt(x.game.teamImplied,1):'—'],['Spread',Number.isFinite(x.game?.spread)?`${x.game.spread>0?'+':''}${fmt(x.game.spread,1)}`:'—']];
- const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,4);
- return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Current week</h4>${dataRows(projectionRows)}${propRows.length?dataRows(propRows):'<div class="drow"><span>Verified player props</span><b>—</b></div>'}</div><div class="detail-section"><h4>Last game — exact</h4>${dataRows(lastRows)}</div><div class="detail-section"><h4>Matchup — actual allowed stats</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
+ const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,5);
+ return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Current week & betting lines</h4>${dataRows(projectionRows)}${propRows.length?dataRows(propRows):'<div class="drow"><span>Verified player props</span><b>—</b></div>'}</div><div class="detail-section"><h4>Last game — exact usage</h4>${dataRows(lastRows)}</div><div class="detail-section"><h4>Matchup — position allowed stats</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
 }
 function renderDetails(graded){return `<div class="details-grid">${graded.map(detailCard).join('')}</div>`}
 
@@ -585,7 +612,7 @@ async function compare(){
   if(format==='ppr'&&!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rank is not initialized in this browser, so rank is excluded instead of being replaced with Sleeper ADP.');
   if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one eligible player has limited evidence coverage. Confidence is reduced rather than filling missing stats with estimates.');
   if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('At least one 2026 opponent-vs-position sample is only one game; 2025 still carries most of that matchup context.');
-  document.querySelector('#ss-output').innerHTML=callout(a,b)+renderMatrix(graded)+renderDetails(graded)+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Weekly projection: Sleeper current-week projection when supplied. Player props: verified consensus lines stored with source and observation time; lines older than 24 hours are hidden. Matchup: actual opponent-vs-position results. Schedule/game odds: ESPN. News/status: Workhorse feed + Sleeper status. Missing fields are shown as — and are not backfilled with guesses.</div>`;
+  document.querySelector('#ss-output').innerHTML=callout(a,b)+renderMatrix(graded)+renderDetails(graded)+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. WR/TE target share = player targets ÷ all team player targets; target rate = player targets ÷ team pass attempts. Player props are fetched on demand from current BettingPros consensus pages, with the local cache only as fallback. 2026 matchup data is recalculated from raw box scores; 2025 PPR points allowed is externally cross-checked. Schedule/game odds: ESPN. Missing fields stay — instead of being guessed.</div>`;
   st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable`;
  }catch(e){console.error(e);document.querySelector('#ss-output').innerHTML='<div class="warning">Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.</div>';st.textContent='Unavailable'}
  finally{btn.disabled=selected.length<2}
