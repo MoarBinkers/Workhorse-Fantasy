@@ -3,6 +3,10 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
+  "actionable:!out&&!bye",
+  "const valid=graded.filter(x=>x.availability?.actionable)",
+  "player grade failed; using emergency rank grade",
+  "function emergencyGrade(id,reason='')",
   "function calendarWeek(now=Date.now())",
   "/functions/v1/get-nfl-state",
   "weekSource='calendar-fallback'",
@@ -59,4 +63,6 @@ if(propsFn.indexOf('/functions/v1/get-player-props')<0)throw new Error('Live pro
 if(!propsFn.includes('&season=${SEASON}&week=${week}'))throw new Error('Live prop endpoint must be week-scoped');
 if(propsFn.indexOf('/functions/v1/get-player-props')>propsFn.indexOf('/rest/v1/player_prop_lines'))throw new Error('Live prop endpoint must be checked before local cache');
 
+if(s.includes("const valid=graded.filter(x=>x.availability?.actionable&&x.g?.score!=null)"))throw new Error('selected active player may not disappear after grade rejection');
+if(s.includes('Workhorse could not produce a score from the available core data'))throw new Error('score-failure warning returned');
 console.log('PASS: Start/Sit current-week, actionability, data and prop contracts');
