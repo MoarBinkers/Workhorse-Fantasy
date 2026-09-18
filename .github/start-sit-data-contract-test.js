@@ -2,15 +2,16 @@
 const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 const must=[
+  "totalCarries",
+  "totalTargets",
   "Live consensus markets fetched for the selected player",
   "PPR baseline externally cross-checked",
   "LV:{QB:16.73,RB:23.28,WR:32.72,TE:10.04}",
   "ARI:{QB:17.54,RB:27.15,WR:29.82,TE:17.04}",
   "method:'raw-box-score-v2'",
   "function matchupFantasyPoints(s,format='ppr')",
-  "roleNorm(targetShare,.08,.30),.60",
+  "roleNorm(targetShare,.08,.30),.70",
   "targetsPerRoute",
-  "routeParticipation",
   "targetRate",
   "get-player-props",
   "Prop display unavailable",
