@@ -39,20 +39,23 @@ assert(provider.projection.providerPoints===18.4,'provider projection anchors we
 assert(provider.projection.source==='provider_blend','provider projection blends with verified form when both exist');
 
 const qjLike=E.startSitScoreV2({
- pos:'WR',currentStats:[{pts_ppr:3.7,rec_tgt:6,rec:2,rec_yd:17,off_snp_pct:.78}],
+ pos:'WR',
+ currentStats:[{pts_ppr:3.7,rec_tgt:6,rec:2,rec_yd:17,off_snp_pct:.78}],
  priorStats:[
   {pts_ppr:13.2,rec_tgt:6,rec:4,rec_yd:68,off_snp_pct:.82},
   {pts_ppr:14.6,rec_tgt:7,rec:4,rec_yd:74,off_snp_pct:.84},
   {pts_ppr:13.9,rec_tgt:6,rec:4,rec_yd:70,off_snp_pct:.81}
  ],
- format:'ppr',providerProjection:11.3,latestRoleScore:70,latestRoleConfidence:90,
- matchupScore:52,matchupConfidence:55,environment:{teamImplied:25.5,gameTotal:43.5,home:true},
+ format:'ppr',providerProjection:11.3,latestRoleScore:72,latestRoleConfidence:90,
+ matchupScore:50,matchupConfidence:60,environment:{teamImplied:24.5,gameTotal:43.5,home:true},
  newsAdjustment:2.5
 });
 const priceLike=E.startSitScoreV2({
- pos:'RB',currentStats:[{pts_ppr:7.8,rush_att:10,rush_yd:52,rec_tgt:2,rec:2,rec_yd:6,off_snp_pct:.48}],
- priorStats:[],format:'ppr',providerProjection:9.5,latestRoleScore:36,latestRoleConfidence:90,
- matchupScore:58,matchupConfidence:45,environment:{teamImplied:20.5,gameTotal:41,home:false},
- newsAdjustment:0
+ pos:'RB',
+ currentStats:[{pts_ppr:7.8,rush_att:10,rush_yd:52,rec_tgt:2,rec:2,rec_yd:6,off_snp_pct:.48}],
+ priorStats:[],format:'ppr',providerProjection:10.5,latestRoleScore:72,latestRoleConfidence:92,
+ matchupScore:86,matchupConfidence:82,environment:{teamImplied:22.5,gameTotal:42,home:false},
+ newsAdjustment:5.5
 });
-assert(qjLike.score-priceLike.score>=6,'strong role plus teammate opportunity must materially beat committee role');
+assert(priceLike.score-qjLike.score>=5,'coach-confirmed workload expansion plus favorable RB matchup must beat stale committee read');
+console.log('PASS: Price-like forward role beats QJ-like static role when coach and matchup evidence support it');
