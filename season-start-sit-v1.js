@@ -121,14 +121,15 @@ function teamContext(p){
 }
 function confidence(g){return g?.confidence??0}
 
+function textFirst(o,...keys){for(const k of keys)if(o&&o[k]!=null&&String(o[k]).trim()!=='')return String(o[k]);return ''}
 function statRows(data){
  const out=[];
  if(Array.isArray(data)){for(const row of data||[]){const id=String(row?.player_id||row?.player?.player_id||'');if(id)out.push({id,row,stats:row?.stats||row})}}
  else if(data&&typeof data==='object'){for(const [id,row] of Object.entries(data)){if(!id.startsWith('TEAM_'))out.push({id:String(id),row,stats:row?.stats||row})}}
  return out
 }
-function historicalTeam(entry){return normTeam(E.first(entry.row,'team','tm','team_abbr')||entry.row?.player?.team||E.first(entry.stats,'team','tm','team_abbr')||pool.get(entry.id)?.team||status.get(entry.id)?.team)}
-function historicalPos(entry){return String(E.first(entry.row,'position','pos')||entry.row?.player?.position||E.first(entry.stats,'position','pos')||pool.get(entry.id)?.position||status.get(entry.id)?.position||'').toUpperCase()}
+function historicalTeam(entry){return normTeam(textFirst(entry.row,'team','tm','team_abbr')||entry.row?.player?.team||textFirst(entry.stats,'team','tm','team_abbr')||pool.get(entry.id)?.team||status.get(entry.id)?.team)}
+function historicalPos(entry){return String(textFirst(entry.row,'position','pos')||entry.row?.player?.position||textFirst(entry.stats,'position','pos')||pool.get(entry.id)?.position||status.get(entry.id)?.position||'').toUpperCase()}
 async function scheduleFor(season,w){
  const key=`${season}:${w}`;if(scheduleCache.has(key))return scheduleCache.get(key);
  let data=null;
@@ -198,7 +199,7 @@ async function grade(id){
  const p=pool.get(String(id)),current=await history(id),priorPromise=priorHistory(id),newsPromise=loadNewsFor(p);
  const game=games.get(normTeam(p.team))||null,prior=await priorPromise,news=await newsPromise,custom=customMeta(id);
  const inj=injuryText(id),rank=whRank(id),newsCtx=newsContext(news,inj),teamCtx=teamContext(p),mu=matchupFor(p,game);
- const priorTeam=[...prior].reverse().map(s=>normTeam(E.first(s,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
+ const priorTeam=[...prior].reverse().map(s=>normTeam(textFirst(s,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection);
  const rankWeight=slot==='SUPERFLEX'?.04:.14;
  const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,ownerProjection,teamChanged,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:!game,rankWeight});
