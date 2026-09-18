@@ -433,7 +433,7 @@ async function grade(id){
   const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??(recent.games?recent.ppg:null);
   const unavailable=/\b(out|ir|pup|suspended|inactive)\b/i.test(String(inj||''));
   const bye=scheduleLoaded&&!game,locked=!!game?.locked;
-  const emergencyRank=rank??workhorseRank??Number(p.sleeper_rank)||null;
+  const emergencyRank=(rank??workhorseRank??(Number.isFinite(Number(p.sleeper_rank))?Number(p.sleeper_rank):null));
   const fallbackScore=coreFallbackScore({rank:emergencyRank,roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
   g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,rank:rank?Math.round(100*Math.max(0,Math.min(1,1-(rank-1)/120))):null,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · weekly rank, role, recent production and matchup when available']}
  }
@@ -576,7 +576,7 @@ function matchupTone(score){return score==null?'':score>=66?'good':score<=34?'ba
 function matchupRank(d){const a=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(v=>v>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null}
 function scoringName(){return format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'}
 function sourceProjectionName(x){return x.weeklyProjection==null?'—':fmt(x.weeklyProjection,1)}
-function statusTone(x){return x.g?.eligible===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
+function statusTone(x){return x.availability?.actionable===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
 function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
 function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
 
@@ -739,9 +739,9 @@ async function compare(){
   graded.sort((a,b)=>{const ae=!!a.availability?.actionable,be=!!b.availability?.actionable;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
   const valid=graded.filter(x=>x.availability?.actionable&&x.g?.score!=null),a=valid[0],b=valid[1],warnings=[];
   if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified; other verified inputs remain active.');
-  else if(graded.some(x=>x.g?.eligible&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player; that input is excluded for that player.');
+  else if(graded.some(x=>x.availability?.actionable&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player; that input is excluded for that player.');
   if(!scheduleLoaded)warnings.push('Schedule/game-environment data could not be verified; those inputs are excluded.');
-  if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one player has limited evidence coverage; confidence is reduced instead of inventing missing data.');
+  if(graded.some(x=>x.availability?.actionable&&x.confidence<48))warnings.push('At least one player has limited evidence coverage; confidence is reduced instead of inventing missing data.');
   let recommendation='';
   try{recommendation=callout(a,b)}
   catch(e){console.warn('callout render failed',e);recommendation=a?`<div class="call"><small>Core-data recommendation</small><h2>Start ${esc(a.p.full_name)}</h2><p>This fallback uses the verified player data that remained available.</p></div>`:'<div class="warning">No selected player currently has enough core data to rank.</div>'}
