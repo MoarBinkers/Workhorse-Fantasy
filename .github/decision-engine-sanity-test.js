@@ -27,3 +27,9 @@ const prior=[
 const v2=E.startSitScoreV2({pos:'RB',currentStats:rb.slice(-2),priorStats:prior,format:'ppr',weeklyRank:12,matchupScore:58,matchupConfidence:70,environment:{gameTotal:47,teamImplied:24.5,spread:-2,home:true},injuryStatus:''});
 assert(v2.score!==null&&v2.projection.source==='blend','v2 blends current and prior-season evidence');
 assert(v2.components.matchup!==null&&v2.environment.teamImplied===24.5,'v2 carries matchup and game environment');
+
+const qbFallback=E.fantasyPoints({pass_yd:250,pass_td:2,pass_int:1,rush_yd:20},'ppr');
+assert(Math.abs(qbFallback-19)<0.001,'fallback QB scoring matches Sleeper default -1 interception');
+assert(E.injuryPenalty('NA')===1&&E.injuryPenalty('DNR')===1,'inactive Sleeper statuses are treated as unavailable');
+const bye=E.startSitScoreV2({pos:'RB',currentStats:rb.slice(-2),priorStats:prior,format:'ppr',bye:true});
+assert(bye.eligible===false&&bye.score===0,'bye player is not actionable');
