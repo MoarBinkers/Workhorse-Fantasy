@@ -348,9 +348,8 @@ async function latestRoleContext(p,id){
   const rzShare=totalRz>0?rz/totalRz:null;
   const pos=String(p.position||'').toUpperCase(),parts=[];
   if(pos==='WR'||pos==='TE'){
-   if(targetShare!=null)parts.push([roleNorm(targetShare,.08,.30),.60]);
-   if(routeParticipation!=null)parts.push([roleNorm(routeParticipation,.55,.95),.20]);
-   if(snap!=null)parts.push([roleNorm(snap,.45,.90),.15]);
+   if(targetShare!=null)parts.push([roleNorm(targetShare,.08,.30),.70]);
+   if(snap!=null)parts.push([roleNorm(snap,.45,.90),.25]);
    if(rzShare!=null)parts.push([roleNorm(rzShare,0,.35),.05]);
   }else if(pos==='RB'){
    if(rushShare!=null)parts.push([roleNorm(rushShare,.20,.70),.44]);
