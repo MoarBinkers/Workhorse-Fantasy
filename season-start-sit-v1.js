@@ -474,30 +474,51 @@ function sourceProjectionName(x){return x.weeklyProjection==null?'—':fmt(x.wee
 function statusTone(x){return x.g?.eligible===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
 function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
 function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
-function matchupCell(x){const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),total=d?.rankTotal||32,source=x.mu?.y2026?'2026 sample':'2025 baseline';if(x.mu?.score==null)return matrixCell('—','No verified matchup');return matrixCell(`#${r||'—'} / ${total}`,`${x.mu.label} · ${d?fmt(d.avg?.[matchupPointKey()],1):'—'} ${scoringName()} pts allowed/G · ${source}`,matchupTone(x.mu.score))}
+
+function propLabel(m){return ({rushing_yards:'Rush yds',rushing_receiving_yards:'Rush + rec yds',receiving_yards:'Rec yds',receptions:'Receptions',rushing_attempts:'Rush att',touchdown_scored:'Anytime TD'}[m]||String(m||'').replaceAll('_',' '))}
+function propsCell(x){
+ const a=(x.props||[]).slice(0,3);
+ if(!a.length)return matrixCell('No verified line','Nothing fresh in the last 24h');
+ const first=a[0],rest=a.slice(1).map(p=>`${propLabel(p.market)} ${fmt(p.line,1)}`).join(' · ');
+ return matrixCell(`${propLabel(first.market)} ${fmt(first.line,1)}`,rest||`${first.source} · updated ${ago(first.observed_at)}`)
+}
+function latestStatCell(x){
+ const g=x.latestGame||{},p=x.p.position;
+ if(p==='RB')return matrixCell(`${fmt(g.touches,0)} touches`,`${fmt(g.carries,0)} car · ${fmt(g.rushYds,0)} rush yds · ${fmt(g.rec,0)} rec · ${fmt(g.recYds,0)} rec yds`);
+ if(p==='WR'||p==='TE')return matrixCell(`${fmt(g.rec,0)} rec / ${fmt(g.targets,0)} tgt`,`${fmt(g.recYds,0)} rec yds${g.recTd!=null?` · ${fmt(g.recTd,0)} TD`:''}`);
+ if(p==='QB')return matrixCell(`${fmt(g.passYds,0)} pass yds`,`${fmt(g.passAtt,0)} att · ${fmt(g.passTd,0)} pass TD`);
+ return matrixCell('—','No verified last-game line')
+}
+function roleShareCell(x){
+ const r=x.latestRole||{},p=x.p.position;
+ if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`${r.snap==null?'—':pct(r.snap)} snaps${r.targetShare!=null?` · ${pct(r.targetShare)} tgt share`:''}`);
+ if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.snap==null?'—':pct(r.snap)} snaps${r.rzShare!=null?` · ${pct(r.rzShare)} RZ share`:''}`);
+ if(p==='QB')return matrixCell(r.snap==null?'—':pct(r.snap),'snap share');
+ return matrixCell('—','')
+}
+function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds':'rec yds'}
+function matchupCell(x){
+ const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),source=x.mu?.y2026?'2026':'2025';
+ if(!d)return matrixCell('—','No verified matchup sample');
+ const pts=fmt(d.avg?.[matchupPointKey()],1),yds=fmt(d.avg?.yards,1),td=fmt(d.avg?.td,2);
+ return matrixCell(r?`#${r}`:'—',`${pts} ${scoringName()} pts/G · ${yds} ${matchupYardLabel(x.p.position)}/G · ${td} TD/G · ${source}`,matchupTone(x.mu?.score))
+}
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
 function matrixRows(graded){
  const rows=[
-  {label:'Workhorse projection',note:'Weekly estimate after verified context',cell:x=>matrixCell(x.g?.projection?.points==null?'—':fmt(x.g.projection.points,1),x.g?.projection?.floor==null?'':`${fmt(x.g.projection.floor,1)}–${fmt(x.g.projection.ceiling,1)} range`)},
-  {label:'Sleeper projection',note:'Current-week provider projection',cell:x=>matrixCell(sourceProjectionName(x),x.weeklyProjection==null?(projectionsLoaded?'Not supplied':'Projection feed unavailable'):'current week')},
-  {label:`2026 ${scoringName()} / G`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} games`)},
-  {label:'Last 3 fantasy / G',note:'Recent actual production',cell:x=>matrixCell(fmt(x.currentWork?.ppg,1),`${x.currentWork?.games||0} recent games`)},
-  {label:'Expected role',note:'Latest actual role adjusted only by confirmed coach/injury news',cell:x=>matrixCell(x.forwardRoleScore==null?'—':`${x.forwardRoleScore}/100`,x.forwardRoleLabel||'Role data unavailable',x.forwardRoleScore>=65?'good':x.forwardRoleScore<=40?'bad':'neutral')},
-  {label:'Snap share',note:'Recent offensive snaps when supplied',cell:x=>matrixCell(pct(x.currentWork?.snap),'last 3 avg')},
-  {label:'Pass attempts / G',note:'Recent actual attempts',positions:['QB'],cell:x=>matrixCell(fmt(x.currentWork?.passAtt,1),'last 3 avg')},
-  {label:'Carries / G',note:'Recent actual rushing attempts',positions:['QB','RB','WR'],cell:x=>matrixCell(fmt(x.currentWork?.carries,1),'last 3 avg')},
-  {label:'Targets / G',note:'Recent actual targets',positions:['RB','WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.targets,1),'last 3 avg')},
-  {label:'Routes / G',note:'Only when Sleeper supplies routes',positions:['WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.routes,1),'last 3 avg')},
-  {label:'Red-zone looks / G',note:'Carries + targets in red zone when supplied',positions:['RB','WR','TE'],cell:x=>matrixCell(fmt(x.currentWork?.rz,1),'last 3 avg')},
-  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'#1 toughest · #32 easiest',cell:matchupCell},
-  {label:'Game environment',note:'Current line/total when available',cell:gameCell},
-  {label:'Workhorse weekly rank',note:'Your weekly board; never replaced by ADP',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':'not initialized')},
-  {label:'Role trend',note:'Recent verified workload vs prior games',cell:roleCell},
-  {label:'Player status',note:'Current Sleeper / owner status',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?`${Math.round(x.injuryRisk*100)}% model availability penalty`:'',statusTone(x))},
-  {label:'Model confidence',note:'Evidence coverage, not certainty',cell:x=>matrixCell(`${x.confidence||0}%`,x.confidence<50?'limited evidence':'')}
+  {label:'Sleeper projection',note:'Current-week projection from Sleeper',cell:x=>matrixCell(sourceProjectionName(x),x.weeklyProjection==null?(projectionsLoaded?'Not supplied':'Projection feed unavailable'):'this week')},
+  {label:'Player props',note:'Verified consensus lines observed within 24 hours',cell:propsCell},
+  {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} game${x.seasonWork?.games===1?'':'s'}`)},
+  {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
+  {label:'Last-game share',note:'Team opportunity share from the most recent completed game',cell:roleShareCell},
+  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'#1 toughest · higher number = easier',cell:matchupCell},
+  {label:'Game line',note:'Current team spread / total when available',cell:gameCell},
+  {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
+  {label:'Role news',note:'Confirmed coach/injury context only',cell:x=>matrixCell(x.newsCtx?.forwardRoleBoost>0?'Trending up':x.newsCtx?.forwardRoleBoost<0?'Trending down':'No confirmed change',x.newsCtx?.reasons?.[0]||'No verified role-change report',x.newsCtx?.forwardRoleBoost>0?'good':x.newsCtx?.forwardRoleBoost<0?'bad':'')},
+  {label:'Player status',note:'Current availability designation',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?'Availability risk applied':'',statusTone(x))}
  ];
- return rows.filter(r=>{if(r.positions&&!graded.some(x=>r.positions.includes(x.p.position)))return false;const html=graded.map(x=>r.cell(x)).join('');return !/^([\s\S]*>—<[^]*)$/.test(html)||!graded.every(x=>r.cell(x).includes('>—<'))})
+ return rows
 }
 function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${r.cell(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
 function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
