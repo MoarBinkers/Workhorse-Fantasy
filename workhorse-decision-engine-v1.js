@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=3)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=4)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -100,6 +100,7 @@ function startSitScore(input={}){
 function weightedProjection(pos,currentStats,priorStats,format='ppr',opts={}){
  const current=(currentStats||[]).filter(played),prior=(priorStats||[]).filter(played);
  const manual=Number(opts.ownerProjection),hasManual=Number.isFinite(manual)&&manual>=0;
+ const provider=Number(opts.providerProjection),hasProvider=Number.isFinite(provider)&&provider>=0;
  const curVals=current.map(x=>fantasyPoints(x,format)),priorVals=prior.map(x=>fantasyPoints(x,format));
  const currentProj=projection(pos,current,format);
  const priorSeason=priorVals.length?mean(priorVals):null,priorRecent=priorVals.length?mean(priorVals.slice(-6)):null;
@@ -120,15 +121,21 @@ function weightedProjection(pos,currentStats,priorStats,format='ppr',opts={}){
  if(currentBase!=null&&priorBase!=null&&role.direction!=='flat'&&role.key!=='insufficient'){
    currentWeight=Math.min(.94,currentWeight+.06);
  }
- let points;
+ let internal=null;
+ if(currentBase!=null&&priorBase!=null)internal=currentBase*currentWeight+priorBase*(1-currentWeight);
+ else internal=currentBase??priorBase;
+ let points,providerWeight=0;
  if(hasManual)points=manual;
- else if(currentBase!=null&&priorBase!=null)points=currentBase*currentWeight+priorBase*(1-currentWeight);
- else points=currentBase??priorBase;
- if(points==null)return {points:null,floor:null,ceiling:null,confidence:0,currentWeight:0,priorWeight:0,currentGames:curVals.length,priorGames:priorVals.length,source:'none'};
+ else if(hasProvider&&internal!=null){
+   providerWeight=curVals.length>=4?.58:curVals.length>=2?.64:.70;
+   points=provider*providerWeight+internal*(1-providerWeight);
+ }else if(hasProvider){providerWeight=1;points=provider}
+ else points=internal;
+ if(points==null)return {points:null,floor:null,ceiling:null,confidence:0,currentWeight:0,priorWeight:0,currentGames:curVals.length,priorGames:priorVals.length,providerPoints:null,providerWeight:0,source:'none'};
  const values=[...priorVals.slice(-8),...curVals.slice(-6)],sd=stdev(values),spread=Math.max(3,sd||0);
  const floor=Math.max(0,points-Math.max(2.5,spread*.85)),ceiling=points+Math.max(3.5,spread*1.05);
  const currentSupport=Math.min(1,curVals.length/4),priorSupport=Math.min(1,priorVals.length/6);
- let confidence=Math.round(100*clamp(currentSupport*.56+priorSupport*.22+(currentBase!=null?.12:0)+(hasManual?.10:0),0,1));
+ let confidence=Math.round(100*clamp(currentSupport*.42+priorSupport*.14+(currentBase!=null?.10:0)+(hasProvider?.24:0)+(hasManual?.10:0),0,1));
  if(!curVals.length&&priorVals.length)confidence=Math.min(confidence,48);
  if(hasManual)confidence=Math.max(confidence,72);
  return {
@@ -136,7 +143,8 @@ function weightedProjection(pos,currentStats,priorStats,format='ppr',opts={}){
   currentWeight:currentBase!=null&&priorBase!=null?Number(currentWeight.toFixed(2)):(currentBase!=null?1:0),
   priorWeight:currentBase!=null&&priorBase!=null?Number((1-currentWeight).toFixed(2)):(priorBase!=null?1:0),
   currentGames:curVals.length,priorGames:priorVals.length,currentBase,priorBase:priorBase==null?null:Number(priorBase.toFixed(1)),
-  source:hasManual?'owner':currentBase!=null&&priorBase!=null?'blend':currentBase!=null?'current':'prior'
+  providerPoints:hasProvider?Number(provider.toFixed(1)):null,providerWeight:Number(providerWeight.toFixed(2)),internalBase:internal==null?null:Number(internal.toFixed(1)),
+  source:hasManual?'owner':hasProvider&&internal!=null?'provider_blend':hasProvider?'provider':currentBase!=null&&priorBase!=null?'blend':currentBase!=null?'current':'prior'
  };
 }
 
@@ -160,7 +168,7 @@ function startSitScoreV2(input={}){
  if(input.locked)return {score:null,eligible:false,locked:true,reasons:['This player’s game has already started, so the lineup decision is locked.']};
  if(input.bye)return {score:0,eligible:false,bye:true,reasons:['This player does not have a game this week.']};
  const proj=weightedProjection(pos,currentStats,priorStats,format,{
-   ownerProjection:input.ownerProjection,teamChanged:!!input.teamChanged
+   ownerProjection:input.ownerProjection,providerProjection:input.providerProjection,teamChanged:!!input.teamChanged
  });
  const currentPlayed=(currentStats||[]).filter(played),priorPlayed=(priorStats||[]).filter(played);
  let usage=usageScore(pos,currentPlayed);
@@ -177,7 +185,11 @@ function startSitScoreV2(input={}){
  const matchup=Number(input.matchupScore),matchupComponent=Number.isFinite(matchup)?clamp(matchup,0,100):null;
  const env=environmentScore(pos,input.environment||{}),envComponent=env.score;
  const rankWeight=Number.isFinite(Number(input.rankWeight))?Math.max(0,Number(input.rankWeight)):.14;
- let parts=[[projectionComponent,.45],[usage.score,.19],[rankComponent,rankWeight],[matchupComponent,.12],[envComponent,.10]].filter(([v,w])=>v!=null&&w>0);
+ const providerBacked=proj.providerPoints!=null;
+ let parts=providerBacked
+   ?[[projectionComponent,.55],[usage.score,.22],[rankComponent,Math.min(rankWeight,.10)],[matchupComponent,.08],[envComponent,.05]]
+   :[[projectionComponent,.45],[usage.score,.19],[rankComponent,rankWeight],[matchupComponent,.12],[envComponent,.10]];
+ parts=parts.filter(([v,w])=>v!=null&&w>0);
  const weight=parts.reduce((a,x)=>a+x[1],0);
  let score=parts.reduce((a,[v,w])=>a+v*w,0)/Math.max(.01,weight);
  const roleBoost=role.key==='major_up'?6:role.direction==='up'?3:role.key==='major_down'?-6:role.direction==='down'?-3:0;
@@ -195,7 +207,9 @@ function startSitScoreV2(input={}){
  const confidence=Math.round(100*(coverage.length?mean(coverage):0));
  const reasons=[];
  reasons.push(`${proj.points.toFixed(1)} WH estimate (${proj.floor.toFixed(1)}–${proj.ceiling.toFixed(1)} range)`);
- if(proj.source==='blend')reasons.push(`Projection blend: ${Math.round(proj.currentWeight*100)}% 2026 · ${Math.round(proj.priorWeight*100)}% 2025`);
+ if(proj.source==='provider_blend')reasons.push(`Projection anchor: ${Math.round(proj.providerWeight*100)}% Sleeper weekly projection · ${Math.round((1-proj.providerWeight)*100)}% Workhorse form baseline`);
+ else if(proj.source==='provider')reasons.push('Sleeper weekly projection is the available forward-looking baseline');
+ else if(proj.source==='blend')reasons.push(`Form baseline: ${Math.round(proj.currentWeight*100)}% 2026 · ${Math.round(proj.priorWeight*100)}% 2025`);
  else if(proj.source==='prior')reasons.push('Using 2025 as a reduced-confidence baseline because 2026 game data is not available yet');
  else if(proj.source==='owner')reasons.push('Owner projection override is active');
  if(usage.score!=null)reasons.push(`Usage ${usage.score}/100${usageSource==='2025 baseline'?' · 2025 baseline':''}`);
@@ -209,7 +223,7 @@ function startSitScoreV2(input={}){
  return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:3,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:4,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
