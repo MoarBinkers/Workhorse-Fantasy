@@ -712,23 +712,34 @@ function callout(a,b){
 }
 async function compare(){
  const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Checking projections, stats, matchup and news…';
+ let graded=[];
  try{
-  await ensureMatchups();
-  const graded=await Promise.all(selected.map(grade));
+  try{await ensureMatchups()}catch(e){console.warn('matchup preload skipped',e)}
+  const settled=await Promise.allSettled(selected.map(grade));
+  graded=settled.filter(x=>x.status==='fulfilled'&&x.value).map(x=>x.value);
+  for(const x of settled)if(x.status==='rejected')console.warn('player grade failed',x.reason);
   graded.sort((a,b)=>{const ae=!!a.g?.eligible&&!a.g?.locked,be=!!b.g?.eligible&&!b.g?.locked;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
-  const valid=graded.filter(x=>x.g?.eligible&&!x.g?.locked&&x.g?.score!=null),a=valid[0],b=valid[1];
-  const warnings=[];
-  if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified, so Workhorse excluded them instead of substituting another source.');
-  else if(graded.some(x=>x.g?.eligible&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player. That field is excluded for that player.');
-  if(!scheduleLoaded)warnings.push('The current ESPN schedule could not be verified, so opponent, matchup and game-environment inputs were excluded instead of guessed.');
-  if(format==='ppr'&&!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rank is not initialized in this browser, so rank is excluded instead of being replaced with Sleeper ADP.');
-  if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one eligible player has limited evidence coverage. Confidence is reduced rather than filling missing stats with estimates.');
-  if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('At least one 2026 opponent-vs-position sample is only one game; 2025 still carries most of that matchup context.');
-  document.querySelector('#ss-output').innerHTML=callout(a,b)+renderMatrix(graded)+renderDetails(graded)+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. WR/TE target share = player targets ÷ all team player targets; target rate = player targets ÷ team pass attempts. Player props are fetched on demand from current BettingPros consensus pages, with the local cache only as fallback. 2026 matchup data is recalculated from raw box scores; 2025 PPR points allowed is externally cross-checked. Schedule/game odds: ESPN. Missing fields stay — instead of being guessed.</div>`;
+  const valid=graded.filter(x=>x.g?.eligible&&!x.g?.locked&&x.g?.score!=null),a=valid[0],b=valid[1],warnings=[];
+  if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified; other verified inputs remain active.');
+  else if(graded.some(x=>x.g?.eligible&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player; that input is excluded for that player.');
+  if(!scheduleLoaded)warnings.push('Schedule/game-environment data could not be verified; those inputs are excluded.');
+  if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one player has limited evidence coverage; confidence is reduced instead of inventing missing data.');
+  let recommendation='';
+  try{recommendation=callout(a,b)}
+  catch(e){console.warn('callout render failed',e);recommendation=a?`<div class="call"><small>Core-data recommendation</small><h2>Start ${esc(a.p.full_name)}</h2><p>This fallback uses the verified player data that remained available.</p></div>`:'<div class="warning">No selected player currently has enough core data to rank.</div>'}
+  let matrix='';
+  try{matrix=renderMatrix(graded)}catch(e){console.warn('matrix render failed',e);matrix='<div class="warning">Comparison table is temporarily unavailable; the recommendation above is still active.</div>'}
+  let details='';
+  try{details=renderDetails(graded)}catch(e){console.warn('details render failed',e)}
+  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. WR/TE target share = targets ÷ team pass attempts. Routes, route participation, TPRR and YPRR support receiver role. Player props are current-week, source-stamped markets when verified. Matchups show all players at the position combined from completed box scores. Missing optional inputs are excluded instead of guessed.</div>`;
   st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable`;
- }catch(e){console.error(e);document.querySelector('#ss-output').innerHTML='<div class="warning">Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.</div>';st.textContent='Unavailable'}
- finally{btn.disabled=selected.length<2}
+ }catch(e){
+  console.error('Start/Sit core comparison failure',e);
+  document.querySelector('#ss-output').innerHTML=graded.length?renderDetails(graded):'<div class="warning">Core player data could not be graded. Optional feeds no longer block comparisons; re-select the players to retry core data.</div>';
+  st.textContent='Core data unavailable'
+ }finally{btn.disabled=selected.length<2}
 }
+
 function bind(){document.querySelector('#ss-search').oninput=renderSearch;document.querySelector('#ss-results').onclick=e=>{const b=e.target.closest('[data-add]');if(!b||selected.length>=4)return;selected.push(String(b.dataset.add));document.querySelector('#ss-search').value='';document.querySelector('#ss-results').classList.remove('open');renderPicked()};document.querySelector('#ss-picked').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;selected=selected.filter(x=>x!==String(b.dataset.remove));renderPicked()};document.querySelector('#slot-seg').onclick=e=>{const b=e.target.closest('[data-slot]');if(b)switchSlot(b.dataset.slot)};document.querySelector('#format-seg').onclick=e=>{const b=e.target.closest('[data-format]');if(!b)return;format=b.dataset.format;document.querySelectorAll('[data-format]').forEach(x=>x.classList.toggle('active',x===b))};document.querySelector('#ss-run').onclick=compare;document.addEventListener('click',e=>{if(!e.target.closest('.searchbox'))document.querySelector('#ss-results')?.classList.remove('open')})}
 async function start(){styles();shell();bind();const st=document.querySelector('#ss-status');st.textContent='Loading current data…';try{await currentWeek();document.querySelector('#ss-week-pill').textContent=week;await Promise.all([loadPool(),loadStatus(),loadGames(),loadProjections()]);st.textContent=`Week ${week}`;renderPicked()}catch(e){console.error(e);st.textContent='Player data unavailable';document.querySelector('#ss-output').innerHTML='<div class="warning">Current player data could not be loaded. Workhorse will not guess.</div>'}}
 start();
