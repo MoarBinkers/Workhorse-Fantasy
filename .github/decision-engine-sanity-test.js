@@ -2,7 +2,7 @@
 const assert=require('assert');
 require('../workhorse-decision-engine-v1.js');
 const E=global.WorkhorseDecisionEngine;
-assert(E&&E.version===1,'decision engine loads');
+assert(E&&E.version>=2,'decision engine loads');
 const rb=[
  {rush_att:12,rec_tgt:2,rec:2,rush_yd:45,rec_yd:12,pts_ppr:8.7,snap_pct:.48,rush_rz_att:2},
  {rush_att:16,rec_tgt:4,rec:3,rush_yd:72,rec_yd:26,pts_ppr:14.8,snap_pct:.61,rush_rz_att:3},
@@ -18,3 +18,12 @@ const sparse=E.usageScore('WR',[{rec_tgt:8,rec:5,rec_yd:70,pts_ppr:12},{rec_tgt:
 assert(sparse.score!==null&&sparse.confidence<100,'missing routes/snaps reduce confidence instead of being invented');
 const noData=E.startSitScore({pos:'WR',stats:[],format:'ppr'});assert(noData.score===null,'no data does not force a recommendation');
 console.log('PASS: Workhorse decision engine sanity checks');
+
+const prior=[
+ {rush_att:14,rec_tgt:3,rec:2,rush_yd:61,rec_yd:15,pts_ppr:10.6,snap_pct:.55},
+ {rush_att:17,rec_tgt:4,rec:3,rush_yd:78,rec_yd:23,pts_ppr:14.1,snap_pct:.63},
+ {rush_att:18,rec_tgt:4,rec:3,rush_yd:84,rec_yd:29,pts_ppr:15.8,snap_pct:.66}
+];
+const v2=E.startSitScoreV2({pos:'RB',currentStats:rb.slice(-2),priorStats:prior,format:'ppr',weeklyRank:12,matchupScore:58,matchupConfidence:70,environment:{gameTotal:47,teamImplied:24.5,spread:-2,home:true},injuryStatus:''});
+assert(v2.score!==null&&v2.projection.source==='blend','v2 blends current and prior-season evidence');
+assert(v2.components.matchup!==null&&v2.environment.teamImplied===24.5,'v2 carries matchup and game environment');
