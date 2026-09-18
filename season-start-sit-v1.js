@@ -11,10 +11,15 @@ const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.po
 const token=v=>String(v||'').toLowerCase();
 function load(k,f=[]){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(_){return f}}
 function weeklyOrder(){
+ const baseline=[...pool.values()].sort((a,b)=>(Number(a.sleeper_rank)||9999)-(Number(b.sleeper_rank)||9999)).map(p=>String(p.player_id));
  const saved=load(`wh_week_master_v3::${week}`,[]);
- if(Array.isArray(saved)&&saved.length)return {ids:saved.map(String),source:'saved'};
- const ids=[...pool.values()].sort((a,b)=>(Number(a.sleeper_rank)||9999)-(Number(b.sleeper_rank)||9999)).map(p=>String(p.player_id));
- return {ids,source:'default'}
+ if(Array.isArray(saved)&&saved.length){
+  const valid=new Set(baseline),seen=new Set(),ids=[];
+  for(const raw of saved){const id=String(raw);if(valid.has(id)&&!seen.has(id)){seen.add(id);ids.push(id)}}
+  for(const id of baseline)if(!seen.has(id))ids.push(id);
+  return {ids,source:'saved+normalized'}
+ }
+ return {ids:baseline,source:'default'}
 }
 function whRank(id){const a=weeklyOrder().ids,i=a.indexOf(String(id));return i<0?null:i+1}
 async function currentWeek(){if(week)return week;try{const r=await fetch('https://api.sleeper.app/v1/state/nfl',{cache:'no-store'});if(r.ok){const x=await r.json();week=Math.max(1,Math.min(18,Number(x?.week)||1));return week}}catch(_){}return week=1}
@@ -100,7 +105,7 @@ async function loadGames(){
     const total=Number(odds?.overUnder)||0,details=odds?.details||'',spread=parseSpread(details,tm);
     const teamImplied=total&&Number.isFinite(spread)?total/2-spread/2:null;
     const weather=c?.weather?.displayValue||ev?.weather?.displayValue||c?.weather?.conditionId||'';
-    games.set(tm,{opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,locked:state!=='pre',spread,teamImplied,weather:String(weather||'')})
+    const kickoff=ev?.date?Date.parse(ev.date):NaN,locked=state==='in'||state==='post'||(Number.isFinite(kickoff)&&kickoff<Date.now()-300000);games.set(tm,{opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,locked,spread,teamImplied,weather:String(weather||'')})
    }
   }
   scheduleLoaded=games.size>=20;
@@ -396,6 +401,13 @@ function coreFallbackScore({rank,roleScore,recentPpg,matchupScore,newsAdjustment
  score+=Math.max(-7,Math.min(7,Number(newsAdjustment)||0))+Math.max(-7,Math.min(7,Number(contextAdjustment)||0));
  return Math.round(Math.max(0,Math.min(100,score)))
 }
+function explicitAvailability({inj,game}){
+ const text=String(inj||'').toLowerCase();
+ const out=/(^|\b)(out|ir|pup|suspended|inactive)(\b|$)/.test(text);
+ const bye=!!scheduleLoaded&&!game;
+ const locked=!!game?.locked;
+ return {out,bye,locked,actionable:!out&&!bye&&!locked}
+}
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
  let current=[],prior=[],news=[],props=[],latestRole={week:null,score:null,confidence:0,label:'Role data unavailable'};
@@ -405,7 +417,7 @@ async function grade(id){
  try{props=await loadPropsFor(p)}catch(e){console.warn('props unavailable',id,e)}
  try{latestRole=await latestRoleContext(p,id)}catch(e){console.warn('role unavailable',id,e)}
  const game=games.get(normTeam(p.team))||null,custom=customMeta(id);
- const inj=injuryText(id),rank=format==='ppr'?whRank(id):null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p);
+ const inj=injuryText(id),workhorseRank=whRank(id),rank=format==='ppr'?workhorseRank:null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p);
  let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
  try{mu=matchupFor(p,game)}catch(e){console.warn('matchup grade unavailable',id,e)}
  const priorTeam=[...prior].reverse().map(x=>normTeam(textFirst(x,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
@@ -421,10 +433,12 @@ async function grade(id){
   const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??(recent.games?recent.ppg:null);
   const unavailable=/\b(out|ir|pup|suspended|inactive)\b/i.test(String(inj||''));
   const bye=scheduleLoaded&&!game,locked=!!game?.locked;
-  const fallbackScore=coreFallbackScore({rank,roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
+  const emergencyRank=rank??workhorseRank??Number(p.sleeper_rank)||null;
+  const fallbackScore=coreFallbackScore({rank:emergencyRank,roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
   g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,rank:rank?Math.round(100*Math.max(0,Math.min(1,1-(rank-1)/120))):null,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · weekly rank, role, recent production and matchup when available']}
  }
- return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:latestGameStats(p.position,current),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
+ const availability=explicitAvailability({inj,game});
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:latestGameStats(p.position,current),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
 function styles(){
@@ -659,7 +673,7 @@ function safeMatrixCell(row,x){
 }
 function renderMatrix(graded){
  const rows=matrixRows(graded);
- return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · every player gets the same rows</span></div><div class="compare-grid">${graded.map((x,i)=>`<article class="compare-card ${i===0&&x.g?.eligible?'winner-card':''}"><div class="compare-player">${playerHeader(x)}</div><div class="compare-rows">${rows.map(r=>`<div class="compare-row"><div class="compare-label"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></div><div class="compare-value">${safeMatrixCell(r,x)}</div></div>`).join('')}</div></article>`).join('')}</div></section>`
+ return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · every player gets the same rows</span></div><div class="compare-grid">${graded.map((x,i)=>`<article class="compare-card ${i===0&&x.availability?.actionable?'winner-card':''}"><div class="compare-player">${playerHeader(x)}</div><div class="compare-rows">${rows.map(r=>`<div class="compare-row"><div class="compare-label"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></div><div class="compare-value">${safeMatrixCell(r,x)}</div></div>`).join('')}</div></article>`).join('')}</div></section>`
 }
 
 function detailCard(x){
@@ -722,8 +736,8 @@ async function compare(){
   const settled=await Promise.allSettled(selected.map(grade));
   graded=settled.filter(x=>x.status==='fulfilled'&&x.value).map(x=>x.value);
   for(const x of settled)if(x.status==='rejected')console.warn('player grade failed',x.reason);
-  graded.sort((a,b)=>{const ae=!!a.g?.eligible&&!a.g?.locked,be=!!b.g?.eligible&&!b.g?.locked;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
-  const valid=graded.filter(x=>x.g?.eligible&&!x.g?.locked&&x.g?.score!=null),a=valid[0],b=valid[1],warnings=[];
+  graded.sort((a,b)=>{const ae=!!a.availability?.actionable,be=!!b.availability?.actionable;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
+  const valid=graded.filter(x=>x.availability?.actionable&&x.g?.score!=null),a=valid[0],b=valid[1],warnings=[];
   if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified; other verified inputs remain active.');
   else if(graded.some(x=>x.g?.eligible&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player; that input is excluded for that player.');
   if(!scheduleLoaded)warnings.push('Schedule/game-environment data could not be verified; those inputs are excluded.');
