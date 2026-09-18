@@ -3,6 +3,18 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
+  "label:'Routes & efficiency'",
+  "label:'Player props'",
+  "label:'Week projection'",
+  "function seasonPpgCell(x)",
+  "/functions/v1/get-sleeper-week-data?type=projections",
+  "/functions/v1/get-sleeper-week-data?type=stats",
+  "/functions/v1/get-week-games",
+  "function mergeVerifiedGame(p,id,base)",
+  "function mergeVerifiedRole(p,id,base)",
+  "player_week_projection_verified",
+  "player_week_usage_verified",
+  "async function loadVerifiedWeeklyData()",
   "actionable:!out&&!bye",
   "const valid=graded.filter(x=>x.availability?.actionable)",
   "player grade failed; using emergency rank grade",
@@ -30,7 +42,6 @@ const must=[
   "roleNorm(routeParticipation,.55,.95),.20",
   "roleNorm(targetsPerRoute,.08,.28),.12",
   "label:'Target share'",
-  "Targets ÷ team pass attempts",
   "all ${pos}s combined",
   "method:'raw-box-score-v3'",
   "wh_start_sit_matchup_v4::",
@@ -60,8 +71,9 @@ if(/pool\.get|status\.get/.test(hist))throw new Error('Historical matchup attrib
 const propsFn=s.slice(s.indexOf('async function loadPropsFor'),s.indexOf('function textFirst',s.indexOf('async function loadPropsFor')));
 if(propsFn.indexOf('/functions/v1/get-player-props')<0)throw new Error('Live prop endpoint missing');
 if(!propsFn.includes('&season=${SEASON}&week=${week}'))throw new Error('Live prop endpoint must be week-scoped');
-if(propsFn.indexOf('/functions/v1/get-player-props')>propsFn.indexOf('/rest/v1/player_prop_lines'))throw new Error('Live prop endpoint must be checked before local cache');
+if(propsFn.indexOf('/rest/v1/player_prop_lines')>propsFn.indexOf('/functions/v1/get-player-props'))throw new Error('Verified prop cache must be checked before live scraper');
 
 if(!s.includes("const valid=graded.filter(x=>x.availability?.actionable)"))throw new Error('selected active players must survive score/model failures');
 if(s.includes('Workhorse could not produce a score from the available core data'))throw new Error('score-failure warning returned');
+if(s.includes("label:'RB target share'"))throw new Error('mixed-position comparison must not create RB-only blank cells');
 console.log('PASS: Start/Sit current-week, actionability, data and prop contracts');
