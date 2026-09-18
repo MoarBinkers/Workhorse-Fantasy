@@ -154,113 +154,24 @@ async function loadPropsFor(p){
  const k=String(p.player_id);if(propsCache.has(k))return propsCache.get(k);
  let rows=[];
  try{
+  const u=`${SB}/functions/v1/get-player-props?player=${encodeURIComponent(p.full_name||'')}&position=${encodeURIComponent(p.position||'')}`;
+  const r=await fetch(u,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const j=await r.json();if(Array.isArray(j?.props))rows.push(...j.props)}
+ }catch(_){}
+ try{
   const pk=encodeURIComponent(playerKey(p));
-  const r=await fetch(`${SB}/rest/v1/player_prop_lines?select=market,line,over_odds,under_odds,source,source_url,observed_at&season=eq.${SEASON}&week=eq.${week}&player_key=eq.${pk}&order=observed_at.desc&limit=10`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
-  if(r.ok)rows=await r.json()
+  const r=await fetch(`${SB}/rest/v1/player_prop_lines?select=market,line,over_odds,under_odds,source,source_url,observed_at&season=eq.${SEASON}&week=eq.${week}&player_key=eq.${pk}&order=observed_at.desc&limit=20`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const cached=await r.json();if(Array.isArray(cached))rows.push(...cached)}
  }catch(_){}
  const now=Date.now(),seen=new Set(),fresh=[];
  for(const x of rows){
   const age=(now-new Date(x.observed_at||0).getTime())/36e5;
-  if(!Number.isFinite(age)||age>24)continue;
+  if(!Number.isFinite(age)||age>24||!Number.isFinite(Number(x.line)))continue;
   if(seen.has(x.market))continue;
   seen.add(x.market);fresh.push(x)
  }
  propsCache.set(k,fresh);return fresh
 }
-
-function newsContext(items,injury){
- const now=Date.now(),market=[],reasons=[];
- const recent=(items||[]).filter(n=>{
-  const age=(now-new Date(n.published_at||0).getTime())/86400000;
-  return Number.isFinite(age)&&age<=7;
- });
- const direct=recent.find(n=>{
-  const c=Array.isArray(n.categories)?n.categories:[];
-  return !c.includes('indirect')&&!c.includes('trending');
- });
- let directAdjustment=0,directState='neutral';
- if(direct){
-  const text=`${direct.headline||''} ${direct.summary||''} ${direct.fantasy_impact||''}`.toLowerCase();
-  if(/ruled out|will miss|out for|placed on ir|inactive/.test(text)){directAdjustment=-7;directState='out';reasons.push('Latest player report indicates he is not expected to be available.')}
-  else if(/doubtful|unlikely to play|uncertain to play/.test(text)){directAdjustment=-4.5;directState='doubtful';reasons.push('Latest player report adds major availability risk.')}
-  else if(/ready to go|expected to play|will play|full practice|cleared|no injury designation/.test(text)){directAdjustment=1.5;directState='positive';reasons.push('Latest player report is positive for availability.')}
-  else if(/questionable|limited|did not practice|dnp|hamstring|ankle|shoulder|knee|groin|ribs?/.test(text)){directAdjustment=-1.5;directState='questionable';reasons.push('Latest player report adds some health volatility.')}
-  if(/named starter|will start|starting role|starter going forward|clear starter/.test(text)){directAdjustment=Math.min(7,directAdjustment+3);directState='role_up';reasons.push('Latest player report confirms a stronger role.')}
-  if(/earned more reps|more reps moving forward|more playing time|more opportunities|workload (will|should|could) increase|role (will|should|could) expand|increase his workload/.test(text)){directAdjustment=Math.min(7,directAdjustment+4);directState='role_up';reasons.push('Coach-confirmed workload expansion materially raises the expected role.')}
-  if(/deliberate about the reps|deliberately limited|cautious (with|in terms of) (his )?workload/.test(text)&&/not physical|nothing physical|just being a rookie/.test(text)){directAdjustment=Math.min(7,directAdjustment+1.5);directState='role_up';reasons.push('The prior workload cap was developmental, not a physical limitation.')}
-  if(/benched|demoted|backup role|will not start/.test(text)){directAdjustment=Math.max(-7,directAdjustment-4.5);directState='role_down';reasons.push('Latest player report points to a reduced role.')}
- }
- let indirectAdjustment=0,indirectState='neutral',indirect=null;
- for(const n of recent){
-  const cats=Array.isArray(n.categories)?n.categories:[];
-  if(cats.includes('trending')){market.push(n);continue}
-  if(!cats.includes('indirect'))continue;
-  const text=`${n.headline||''} ${n.summary||''} ${n.fantasy_impact||''}`.toLowerCase();
-  let adj=0,state='neutral';
-  if(/ruled out|will miss|out for|placed on ir|inactive/.test(text)){adj=3.5;state='teammate_out'}
-  else if(/doubtful|unlikely to play|uncertain to play|sits out again|did not practice|dnp|missed practice|misses practice|absent from practice/.test(text)){adj=2.5;state='teammate_major_risk'}
-  else if(/questionable|limited|day-to-day|undergoing testing|injury concern/.test(text)){adj=1.25;state='teammate_risk'}
-  else if(/ready to go|expected to play|will play|full practice|cleared|activated|returns to practice/.test(text)){adj=-2;state='teammate_return'}
-  if(adj!==0){indirectAdjustment=adj;indirectState=state;indirect=n;break}
- }
- if(indirectAdjustment>=3)reasons.push('A key teammate is expected to miss time, creating a meaningful opportunity bump.');
- else if(indirectAdjustment>=2)reasons.push('A teammate availability issue creates a real path to more opportunity.');
- else if(indirectAdjustment>0)reasons.push('A teammate health issue modestly improves the opportunity outlook.');
- else if(indirectAdjustment<0)reasons.push('A teammate is returning, which can tighten the available opportunity.');
- const adjustment=Math.max(-7,Math.min(7,directAdjustment+indirectAdjustment));
- const forwardRoleBoost=directState==='role_up'?22:directState==='role_down'?-22:indirectState==='teammate_out'?8:indirectState==='teammate_major_risk'?5:0;
- return {adjustment,reasons:[...new Set(reasons)].slice(0,3),market:market.slice(0,2),direct,directState,directAdjustment,indirectAdjustment,indirectState,indirect,forwardRoleBoost}
-}
-function teamContext(){return {adjustment:0,reasons:[]}}
-function roleNorm(v,lo,hi){return v==null?null:Math.max(0,Math.min(100,(Number(v)-lo)/(hi-lo)*100))}
-async function latestRoleContext(p,id){
- for(let w=Math.max(1,week-1);w>=Math.max(1,week-3);w--){
-  const m=await weekStats(SEASON,w),row=m.get(String(id));
-  if(!row||!E.played(row))continue;
-  const team=normTeam(textFirst(row,'team','tm','team_abbr')||p.team);
-  if(!team)continue;
-  const peers=[...m.entries()].filter(([pid,x])=>normTeam(textFirst(x,'team','tm','team_abbr'))===team&&E.played(x));
-  const totalTargets=peers.reduce((a,[,x])=>a+E.targets(x),0),totalCarries=peers.reduce((a,[pid,x])=>{const pp=String(textFirst(x,'position','pos')||pool.get(String(pid))?.position||status.get(String(pid))?.position||'').toUpperCase();return a+(pp==='RB'?E.carries(x):0)},0),totalRz=peers.reduce((a,[,x])=>a+E.rz(x),0);
-  const snap=E.snapPct(row),targets=E.targets(row),carries=E.carries(row),rz=E.rz(row);
-  const targetShare=totalTargets>0?targets/totalTargets:null,rushShare=totalCarries>0?carries/totalCarries:null,rzShare=totalRz>0?rz/totalRz:null,pos=String(p.position||'').toUpperCase();
-  const parts=[];
-  if(pos==='WR'||pos==='TE'){
-    if(snap!=null)parts.push([roleNorm(snap,.45,.90),.38]);
-    if(targetShare!=null)parts.push([roleNorm(targetShare,.08,.30),.50]);
-    if(rzShare!=null)parts.push([roleNorm(rzShare,0,.35),.12]);
-  }else if(pos==='RB'){
-    if(snap!=null)parts.push([roleNorm(snap,.30,.75),.28]);
-    if(rushShare!=null)parts.push([roleNorm(rushShare,.20,.70),.42]);
-    if(targetShare!=null)parts.push([roleNorm(targetShare,.02,.16),.16]);
-    if(rzShare!=null)parts.push([roleNorm(rzShare,0,.50),.14]);
-  }else if(pos==='QB'){
-    if(snap!=null)parts.push([roleNorm(snap,.70,1),1]);
-  }
-  const wt=parts.reduce((a,x)=>a+x[1],0),score=wt?parts.reduce((a,[v,w])=>a+v*w,0)/wt:null;
-  const confidence=Math.round(Math.min(100,55+(snap!=null?15:0)+(targetShare!=null||rushShare!=null?20:0)+(rzShare!=null?10:0)));
-  const bits=[];
-  if(snap!=null)bits.push(`${Math.round(snap*100)}% snaps`);
-  if(pos==='RB'&&rushShare!=null)bits.push(`${Math.round(rushShare*100)}% RB carry share`);
-  if(['RB','WR','TE'].includes(pos)&&targetShare!=null)bits.push(`${Math.round(targetShare*100)}% target share`);
-  if(rzShare!=null&&totalRz>0)bits.push(`${Math.round(rzShare*100)}% red-zone share`);
-  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,rushShare,rzShare,targets,carries,rz,label:bits.join(' · ')||'Role data unavailable'};
- }
- return {week:null,score:null,confidence:0,snap:null,targetShare:null,rushShare:null,rzShare:null,label:'Role data unavailable'}
-}
-function availabilityRisk(injury,newsCtx){
- const st=String(injury||'').toLowerCase();
- if(/(^|\b)(out|ir|pup|na|dnr|sus|suspended)(\b|$)/.test(st))return 1;
- if(/doubtful/.test(st))return newsCtx?.directState==='positive'?.20:.34;
- if(/questionable/.test(st)){
-  if(newsCtx?.directState==='positive')return .03;
-  if(['doubtful','out'].includes(newsCtx?.directState))return .16;
-  return .08;
- }
- if(/limited|dnp|did not practice/.test(st))return newsCtx?.directState==='positive'?.02:.06;
- return newsCtx?.directState==='doubtful'?.12:newsCtx?.directState==='questionable'?.05:0;
-}
-function confidence(g){return g?.confidence??0}
-
 function textFirst(o,...keys){for(const k of keys)if(o&&o[k]!=null&&String(o[k]).trim()!=='')return String(o[k]);return ''}
 function statRows(data){
  const out=[];
