@@ -421,7 +421,18 @@ function explicitAvailability({inj,game}){
  const out=/(^|\b)(out|ir|pup|suspended|inactive)(\b|$)/.test(text);
  const bye=!!scheduleLoaded&&!game;
  const locked=!!game?.locked;
- return {out,bye,locked,actionable:!out&&!bye&&!locked}
+ return {out,bye,locked,actionable:!out&&!bye}
+}
+function emergencyGrade(id,reason=''){
+ const p=pool.get(String(id));if(!p)return null;
+ const rank=whRank(id)??(Number.isFinite(Number(p.sleeper_rank))?Number(p.sleeper_rank):999);
+ const rankScore=Math.max(1,Math.min(99,Math.round(100*Math.max(0,Math.min(1,1-(Number(rank)-1)/140)))));
+ const inj=injuryText(id),game=games.get(normTeam(p.team))||null;
+ const text=String(inj||'').toLowerCase(),out=/(^|\b)(out|ir|pup|suspended|inactive)(\b|$)/.test(text);
+ const bye=!!scheduleLoaded&&!game;
+ const availability={out,bye,locked:!!game?.locked,actionable:!out&&!bye};
+ const g={score:rankScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{rank:rankScore},projection:{points:null,source:'rank-emergency'},reasons:['Emergency fallback · Workhorse weekly rank only']};
+ return {id:String(id),p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection:null,latestRole:{week:null,score:null,confidence:0,label:'Role data unavailable'},forwardRoleScore:null,forwardRoleLabel:'Role data unavailable',g,availability,confidence:25,game,news:[],props:[],newsCtx:{adjustment:0,reasons:[],forwardRoleBoost:0},teamCtx:{adjustment:0,reasons:[]},mu:{score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null},teamChanged:false,latestGame:null,currentWork:{games:0},seasonWork:{games:0},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
 }
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
@@ -734,7 +745,7 @@ function edgeLabel(a,b){
  return 'Slight edge'
 }
 function callout(a,b){
- if(!a)return '<div class="warning">Workhorse could not produce a score from the available core data. Active players are not marked unavailable unless their status, bye, or game lock is positively confirmed.</div>';
+ if(!a)return '<div class="warning">Every selected player is explicitly unavailable or on bye. Active players are always retained in the comparison.</div>';
  if(!b)return `<div class="call"><small>Only actionable option</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player currently eligible for this lineup slot.</p></div>`;
  const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',role:'Latest role',usage:'Verified usage',rank:'Workhorse rank',matchup:'Matchup',environment:'Game environment'};
  for(const k of Object.keys(labels))if(ca[k]!=null&&cb[k]!=null&&ca[k]-cb[k]>=7)drivers.push(labels[k]);
@@ -749,10 +760,13 @@ async function compare(){
  try{
   try{await ensureMatchups()}catch(e){console.warn('matchup preload skipped',e)}
   const settled=await Promise.allSettled(selected.map(grade));
-  graded=settled.filter(x=>x.status==='fulfilled'&&x.value).map(x=>x.value);
-  for(const x of settled)if(x.status==='rejected')console.warn('player grade failed',x.reason);
+  graded=settled.map((x,i)=>{
+   if(x.status==='fulfilled'&&x.value)return x.value;
+   console.warn('player grade failed; using emergency rank grade',selected[i],x.reason);
+   return emergencyGrade(selected[i],x.reason)
+  }).filter(Boolean);
   graded.sort((a,b)=>{const ae=!!a.availability?.actionable,be=!!b.availability?.actionable;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
-  const valid=graded.filter(x=>x.availability?.actionable&&x.g?.score!=null),a=valid[0],b=valid[1],warnings=[];
+  const valid=graded.filter(x=>x.availability?.actionable),a=valid[0],b=valid[1],warnings=[];
   if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified; other verified inputs remain active.');
   else if(graded.some(x=>x.availability?.actionable&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player; that input is excluded for that player.');
   if(!scheduleLoaded)warnings.push('Schedule/game-environment data could not be verified; those inputs are excluded.');
