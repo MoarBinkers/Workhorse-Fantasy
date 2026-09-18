@@ -35,7 +35,7 @@ const must=[
   "targets,receptions,carries,passAtt,passYds,passTd,rushYds,rushTd,recYds,recTd",
   "method:'raw-box-score-v3'",
   "wh_start_sit_matchup_v4::",
-  "rank=format==='ppr'?whRank(id):null",
+  "workhorseRank=whRank(id)",
   "bye:scheduleLoaded&&!game",
   "x.g?.eligible&&!x.g?.locked",
   "providerProjection:weeklyProjection",
