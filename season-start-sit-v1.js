@@ -144,8 +144,10 @@ function newsContext(items,injury){
   else if(/doubtful|unlikely to play|uncertain to play/.test(text)){directAdjustment=-4.5;directState='doubtful';reasons.push('Latest player report adds major availability risk.')}
   else if(/ready to go|expected to play|will play|full practice|cleared|no injury designation/.test(text)){directAdjustment=1.5;directState='positive';reasons.push('Latest player report is positive for availability.')}
   else if(/questionable|limited|did not practice|dnp|hamstring|ankle|shoulder|knee|groin|ribs?/.test(text)){directAdjustment=-1.5;directState='questionable';reasons.push('Latest player report adds some health volatility.')}
-  if(/named starter|will start|starting role|starter going forward|clear starter/.test(text)){directAdjustment=Math.min(7,directAdjustment+3);reasons.push('Latest player report confirms a stronger role.')}
-  if(/benched|demoted|backup role|will not start/.test(text)){directAdjustment=Math.max(-7,directAdjustment-4.5);reasons.push('Latest player report points to a reduced role.')}
+  if(/named starter|will start|starting role|starter going forward|clear starter/.test(text)){directAdjustment=Math.min(7,directAdjustment+3);directState='role_up';reasons.push('Latest player report confirms a stronger role.')}
+  if(/earned more reps|more reps moving forward|more playing time|more opportunities|workload (will|should|could) increase|role (will|should|could) expand|increase his workload/.test(text)){directAdjustment=Math.min(7,directAdjustment+4);directState='role_up';reasons.push('Coach-confirmed workload expansion materially raises the expected role.')}
+  if(/deliberate about the reps|deliberately limited|cautious (with|in terms of) (his )?workload/.test(text)&&/not physical|nothing physical|just being a rookie/.test(text)){directAdjustment=Math.min(7,directAdjustment+1.5);directState='role_up';reasons.push('The prior workload cap was developmental, not a physical limitation.')}
+  if(/benched|demoted|backup role|will not start/.test(text)){directAdjustment=Math.max(-7,directAdjustment-4.5);directState='role_down';reasons.push('Latest player report points to a reduced role.')}
  }
  let indirectAdjustment=0,indirectState='neutral',indirect=null;
  for(const n of recent){
@@ -165,7 +167,8 @@ function newsContext(items,injury){
  else if(indirectAdjustment>0)reasons.push('A teammate health issue modestly improves the opportunity outlook.');
  else if(indirectAdjustment<0)reasons.push('A teammate is returning, which can tighten the available opportunity.');
  const adjustment=Math.max(-7,Math.min(7,directAdjustment+indirectAdjustment));
- return {adjustment,reasons:[...new Set(reasons)].slice(0,3),market:market.slice(0,2),direct,directState,directAdjustment,indirectAdjustment,indirectState,indirect}
+ const forwardRoleBoost=directState==='role_up'?22:directState==='role_down'?-22:indirectState==='teammate_out'?8:indirectState==='teammate_major_risk'?5:0;
+ return {adjustment,reasons:[...new Set(reasons)].slice(0,3),market:market.slice(0,2),direct,directState,directAdjustment,indirectAdjustment,indirectState,indirect,forwardRoleBoost}
 }
 function teamContext(){return {adjustment:0,reasons:[]}}
 function roleNorm(v,lo,hi){return v==null?null:Math.max(0,Math.min(100,(Number(v)-lo)/(hi-lo)*100))}
@@ -311,8 +314,10 @@ async function grade(id){
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection),weeklyProjection=providerProjection(id);
  const rankWeight=slot==='SUPERFLEX'?.04:.14;
  const injuryRisk=availabilityRisk(inj,newsCtx);
- const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:latestRole.score,latestRoleConfidence:latestRole.confidence,latestRoleLabel:latestRole.label,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight});
- return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
+ const forwardRoleScore=latestRole.score==null?(newsCtx.forwardRoleBoost?Math.max(0,Math.min(100,50+newsCtx.forwardRoleBoost)):null):Math.max(0,Math.min(100,latestRole.score+(newsCtx.forwardRoleBoost||0)));
+ const forwardRoleLabel=newsCtx.forwardRoleBoost?`${latestRole.label||'Latest role'} · coach/news adjustment ${newsCtx.forwardRoleBoost>0?'+':''}${newsCtx.forwardRoleBoost}`:latestRole.label;
+ const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight});
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,newsCtx,teamCtx,mu,teamChanged,currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
 function edgeLabel(a,b){
