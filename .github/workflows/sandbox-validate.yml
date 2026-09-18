@@ -27,10 +27,13 @@ jobs:
 
       - name: Check sandbox JavaScript syntax
         run: |
-          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js season-league-intelligence-v1.js season-league-power-model-v2.js season-league-power-bars-v2.js season-league-card-details-v1.js season-league-power-audit-v1.js sandbox-tools-v1.js .github/power-model-sanity-test.js; do node --check "$f"; done
+          for f in sandbox-guard-v1.js sandbox-admin-v1.js season-home-v1.js season-rankings-v3.js season-rankings-seed-v1.js season-rankings-enhance-v4.js season-rankings-ui-v5.js season-rankings-drag-v1.js season-player-detail-v1.js season-owner-control-v1.js season-insight-v3.js season-card-polish-v1.js season-ros-tiers-v4.js season-ros-change-fix-v1.js season-trade-calculator-v7.js season-trade-ui-polish-v1.js season-league-overview-v1.js season-league-intelligence-v1.js season-league-power-model-v2.js season-league-power-bars-v2.js season-league-card-details-v1.js season-league-power-audit-v1.js sandbox-tools-v1.js workhorse-decision-engine-v1.js season-command-center-v1.js season-start-sit-v1.js season-market-signals-v1.js .github/power-model-sanity-test.js .github/decision-engine-sanity-test.js; do node --check "$f"; done
 
       - name: Check roster power sanity
         run: node .github/power-model-sanity-test.js
+
+      - name: Check decision engine sanity
+        run: node .github/decision-engine-sanity-test.js
 
       - name: Verify current sandbox contracts
         run: |
@@ -65,6 +68,9 @@ jobs:
             'bars widen visible team spread': 'Math.pow(ratio,1.12)' in bars and 'Math.max(12' in bars,
             'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
+            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=1' in page,
+            'start sit and signals routes remain': "v==='start-sit'||v==='signals'" in page and 'season-start-sit-v1.js?v=1' in page and 'season-market-signals-v1.js?v=1' in page,
+            'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text(),
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
           failed=[k for k,v in checks.items() if not v]
