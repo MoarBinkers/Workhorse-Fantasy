@@ -91,7 +91,7 @@ async function loadGames(){
  games.clear();scheduleLoaded=false;
  try{
   const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${SEASON}&seasontype=2&week=${week}`,{cache:'no-store'});if(!r.ok)return;
-  const d=await r.json();scheduleLoaded=true;
+  const d=await r.json();
   for(const ev of d?.events||[]){
    const c=ev?.competitions?.[0],teams=c?.competitors||[],odds=c?.odds?.[0]||{},state=c?.status?.type?.state||'pre';
    for(const a of teams){
@@ -103,6 +103,7 @@ async function loadGames(){
     games.set(tm,{opp,home:a?.homeAway==='home',total,details,date:ev?.date||'',state,locked:state!=='pre',spread,teamImplied,weather:String(weather||'')})
    }
   }
+  scheduleLoaded=games.size>=20;
  }catch(_){}
 }
 async function history(id){
@@ -383,6 +384,18 @@ function latestGameStats(pos,stats){
   touches:carries+rec,routes:E.routes(row),rz:E.rz(row),goal:E.goalLine(row)
  }
 }
+function coreFallbackScore({rank,roleScore,recentPpg,matchupScore,newsAdjustment=0,contextAdjustment=0}){
+ const parts=[];
+ const r=Number(rank);if(Number.isFinite(r)&&r>0)parts.push([100*Math.max(0,Math.min(1,1-(r-1)/120)),.34]);
+ const role=Number(roleScore);if(Number.isFinite(role))parts.push([Math.max(0,Math.min(100,role)),.30]);
+ const ppg=Number(recentPpg);if(Number.isFinite(ppg)&&ppg>=0)parts.push([100*Math.max(0,Math.min(1,(ppg-4)/20)),.26]);
+ const mu=Number(matchupScore);if(Number.isFinite(mu))parts.push([Math.max(0,Math.min(100,mu)),.10]);
+ if(!parts.length)return null;
+ const weight=parts.reduce((a,x)=>a+x[1],0);
+ let score=parts.reduce((a,[v,w])=>a+v*w,0)/weight;
+ score+=Math.max(-7,Math.min(7,Number(newsAdjustment)||0))+Math.max(-7,Math.min(7,Number(contextAdjustment)||0));
+ return Math.round(Math.max(0,Math.min(100,score)))
+}
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
  let current=[],prior=[],news=[],props=[],latestRole={week:null,score:null,confidence:0,label:'Role data unavailable'};
@@ -405,11 +418,11 @@ async function grade(id){
   g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight})
  }catch(e){console.warn('advanced Start/Sit model unavailable',id,e)}
  if(!g||g.score==null){
-  const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??recent.ppg;
+  const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??(recent.games?recent.ppg:null);
   const unavailable=/\b(out|ir|pup|suspended|inactive)\b/i.test(String(inj||''));
   const bye=scheduleLoaded&&!game,locked=!!game?.locked;
-  const fallbackScore=fallbackPts==null?null:Math.max(0,Math.min(100,Math.round(Number(fallbackPts)*4)));
-  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,components:{projection:fallbackScore},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback']}
+  const fallbackScore=coreFallbackScore({rank,roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
+  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,rank:rank?Math.round(100*Math.max(0,Math.min(1,1-(rank-1)/120))):null,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · weekly rank, role, recent production and matchup when available']}
  }
  return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:latestGameStats(p.position,current),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
@@ -692,7 +705,7 @@ function edgeLabel(a,b){
  return 'Slight edge'
 }
 function callout(a,b){
- if(!a)return '<div class="warning">None of the selected players is currently a valid lineup option. Bye, unavailable and already-started players are excluded.</div>';
+ if(!a)return '<div class="warning">Workhorse could not produce a score from the available core data. Active players are not marked unavailable unless their status, bye, or game lock is positively confirmed.</div>';
  if(!b)return `<div class="call"><small>Only actionable option</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player currently eligible for this lineup slot.</p></div>`;
  const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',role:'Latest role',usage:'Verified usage',rank:'Workhorse rank',matchup:'Matchup',environment:'Game environment'};
  for(const k of Object.keys(labels))if(ca[k]!=null&&cb[k]!=null&&ca[k]-cb[k]>=7)drivers.push(labels[k]);
