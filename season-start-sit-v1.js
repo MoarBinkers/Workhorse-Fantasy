@@ -154,7 +154,7 @@ async function loadPropsFor(p){
  const k=String(p.player_id);if(propsCache.has(k))return propsCache.get(k);
  let rows=[];
  try{
-  const u=`${SB}/functions/v1/get-player-props?player=${encodeURIComponent(p.full_name||'')}&position=${encodeURIComponent(p.position||'')}`;
+  const u=`${SB}/functions/v1/get-player-props?player=${encodeURIComponent(p.full_name||'')}&position=${encodeURIComponent(p.position||'')}&season=${SEASON}&week=${week}`;
   const r=await fetch(u,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
   if(r.ok){const j=await r.json();if(Array.isArray(j?.props))rows.push(...j.props)}
  }catch(_){}
@@ -335,21 +335,26 @@ async function latestRoleContext(p,id){
   const peers=[...m.entries()].filter(([pid,x])=>normTeam(textFirst(x,'team','tm','team_abbr'))===team&&E.played(x));
   const totalTargets=peers.reduce((a,[,x])=>a+E.targets(x),0);
   const teamPassAttempts=peers.reduce((a,[,x])=>a+E.num(E.first(x,'pass_att')),0);
+  const teamSacks=peers.reduce((a,[,x])=>a+E.num(E.first(x,'pass_sack','sacks')),0);
+  const teamDropbacks=teamPassAttempts+teamSacks;
   const totalCarries=peers.reduce((a,[pid,x])=>{
    const pp=String(textFirst(x,'position','pos')||pool.get(String(pid))?.position||status.get(String(pid))?.position||'').toUpperCase();
    return a+(pp==='RB'?E.carries(x):0)
   },0);
   const totalRz=peers.reduce((a,[,x])=>a+E.rz(x),0);
   const snap=E.snapPct(row),targets=E.targets(row),carries=E.carries(row),rz=E.rz(row),routes=E.routes(row);
-  const targetShare=totalTargets>0?targets/totalTargets:null;
-  const targetRate=teamPassAttempts>0?targets/teamPassAttempts:null;
+  const targetShare=teamPassAttempts>0?targets/teamPassAttempts:null;
+  const targetDistribution=totalTargets>0?targets/totalTargets:null;
+  const routeParticipation=routes>0&&teamDropbacks>0?Math.min(1,routes/teamDropbacks):null;
   const targetsPerRoute=routes>0?targets/routes:null;
   const rushShare=totalCarries>0?carries/totalCarries:null;
   const rzShare=totalRz>0?rz/totalRz:null;
   const pos=String(p.position||'').toUpperCase(),parts=[];
   if(pos==='WR'||pos==='TE'){
-   if(targetShare!=null)parts.push([roleNorm(targetShare,.08,.30),.70]);
-   if(snap!=null)parts.push([roleNorm(snap,.45,.90),.25]);
+   if(targetShare!=null)parts.push([roleNorm(targetShare,.08,.30),.55]);
+   if(routeParticipation!=null)parts.push([roleNorm(routeParticipation,.55,.95),.20]);
+   if(targetsPerRoute!=null)parts.push([roleNorm(targetsPerRoute,.08,.28),.12]);
+   if(snap!=null)parts.push([roleNorm(snap,.45,.90),.08]);
    if(rzShare!=null)parts.push([roleNorm(rzShare,0,.35),.05]);
   }else if(pos==='RB'){
    if(rushShare!=null)parts.push([roleNorm(rushShare,.20,.70),.44]);
@@ -363,11 +368,11 @@ async function latestRoleContext(p,id){
   const confidence=Math.round(Math.min(100,50+(targetShare!=null||rushShare!=null?30:0)+(routes>0?5:0)+(snap!=null?10:0)+(rzShare!=null?5:0)));
   const bits=[];
   if(pos==='RB'&&rushShare!=null)bits.push(`${Math.round(rushShare*100)}% RB carry share`);
-  if(['RB','WR','TE'].includes(pos)&&targetShare!=null)bits.push(`${Math.round(targetShare*100)}% team-target share`);
+  if(['RB','WR','TE'].includes(pos)&&targetShare!=null)bits.push(`${Math.round(targetShare*100)}% target share`);
   if(snap!=null)bits.push(`${Math.round(snap*100)}% snaps`);
-  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,targetRate,targetsPerRoute,rushShare,rzShare,targets,carries,routes,rz,totalTargets,totalCarries,teamPassAttempts,label:bits.join(' · ')||'Role data unavailable'};
+  return {week:w,score:score==null?null:Math.round(score),confidence,snap,targetShare,targetDistribution,routeParticipation,targetsPerRoute,rushShare,rzShare,targets,carries,routes,rz,totalTargets,totalCarries,teamPassAttempts,teamDropbacks,label:bits.join(' · ')||'Role data unavailable'};
  }
- return {week:null,score:null,confidence:0,snap:null,targetShare:null,targetRate:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,totalCarries:null,teamPassAttempts:null,label:'Role data unavailable'}
+ return {week:null,score:null,confidence:0,snap:null,targetShare:null,targetDistribution:null,routeParticipation:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,totalCarries:null,teamPassAttempts:null,teamDropbacks:null,label:'Role data unavailable'}
 }
 function availabilityRisk(injury,newsCtx){
  const st=String(injury||'').toLowerCase();
@@ -573,19 +578,20 @@ function latestStatCell(x){
 function roleShareCell(x){
  const r=x.latestRole||{},p=x.p.position;
  if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carries · ${r.carries??'—'}/${r.totalCarries??'—'} · ${r.snap==null?'—':pct(r.snap)} snaps`);
- if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.targets??'—'}/${r.totalTargets??'—'} team targets · ${r.snap==null?'—':pct(r.snap)} snaps`);
+ if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.targets??'—'} targets / ${r.teamPassAttempts??'—'} team pass attempts · ${r.snap==null?'—':pct(r.snap)} snaps`);
  if(p==='QB')return matrixCell(r.snap==null?'—':pct(r.snap),'snap share');
  return matrixCell('—','')
 }
-function targetRateCell(x){
+function targetShareCell(x){
  const r=x.latestRole||{};
- return matrixCell(r.targetRate==null?'—':pct(r.targetRate),r.targets!=null&&r.teamPassAttempts!=null?`${r.targets} targets / ${r.teamPassAttempts} team pass attempts`:'')
+ return matrixCell(r.targetShare==null?'—':pct(r.targetShare),r.targets!=null&&r.teamPassAttempts!=null?`${r.targets} targets / ${r.teamPassAttempts} team pass attempts`:'')
 }
 function routeCell(x){
  const r=x.latestRole||{},lg=x.latestGame||{};
  const tprr=r.targetsPerRoute==null?'—':pct(r.targetsPerRoute);
  const yprr=lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—';
- return matrixCell(r.routes??lg.routes??'—',`${tprr} targets/route · ${yprr} yds/route`)
+ const rp=r.routeParticipation==null?'—':pct(r.routeParticipation);
+ return matrixCell(r.routes??lg.routes??'—',`${rp} route participation · ${tprr} TPRR · ${yprr} YPRR`)
 }
 function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds':'rec yds'}
 function matchupLine(d,pos){
@@ -610,9 +616,9 @@ function matrixRows(graded){
   {label:'Player props',note:'Live consensus markets fetched for the selected player',cell:propsCell},
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} game${x.seasonWork?.games===1?'':'s'}`)},
   {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
-  {label:'Primary opportunity share',note:'WR/TE = share of team targets · RB = share of RB carries',cell:roleShareCell},
-  ...(hasReceiver?[{label:'Target rate',note:'Targets divided by team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetRateCell(x):matrixCell('—','')},{label:'Routes & efficiency',note:'Raw routes · targets per route · yards per route',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
-  ...(hasRb?[{label:'RB target share',note:'RB targets divided by all team player targets',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets}/${x.latestRole.totalTargets} team targets`:''):matrixCell('—','')}]:[]),
+  {label:'Primary opportunity',note:'WR/TE = target share · RB = share of RB carries',cell:roleShareCell},
+  ...(hasReceiver?[{label:'Target share',note:'Targets ÷ team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetShareCell(x):matrixCell('—','')},{label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
+  ...(hasRb?[{label:'RB target share',note:'RB targets ÷ team pass attempts',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets}/${x.latestRole.teamPassAttempts} team pass attempts`:''):matrixCell('—','')}]:[]),
   {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + verified 2025 baseline shown separately',cell:matchupCell},
   {label:'Game line',note:'Current team spread / total when available',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
@@ -658,8 +664,9 @@ function detailCard(x){
  const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`]];
  let propRows=[];try{propRows=(x.props||[]).map(p=>[p.label||propLabel(p.market),`${fmt(p.line,1)} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
  const wrEfficiency=[
-  ['Team target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.totalTargets??'—'} team targets`],
-  ['Targets / team pass attempts',lr.targetRate==null?'—':`${pct(lr.targetRate)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'}`],
+  ['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'} team pass attempts`],
+  ['Target distribution',lr.targetDistribution==null?'—':`${pct(lr.targetDistribution)} · ${lr.targets??'—'}/${lr.totalTargets??'—'} recorded player targets`],
+  ['Route participation',pct(lr.routeParticipation)],
   ['Targets per route',pct(lr.targetsPerRoute)],
   ['Yards per route',lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—'],
   ['Air yards',fmt(lg.airYds,0)]
