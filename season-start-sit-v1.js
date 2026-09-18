@@ -225,9 +225,9 @@ async function buildMatchupReference(season,through){
  return built
 }
 async function ensureMatchups(){
- if(!matchupCache[2025])matchupCache[2025]=await buildMatchupReference(2025,18);
  const through=Math.max(0,week-1);
- if(through&&!matchupCache[2026])matchupCache[2026]=await buildMatchupReference(2026,through);
+ try{if(!matchupCache[2025])matchupCache[2025]=await buildMatchupReference(2025,18)}catch(e){console.warn('2025 matchup unavailable',e);matchupCache[2025]=null}
+ try{if(through&&!matchupCache[2026])matchupCache[2026]=await buildMatchupReference(2026,through)}catch(e){console.warn('2026 matchup unavailable',e);matchupCache[2026]=null}
  return matchupCache
 }
 function matchupPointKey(){return format==='half'?'half':format==='standard'?'std':'ppr'}
