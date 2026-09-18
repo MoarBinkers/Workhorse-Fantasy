@@ -10,7 +10,13 @@ const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
 const token=v=>String(v||'').toLowerCase();
 function load(k,f=[]){try{const x=JSON.parse(localStorage.getItem(k)||'null');return x??f}catch(_){return f}}
-function whRank(id){const a=load(`wh_week_master_v3::${week}`,[]);const i=Array.isArray(a)?a.map(String).indexOf(String(id)):-1;return i<0?null:i+1}
+function weeklyOrder(){
+ const saved=load(`wh_week_master_v3::${week}`,[]);
+ if(Array.isArray(saved)&&saved.length)return {ids:saved.map(String),source:'saved'};
+ const ids=[...pool.values()].sort((a,b)=>(Number(a.sleeper_rank)||9999)-(Number(b.sleeper_rank)||9999)).map(p=>String(p.player_id));
+ return {ids,source:'default'}
+}
+function whRank(id){const a=weeklyOrder().ids,i=a.indexOf(String(id));return i<0?null:i+1}
 async function currentWeek(){if(week)return week;try{const r=await fetch('https://api.sleeper.app/v1/state/nfl',{cache:'no-store'});if(r.ok){const x=await r.json();week=Math.max(1,Math.min(18,Number(x?.week)||1));return week}}catch(_){}return week=1}
 function ingest(data){
  const m=new Map();
@@ -465,26 +471,35 @@ function styles(){
 #wh-startsit .compare-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #1b303b}
 #wh-startsit .compare-head h3{margin:0;font-size:15px}
 #wh-startsit .compare-head span{color:#718793;font-size:11px}
-#wh-startsit .matrix-wrap{overflow-x:auto}
-#wh-startsit .matrix{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
-#wh-startsit .matrix th,#wh-startsit .matrix td{border-top:1px solid #182b35;padding:12px 14px;vertical-align:middle}
-#wh-startsit .matrix thead th{border-top:0;background:#0a151d}
-#wh-startsit .matrix th:first-child,#wh-startsit .matrix td:first-child{width:190px;text-align:left}
-#wh-startsit .matrix th:not(:first-child),#wh-startsit .matrix td:not(:first-child){text-align:center}
-#wh-startsit .rowlabel strong{display:block;font-size:12px;color:#dbe5ea}
-#wh-startsit .rowlabel small{display:block;font-size:10px;color:#6f8590;margin-top:3px;line-height:1.35}
-#wh-startsit .playercol{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
-#wh-startsit .playercol img{width:38px;height:38px;border-radius:9px;object-fit:cover;object-position:center top;background:#11222c}
-#wh-startsit .playercol div{text-align:left;min-width:0}
-#wh-startsit .playercol b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#wh-startsit .playercol small{display:block;color:#778d99;font-size:10px;margin-top:2px}
-#wh-startsit .val{font-size:15px;font-weight:900;color:#e8eff2}
-#wh-startsit .sub{display:block;color:#708692;font-size:10px;font-weight:700;margin-top:3px;line-height:1.35}
+#wh-startsit .compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;padding:12px;align-items:start}
+#wh-startsit .compare-card{min-width:0;border:1px solid #1c313d;border-radius:12px;background:#09141c;overflow:hidden}
+#wh-startsit .compare-card.winner-card{border-color:#355c47;box-shadow:inset 0 3px 0 #62c88c}
+#wh-startsit .compare-player{padding:13px;border-bottom:1px solid #1a2e39;background:#0b1720}
+#wh-startsit .playercol{display:grid;grid-template-columns:42px minmax(0,1fr);gap:10px;align-items:center;min-width:0}
+#wh-startsit .playercol img{width:42px;height:42px;border-radius:9px;object-fit:cover;object-position:center top;background:#11222c}
+#wh-startsit .playercol div{min-width:0;text-align:left}
+#wh-startsit .playercol b{display:block;font-size:14px;white-space:normal;overflow-wrap:anywhere}
+#wh-startsit .playercol small{display:block;color:#778d99;font-size:10px;margin-top:3px;white-space:normal;overflow-wrap:anywhere}
+#wh-startsit .compare-rows{display:block}
+#wh-startsit .compare-row{display:grid;grid-template-columns:minmax(112px,38%) minmax(0,62%);gap:12px;align-items:start;padding:11px 13px;border-top:1px solid #152833}
+#wh-startsit .compare-row:first-child{border-top:0}
+#wh-startsit .compare-label{min-width:0}
+#wh-startsit .compare-label strong{display:block;font-size:11px;color:#dbe5ea;line-height:1.3;overflow-wrap:anywhere}
+#wh-startsit .compare-label small{display:block;font-size:9px;color:#6f8590;margin-top:3px;line-height:1.35;overflow-wrap:anywhere}
+#wh-startsit .compare-value{min-width:0;text-align:right;overflow:hidden}
+#wh-startsit .val{display:block;font-size:14px;font-weight:900;color:#e8eff2;white-space:normal;overflow-wrap:anywhere}
+#wh-startsit .sub{display:block;color:#708692;font-size:10px;font-weight:700;margin-top:3px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
 #wh-startsit .good{color:var(--green)!important}
 #wh-startsit .bad{color:var(--red)!important}
 #wh-startsit .neutral{color:var(--gold)!important}
-#wh-startsit .winner-cell{background:#0d1d17}
-#wh-startsit .details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+#wh-startsit .propstack,#wh-startsit .matchstack{display:grid;gap:5px;min-width:0;text-align:right}
+#wh-startsit .propitem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border-bottom:1px solid #172a34;padding:3px 0;font-size:10px;min-width:0}
+#wh-startsit .propitem:last-child{border-bottom:0}
+#wh-startsit .propitem span{color:#8296a1;min-width:0;white-space:normal;overflow-wrap:anywhere}
+#wh-startsit .propitem b{color:#eef4f7;white-space:nowrap}
+#wh-startsit .matchstack b{display:block;font-size:11px;color:#eef4f7;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+#wh-startsit .matchstack small{display:block;color:#748994;font-size:9px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+#wh-startsit .details-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
 #wh-startsit details.player-data{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:0 14px}
 #wh-startsit details.player-data>summary{list-style:none;cursor:pointer;padding:13px 0;font-size:12px;font-weight:900;color:#c2cfd5}
 #wh-startsit details.player-data>summary::-webkit-details-marker{display:none}
@@ -510,8 +525,8 @@ function styles(){
 #wh-startsit .propitem span{color:#8296a1}#wh-startsit .propitem b{color:#eef4f7;white-space:nowrap}
 #wh-startsit .matchstack b{font-size:12px;color:#eef4f7}#wh-startsit .matchstack small{color:#748994;font-size:10px;line-height:1.35}
 #wh-startsit .source-note{margin-top:12px;color:#617884;font-size:10px;line-height:1.5}
-@media(max-width:820px){#wh-startsit .intro{display:block}#wh-startsit .weekpill{display:inline-block;margin-top:14px}#wh-startsit .controls{grid-template-columns:1fr}#wh-startsit .details-grid{grid-template-columns:1fr}}
-@media(max-width:580px){#wh-startsit .shell{width:min(100% - 20px,1180px);padding-top:24px}#wh-startsit .intro h1{font-size:40px}#wh-startsit .searchrow{grid-template-columns:1fr}#wh-startsit .run{width:100%}#wh-startsit .top{padding:13px 12px}#wh-startsit .brand{font-size:19px}#wh-startsit .tag{display:none}}
+@media(max-width:820px){#wh-startsit .intro{display:block}#wh-startsit .weekpill{display:inline-block;margin-top:14px}#wh-startsit .controls{grid-template-columns:1fr}#wh-startsit .compare-grid{grid-template-columns:1fr}#wh-startsit .details-grid{grid-template-columns:1fr}}
+@media(max-width:580px){#wh-startsit .shell{width:calc(100% - 20px);padding-top:24px}#wh-startsit .intro h1{font-size:36px}#wh-startsit .searchrow{grid-template-columns:1fr}#wh-startsit .run{width:100%}#wh-startsit .top{padding:13px 12px}#wh-startsit .brand{font-size:19px}#wh-startsit .tag{display:none}#wh-startsit .compare-grid{padding:8px}#wh-startsit .compare-row{grid-template-columns:1fr;gap:6px}#wh-startsit .compare-value{text-align:left}#wh-startsit .propstack,#wh-startsit .matchstack{text-align:left}}
 </style>`)
 }
 function shell(){
@@ -626,38 +641,14 @@ function matrixRows(graded){
 function safeMatrixCell(row,x){
  try{return row.cell(x)}catch(e){console.warn('Start/Sit cell render failed',row?.label,x?.p?.full_name,e);return matrixCell('—','Data unavailable')}
 }
-function renderMatrix(graded){const rows=matrixRows(graded);return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · projections and model context clearly labeled</span></div><div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${graded.map(x=>`<th>${playerHeader(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td class="rowlabel"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></td>${graded.map((x,i)=>`<td class="${i===0&&x.g?.eligible?'winner-cell':''}">${safeMatrixCell(r,x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
-
-function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
-function matchupDetailRows(prefix,d,pos){
- if(!d)return [[`${prefix} sample`,'—']];
- const pts=d.avg?.[matchupPointKey()];
- const rows=[[`${prefix} all ${pos}s combined ${scoringName()} points / G`,fmt(pts,1)]];
- if(pos==='QB')rows.push(
-  [`${prefix} pass attempts / G`,fmt(d.avg?.passAtt,1)],
-  [`${prefix} pass yards / G`,fmt(d.avg?.passYds,1)],
-  [`${prefix} pass TD / G`,fmt(d.avg?.passTd,2)],
-  [`${prefix} QB rush yards / G`,fmt(d.avg?.rushYds,1)],
-  [`${prefix} QB rush TD / G`,fmt(d.avg?.rushTd,2)]
- );
- else if(pos==='RB')rows.push(
-  [`${prefix} RB carries / G`,fmt(d.avg?.carries,1)],
-  [`${prefix} RB rush yards / G`,fmt(d.avg?.rushYds,1)],
-  [`${prefix} RB rush TD / G`,fmt(d.avg?.rushTd,2)],
-  [`${prefix} RB targets / G`,fmt(d.avg?.targets,1)],
-  [`${prefix} RB receptions / G`,fmt(d.avg?.receptions,1)],
-  [`${prefix} RB rec yards / G`,fmt(d.avg?.recYds,1)],
-  [`${prefix} RB rec TD / G`,fmt(d.avg?.recTd,2)]
- );
- else rows.push(
-  [`${prefix} ${pos} targets / G`,fmt(d.avg?.targets,1)],
-  [`${prefix} ${pos} receptions / G`,fmt(d.avg?.receptions,1)],
-  [`${prefix} ${pos} rec yards / G`,fmt(d.avg?.recYds,1)],
-  [`${prefix} ${pos} rec TD / G`,fmt(d.avg?.recTd,2)]
- );
- rows.push([`${prefix} completed games`,String(d.games||0)]);
- return rows
+function safeMatrixCell(row,x){
+ try{return row.cell(x)}catch(e){console.warn('Start/Sit row render failed',row?.label,x?.p?.full_name,e);return matrixCell('—','Data unavailable')}
 }
+function renderMatrix(graded){
+ const rows=matrixRows(graded);
+ return `<section class="compare-panel"><div class="compare-head"><h3>Head-to-head</h3><span>Actual stats first · every player gets the same rows</span></div><div class="compare-grid">${graded.map((x,i)=>`<article class="compare-card ${i===0&&x.g?.eligible?'winner-card':''}"><div class="compare-player">${playerHeader(x)}</div><div class="compare-rows">${rows.map(r=>`<div class="compare-row"><div class="compare-label"><strong>${esc(r.label)}</strong><small>${esc(r.note)}</small></div><div class="compare-value">${safeMatrixCell(r,x)}</div></div>`).join('')}</div></article>`).join('')}</div></section>`
+}
+
 function detailCard(x){
  const d26=x.mu?.y2026,d25=x.mu?.y2025,st=status.get(String(x.id))||{},lg=x.latestGame||{},lr=x.latestRole||{};
  const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`]];
