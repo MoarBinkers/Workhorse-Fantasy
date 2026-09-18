@@ -4,7 +4,7 @@ if(window.__WH_START_SIT_V1__)return;window.__WH_START_SIT_V1__=true;
 const E=window.WorkhorseDecisionEngine;if(!E){document.body.innerHTML='<div style="padding:40px;color:white">Workhorse decision engine could not load.</div>';return}
 const SB='https://ytfwbvdzhrebupcftmhs.supabase.co',KEY='sb_publishable_5BYaizAtZ_XkjXaVSFPk0w_v2qap-8k',SEASON=2026;
 const qs=new URLSearchParams(location.search);let week=Math.min(18,Math.max(0,Number(qs.get('week')||0)||0)),weekSource=week?'url':'unresolved',format='ppr',slot='FLEX',selected=[];
-const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
+const pool=new Map(),status=new Map(),weeks=new Map(),games=new Map(),projections=new Map(),verifiedUsage=new Map(),verifiedProjections=new Map(),newsCache=new Map(),propsCache=new Map(),teamStatus=new Map(),scheduleCache=new Map(),matchupCache={2025:null,2026:null};let scheduleLoaded=false,projectionsLoaded=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const normTeam=t=>({WSH:'WAS',JAC:'JAX',LA:'LAR'}[String(t||'').toUpperCase()]||String(t||'').toUpperCase());
 const compatible=(p,s=slot)=>s==='SUPERFLEX'?['QB','RB','WR','TE'].includes(p.position):s==='FLEX'?['RB','WR','TE'].includes(p.position):p.position===s;
@@ -82,10 +82,32 @@ async function loadProjections(){
  }
  projectionsLoaded=true;
 }
-function providerProjection(id){
- const row=projections.get(String(id));if(!row)return null;
- const k=format==='ppr'?'pts_ppr':format==='half'?'pts_half_ppr':'pts_std',v=Number(row[k]);
+async function loadVerifiedWeeklyData(){
+ verifiedUsage.clear();verifiedProjections.clear();
+ const usageWeek=Math.max(1,week-1);
+ try{
+  const r=await fetch(`${SB}/rest/v1/player_week_usage_verified?select=*&season=eq.${SEASON}&week=eq.${usageWeek}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const rows=await r.json();for(const x of rows||[])verifiedUsage.set(String(x.player_id),x)}
+ }catch(e){console.warn('verified usage unavailable',e)}
+ try{
+  const r=await fetch(`${SB}/rest/v1/player_week_projection_verified?select=*&season=eq.${SEASON}&week=eq.${week}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+  if(r.ok){const rows=await r.json();for(const x of rows||[])verifiedProjections.set(String(x.player_id),x)}
+ }catch(e){console.warn('verified projections unavailable',e)}
+}
+function verifiedProjectionValue(id){
+ const row=verifiedProjections.get(String(id));if(!row)return null;
+ const key=format==='ppr'?'ppr_points':format==='half'?'half_ppr_points':'standard_points',v=Number(row[key]);
  return Number.isFinite(v)?v:null
+}
+function verifiedProjectionSource(id){
+ const row=verifiedProjections.get(String(id));return row?.source||''
+}
+function verifiedUsageFor(id){return verifiedUsage.get(String(id))||null}
+
+function providerProjection(id){
+ const row=projections.get(String(id)),k=format==='ppr'?'pts_ppr':format==='half'?'pts_half_ppr':'pts_std',v=Number(row?.[k]);
+ if(Number.isFinite(v))return v;
+ return verifiedProjectionValue(id)
 }
 async function loadPool(){
  const r=await fetch(`${SB}/rest/v1/sleeper_adp_current?select=player_id,full_name,position,team,sleeper_rank&format=eq.ppr&order=sleeper_rank.asc&limit=750`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
@@ -602,6 +624,7 @@ function matchupTone(score){return score==null?'':score>=66?'good':score<=34?'ba
 function matchupRank(d){const a=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(v=>v>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null}
 function scoringName(){return format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'}
 function sourceProjectionName(x){return x.weeklyProjection==null?'—':fmt(x.weeklyProjection,1)}
+function projectionSourceText(x){if(x.weeklyProjection==null)return projectionsLoaded?'No verified projection':'Projection feed unavailable';const vp=verifiedProjectionSource(x.id);return vp||'Sleeper current-week projection'}
 function statusTone(x){return x.availability?.actionable===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
 function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
 function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
