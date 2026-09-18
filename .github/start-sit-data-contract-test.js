@@ -3,6 +3,12 @@ const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 
 const must=[
+  "const emergencyRank=(rank??workhorseRank",
+  "source:'saved+normalized'",
+  "function explicitAvailability({inj,game})",
+  "weekSource='calendar-fallback'",
+  "/functions/v1/get-nfl-state",
+  "function calendarWeek(now=Date.now())",
   "scheduleLoaded=games.size>=20",
   "function coreFallbackScore(",
   "2026 matchup unavailable",
@@ -53,4 +59,6 @@ if(propsFn.indexOf('/functions/v1/get-player-props')>propsFn.indexOf('/rest/v1/p
 
 if(s.includes('Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.'))throw new Error('all-or-nothing failure message returned');
 if(s.includes('None of the selected players is currently a valid lineup option'))throw new Error('misleading all-invalid lineup message returned');
+if(s.includes('return week=1'))throw new Error('network failure must not silently become Week 1');
+if(s.includes('const valid=graded.filter(x=>x.g?.eligible'))throw new Error('model eligibility must not control lineup actionability');
 console.log('PASS: Start/Sit data contracts');
