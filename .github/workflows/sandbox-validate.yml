@@ -58,14 +58,14 @@ jobs:
                   return json.loads(r.read().decode())
           qj=get("9754")
           price=get("13286")
-          assert qj["usage"]["target_share_pct"]=="22.2", qj
-          assert qj["usage"]["snap_pct"]=="78.4", qj
+          assert float(qj["usage"]["target_share_pct"])==22.2, qj
+          assert float(qj["usage"]["snap_pct"])==78.4, qj
           assert {p["market"] for p in qj["props"]} >= {"receptions","receiving_yards","anytime_touchdown"}, qj
-          assert price["usage"]["rb_carry_share_pct"]=="45.5", price
+          assert float(price["usage"]["rb_carry_share_pct"])==45.5, price
           assert price["usage"]["touches"]==12, price
           assert {p["market"] for p in price["props"]} >= {"rushing_yards","anytime_touchdown"}, price
-          assert str(qj["projection"]["ppr_points"])=="10.0", qj
-          assert str(price["projection"]["ppr_points"])=="13.2", price
+          assert float(qj["projection"]["ppr_points"])==10.0, qj
+          assert float(price["projection"]["ppr_points"])==13.2, price
           print("PASS: unified Start/Sit payload returns verified usage, projection and props")
           PY
 
