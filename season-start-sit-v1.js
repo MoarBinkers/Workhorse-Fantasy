@@ -296,7 +296,7 @@ function latestGameStats(pos,stats){
   snap:E.snapPct(row),
   passAtt:E.first(row,'pass_att'),passYds:E.first(row,'pass_yd'),passTd:E.first(row,'pass_td'),
   carries,rushYds:E.first(row,'rush_yd'),rushTd:E.first(row,'rush_td'),
-  targets,rec,recYds:E.first(row,'rec_yd'),recTd:E.first(row,'rec_td'),
+  targets,rec,recYds:E.first(row,'rec_yd'),recTd:E.first(row,'rec_td'),airYds:E.first(row,'rec_air_yd','air_yd'),
   touches:carries+rec,routes:E.routes(row),rz:E.rz(row),goal:E.goalLine(row)
  }
 }
@@ -409,6 +409,11 @@ function styles(){
 #wh-startsit .newsline small{display:block;color:#6e8490;font-size:10px;margin-top:3px}
 #wh-startsit .warning{margin-top:12px;border:1px solid #5a492f;border-radius:10px;background:#18140c;padding:11px 12px;color:#d2b980;font-size:11px;line-height:1.5}
 #wh-startsit .empty{margin-top:18px;border:1px dashed #2a4350;border-radius:12px;padding:28px;text-align:center;color:#7d919c;font-size:13px}
+#wh-startsit .propstack,#wh-startsit .matchstack{display:grid;gap:4px;text-align:left}
+#wh-startsit .propitem{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #172a34;padding:2px 0;font-size:11px}
+#wh-startsit .propitem:last-child{border-bottom:0}
+#wh-startsit .propitem span{color:#8296a1}#wh-startsit .propitem b{color:#eef4f7;white-space:nowrap}
+#wh-startsit .matchstack b{font-size:12px;color:#eef4f7}.matchstack small{color:#748994;font-size:10px;line-height:1.35}
 #wh-startsit .source-note{margin-top:12px;color:#617884;font-size:10px;line-height:1.5}
 @media(max-width:820px){#wh-startsit .intro{display:block}#wh-startsit .weekpill{display:inline-block;margin-top:14px}#wh-startsit .controls{grid-template-columns:1fr}#wh-startsit .details-grid{grid-template-columns:1fr}}
 @media(max-width:580px){#wh-startsit .shell{width:min(100% - 20px,1180px);padding-top:24px}#wh-startsit .intro h1{font-size:40px}#wh-startsit .searchrow{grid-template-columns:1fr}#wh-startsit .run{width:100%}#wh-startsit .top{padding:13px 12px}#wh-startsit .brand{font-size:19px}#wh-startsit .tag{display:none}}
@@ -449,10 +454,9 @@ function ago(iso){
 function propLabel(m){return ({rushing_yards:'Rush yds',rushing_receiving_yards:'Rush + rec yds',receiving_yards:'Rec yds',receptions:'Receptions',rushing_attempts:'Rush att',touchdown_scored:'Anytime TD'}[m]||String(m||'').replaceAll('_',' '))}
 function propsCell(x){
  try{
-  const a=(x.props||[]).slice(0,3);
+  const a=(x.props||[]).slice(0,6);
   if(!a.length)return matrixCell('No verified line','Nothing fresh in the last 24h');
-  const first=a[0],rest=a.slice(1).map(p=>`${propLabel(p.market)} ${fmt(p.line,1)}`).join(' · ');
-  return matrixCell(`${propLabel(first.market)} ${fmt(first.line,1)}`,rest||`${first.source||'Verified line'} · updated ${ago(first.observed_at)}`)
+  return `<div class="propstack">${a.map(p=>`<div class="propitem"><span>${esc(p.label||propLabel(p.market))}</span><b>${fmt(p.line,1)}</b></div>`).join('')}<span class="sub">${esc(a[0]?.source||'Verified consensus')} · ${esc(ago(a[0]?.observed_at))}</span></div>`
  }catch(_){return matrixCell('No verified line','Prop display unavailable')}
 }
 function latestStatCell(x){
@@ -464,28 +468,48 @@ function latestStatCell(x){
 }
 function roleShareCell(x){
  const r=x.latestRole||{},p=x.p.position;
- if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carry share · ${r.snap==null?'—':pct(r.snap)} snaps${r.targetShare!=null?` · ${pct(r.targetShare)} target share`:''}`);
- if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.snap==null?'—':pct(r.snap)} snaps${r.rzShare!=null?` · ${pct(r.rzShare)} RZ share`:''}`);
+ if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carries · ${r.carries??'—'}/${r.rushShare!=null&&r.carries!=null?Math.round(r.carries/r.rushShare):'—'} · ${r.snap==null?'—':pct(r.snap)} snaps`);
+ if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.targets??'—'}/${r.totalTargets??'—'} team targets · ${r.snap==null?'—':pct(r.snap)} snaps`);
  if(p==='QB')return matrixCell(r.snap==null?'—':pct(r.snap),'snap share');
  return matrixCell('—','')
 }
+function targetRateCell(x){
+ const r=x.latestRole||{};
+ return matrixCell(r.targetRate==null?'—':pct(r.targetRate),r.targets!=null&&r.teamPassAttempts!=null?`${r.targets} targets / ${r.teamPassAttempts} team pass attempts`:'')
+}
+function routeCell(x){
+ const r=x.latestRole||{},lg=x.latestGame||{};
+ const tprr=r.targetsPerRoute==null?'—':pct(r.targetsPerRoute);
+ const yprr=lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—';
+ return matrixCell(r.routeParticipation==null?'—':pct(r.routeParticipation),`${r.routes??lg.routes??'—'} routes · ${tprr} targets/route · ${yprr} yds/route`)
+}
 function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds':'rec yds'}
+function matchupLine(d,pos){
+ if(!d)return '';
+ const pts=fmt(d.avg?.[matchupPointKey()],1);
+ if(pos==='WR'||pos==='TE')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.targets,1)} tgt/G · ${fmt(d.avg?.receptions,1)} rec/G · ${fmt(d.avg?.recYds,1)} yds/G · ${fmt(d.avg?.recTd,2)} TD/G`;
+ if(pos==='RB')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.carries,1)} car/G · ${fmt(d.avg?.rushYds,1)} rush yds/G · ${fmt(d.avg?.targets,1)} tgt/G · ${fmt(d.avg?.recYds,1)} rec yds/G`;
+ if(pos==='QB')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.passYds,1)} pass yds/G · ${fmt(d.avg?.passTd,2)} pass TD/G · ${fmt(d.avg?.rushYds,1)} rush yds/G`;
+ return `${pts} ${scoringName()} pts/G`
+}
 function matchupCell(x){
- const d=x.mu?.y2026||x.mu?.y2025,source=x.mu?.y2026?'2026':'2025';
- if(!d)return matrixCell('—','No verified matchup sample');
- const pts=fmt(d.avg?.[matchupPointKey()],1),yds=fmt(d.avg?.yards,1),td=fmt(d.avg?.td,2);
- return matrixCell(`${pts} ${scoringName()} pts/G`,`${yds} ${matchupYardLabel(x.p.position)}/G · ${td} TD/G · ${source}`,matchupTone(x.mu?.score))
+ const d26=x.mu?.y2026,d25=x.mu?.y2025;
+ if(!d26&&!d25)return matrixCell('—','No verified matchup sample');
+ return `<div class="matchstack">${d26?`<b>2026: ${esc(matchupLine(d26,x.p.position))}</b><small>${d26.games} completed game${d26.games===1?'':'s'}</small>`:''}${d25?`<b>2025: ${esc(matchupLine(d25,x.p.position))}</b><small>${d25.verifiedPpr&&format==='ppr'?'PPR baseline externally cross-checked':'raw box-score baseline'}</small>`:''}</div>`
 }
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
 function matrixRows(graded){
+ const hasReceiver=graded.some(x=>x.p.position==='WR'||x.p.position==='TE'),hasRb=graded.some(x=>x.p.position==='RB');
  const rows=[
   {label:'Sleeper projection',note:'Current-week projection from Sleeper',cell:x=>matrixCell(sourceProjectionName(x),x.weeklyProjection==null?(projectionsLoaded?'Not supplied':'Projection feed unavailable'):'this week')},
-  {label:'Player props',note:'Verified consensus lines observed within 24 hours',cell:propsCell},
+  {label:'Player props',note:'Live consensus markets fetched for the selected player',cell:propsCell},
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:x=>matrixCell(fmt(x.seasonWork?.ppg,1),`${x.seasonWork?.games||0} game${x.seasonWork?.games===1?'':'s'}`)},
   {label:'Last game',note:'Exact box-score usage, not an average',cell:latestStatCell},
-  {label:'Last-game share',note:'Team opportunity share from the most recent completed game',cell:roleShareCell},
-  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'#1 toughest · higher number = easier',cell:matchupCell},
+  {label:'Primary opportunity share',note:'WR/TE = share of team targets · RB = share of RB carries',cell:roleShareCell},
+  ...(hasReceiver?[{label:'Target rate',note:'Targets divided by team pass attempts',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?targetRateCell(x):matrixCell('—','')},{label:'Route involvement',note:'Route participation · targets/route · yards/route',cell:x=>(x.p.position==='WR'||x.p.position==='TE')?routeCell(x):matrixCell('—','')}]:[]),
+  ...(hasRb?[{label:'RB target share',note:'RB targets divided by all team player targets',cell:x=>x.p.position==='RB'?matrixCell(x.latestRole?.targetShare==null?'—':pct(x.latestRole.targetShare),x.latestRole?.targets!=null?`${x.latestRole.targets}/${x.latestRole.totalTargets} team targets`:''):matrixCell('—','')}]:[]),
+  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + verified 2025 baseline shown separately',cell:matchupCell},
   {label:'Game line',note:'Current team spread / total when available',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
   {label:'Role news',note:'Confirmed coach/injury context only',cell:x=>matrixCell(x.newsCtx?.forwardRoleBoost>0?'Trending up':x.newsCtx?.forwardRoleBoost<0?'Trending down':'No confirmed change',x.newsCtx?.reasons?.[0]||'No verified role-change report',x.newsCtx?.forwardRoleBoost>0?'good':x.newsCtx?.forwardRoleBoost<0?'bad':'')},
