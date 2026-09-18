@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=7)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=8)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -176,7 +176,7 @@ function startSitScoreV2(input={}){
  if(usage.score==null&&priorPlayed.length){usage=usageScore(pos,priorPlayed.slice(-3));usageSource='2025 baseline'}
  const role=roleChange(pos,currentPlayed),rank=Number(input.weeklyRank);
  const rankComponent=Number.isFinite(rank)&&rank>0?100*clamp(1-(rank-1)/120,0,1):null;
- if(proj.points==null)return {score:null,eligible:false,projection:proj,usage,role,reasons:['Not enough current or prior-season data to grade this player safely.']};
+ if(proj.points==null)return {score:null,eligible:true,dataInsufficient:true,projection:proj,usage,role,reasons:['Projection data is incomplete; lineup eligibility is unchanged.']};
  const status=String(input.injuryStatus||'').toLowerCase();
  if(/(^|\b)(out|ir|pup|suspended|suspend|sus|na|dnr)(\b|$)/.test(status)){
    return {score:0,eligible:false,projection:proj,usage,usageSource,role,injuryPenalty:1,reasons:[`Unavailable: ${input.injuryStatus||'Out'}`]};
@@ -234,7 +234,7 @@ function startSitScoreV2(input={}){
  return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:7,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:8,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
