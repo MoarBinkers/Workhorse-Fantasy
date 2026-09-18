@@ -361,6 +361,37 @@ function matchupFor(p,game){
  const confidence=score==null?0:Math.round(Math.min(90,((s25!=null?52:26)+games26*8)*sourceCoverage));
  return {score:score==null?null:Math.round(score),confidence,label:score==null?'Unknown':score>=66?'Favorable':score<=34?'Tough':'Neutral',opp,y2025:d25,y2026:d26,currentWeight:w26}
 }
+function bundleMatchupRow(raw,pos){
+ if(!raw)return null;
+ const ppr=Number(raw.ppr_allowed_per_game),few=Number(raw.rank_fewest_allowed),most=Number(raw.rank_most_allowed||raw.league_rank);
+ if(!Number.isFinite(ppr)&&!Number.isFinite(few)&&!Number.isFinite(most))return null;
+ const leastRank=Number.isFinite(few)?few:(Number.isFinite(most)?33-most:null);
+ const rushYds=Number(raw.rush_yards_allowed_per_game),recYds=Number(raw.receiving_yards_allowed_per_game),passYds=Number(raw.pass_yards_allowed_per_game);
+ return {
+  games:Number(raw.games)||0,
+  avg:{
+   ppr:Number.isFinite(ppr)?ppr:null,half:null,std:null,
+   targets:Number.isFinite(Number(raw.targets_allowed_per_game))?Number(raw.targets_allowed_per_game):null,
+   receptions:Number.isFinite(Number(raw.receptions_allowed_per_game))?Number(raw.receptions_allowed_per_game):null,
+   carries:Number.isFinite(Number(raw.rush_attempts_allowed_per_game))?Number(raw.rush_attempts_allowed_per_game):null,
+   rushYds:Number.isFinite(rushYds)?rushYds:null,recYds:Number.isFinite(recYds)?recYds:null,passYds:Number.isFinite(passYds)?passYds:null,
+   passTd:Number.isFinite(Number(raw.pass_tds_allowed_per_game))?Number(raw.pass_tds_allowed_per_game):null,
+   td:null,yards:pos==='RB'?(Number.isFinite(rushYds)?rushYds:null):pos==='QB'?(Number.isFinite(passYds)?passYds:null):(Number.isFinite(recYds)?recYds:null)
+  },
+  ranks:{ppr:leastRank},rankTotal:32,verifiedPpr:true,backend:true,source:raw.source||'Workhorse matchup data',display:raw.display||'',sample_note:raw.sample_note||''
+ }
+}
+function matchupFromBundle(bundle,p,game){
+ if(format!=='ppr'||!bundle)return null;
+ const r26=bundle.matchup_2026||bundle.matchup2026||bundle.matchup?.current_2026||bundle.matchup?.current_season||null;
+ const r25=bundle.matchup_2025||bundle.matchup2025||bundle.matchup?.previous_2025||bundle.matchup?.previous_season||null;
+ const d26=bundleMatchupRow(r26,p.position),d25=bundleMatchupRow(r25,p.position);
+ if(!d26&&!d25)return null;
+ const s25=rankScore(d25),s26=rankScore(d26),games26=Number(r26?.games||d26?.games)||0;
+ const w26=games26>=5?.70:games26===4?.60:games26===3?.50:games26===2?.40:games26===1?.25:0;
+ let score=null;if(s25!=null&&s26!=null)score=s25*(1-w26)+s26*w26;else score=s26??s25;
+ return {score:score==null?null:Math.round(score),confidence:score==null?0:Math.min(92,Math.round((s25!=null?58:30)+games26*7)),label:score==null?'Unknown':score>=66?'Favorable':score<=34?'Tough':'Neutral',opp:r26?.opponent||r25?.opponent||game?.opp||null,y2025:d25,y2026:d26,currentWeight:w26,backend:true,raw2025:r25,raw2026:r26}
+}
 function newsContext(items,injury){
  const now=Date.now(),market=[],reasons=[];
  const recent=(items||[]).filter(n=>{
@@ -610,8 +641,16 @@ async function grade(id){
  latestRole=mergeVerifiedRole(p,id,latestRole)
  const game=games.get(normTeam(p.team))||null,custom=customMeta(id);
  const inj=injuryText(id),workhorseRank=whRank(id),rank=format==='ppr'?workhorseRank:null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p);
+ const bundleRoleChange=bundle?.role_change||bundle?.roleChange||bundle?.role_signal||null;
+ if(bundleRoleChange){
+  const dir=String(bundleRoleChange.direction||'').toLowerCase(),boost=dir==='up'?22:dir==='down'?-22:0;
+  if(boost&&Math.abs(Number(newsCtx.forwardRoleBoost)||0)<Math.abs(boost))newsCtx.forwardRoleBoost=boost;
+  if(boost)newsCtx.directState=dir==='up'?'role_up':'role_down';
+  const reason=bundleRoleChange.detail||bundleRoleChange.fantasy_impact||bundleRoleChange.headline;
+  if(reason)newsCtx.reasons=[reason,...(newsCtx.reasons||[]).filter(x=>x!==reason)].slice(0,3);
+ }
  let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
- try{mu=matchupFor(p,game)}catch(e){console.warn('matchup grade unavailable',id,e)}
+ try{mu=matchupFromBundle(bundle,p,game)||matchupFor(p,game)}catch(e){console.warn('matchup grade unavailable',id,e)}
  const priorTeam=[...prior].reverse().map(x=>normTeam(textFirst(x,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection),weeklyProjection=providerProjection(id);
  const rankWeight=slot==='SUPERFLEX'?.04:.14,injuryRisk=availabilityRisk(inj,newsCtx);
@@ -630,7 +669,7 @@ async function grade(id){
   g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,rank:rank?Math.round(100*Math.max(0,Math.min(1,1-(rank-1)/120))):null,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · weekly rank, role, recent production and matchup when available']}
  }
  const availability=explicitAvailability({inj,game});
- return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:mergeVerifiedGame(p,id,latestGameStats(p.position,current)),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,bundleRoleChange,teamCtx,mu,teamChanged,latestGame:mergeVerifiedGame(p,id,latestGameStats(p.position,current)),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
 function styles(){
