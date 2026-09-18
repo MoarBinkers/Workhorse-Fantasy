@@ -2,6 +2,10 @@
 const fs=require('fs');
 const s=fs.readFileSync('season-start-sit-v1.js','utf8');
 const must=[
+  "label:'Route involvement'",
+  "label:'Target rate'",
+  "#wh-startsit .matchstack{",
+  "#wh-startsit .propstack{",
   'id="wh-startsit"',
   '<style id="wh-startsit-css">',
   '#wh-startsit .setup{',
@@ -25,4 +29,5 @@ if(!css)throw new Error('Scoped Start/Sit stylesheet missing');
 for(const selector of ['.top{','.shell{','.intro{','.setup{','.matrix{','.details-grid{']){
  if(!css.includes('#wh-startsit '+selector))throw new Error('Critical selector is not Start/Sit scoped: '+selector);
 }
+if(s.includes('}.matchstack small{'))throw new Error('unscoped matchstack selector');
 console.log('PASS: Start/Sit visual contract');
