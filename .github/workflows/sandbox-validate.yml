@@ -74,9 +74,9 @@ jobs:
             'bars widen visible team spread': 'Math.pow(ratio,1.12)' in bars and 'Math.max(12' in bars,
             'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
-            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=4' in page,
-            'start sit and signals routes remain': "v==='start-sit'||v==='signals'" in page and 'season-start-sit-v1.js?v=7' in page and 'season-market-signals-v1.js?v=1' in page,
-            'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=4' in Path('season-rankings-seed-v1.js').read_text(),
+            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=5' in page,
+            'start sit and signals routes remain': "v==='start-sit'||v==='signals'" in page and 'season-start-sit-v1.js?v=8' in page and 'season-market-signals-v1.js?v=1' in page,
+            'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=5' in Path('season-rankings-seed-v1.js').read_text(),
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
           failed=[k for k,v in checks.items() if not v]
