@@ -485,10 +485,12 @@ function ago(iso){
 }
 function propLabel(m){return ({rushing_yards:'Rush yds',rushing_receiving_yards:'Rush + rec yds',receiving_yards:'Rec yds',receptions:'Receptions',rushing_attempts:'Rush att',touchdown_scored:'Anytime TD'}[m]||String(m||'').replaceAll('_',' '))}
 function propsCell(x){
- const a=(x.props||[]).slice(0,3);
- if(!a.length)return matrixCell('No verified line','Nothing fresh in the last 24h');
- const first=a[0],rest=a.slice(1).map(p=>`${propLabel(p.market)} ${fmt(p.line,1)}`).join(' · ');
- return matrixCell(`${propLabel(first.market)} ${fmt(first.line,1)}`,rest||`${first.source} · updated ${ago(first.observed_at)}`)
+ try{
+  const a=(x.props||[]).slice(0,3);
+  if(!a.length)return matrixCell('No verified line','Nothing fresh in the last 24h');
+  const first=a[0],rest=a.slice(1).map(p=>`${propLabel(p.market)} ${fmt(p.line,1)}`).join(' · ');
+  return matrixCell(`${propLabel(first.market)} ${fmt(first.line,1)}`,rest||`${first.source||'Verified line'} · updated ${ago(first.observed_at)}`)
+ }catch(_){return matrixCell('No verified line','Prop display unavailable')}
 }
 function latestStatCell(x){
  const g=x.latestGame||{},p=x.p.position;
@@ -533,7 +535,7 @@ function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=
 function detailCard(x){
  const d26=x.mu?.y2026,d25=x.mu?.y2025,r26=matchupRank(d26),r25=matchupRank(d25),st=status.get(String(x.id))||{},lg=x.latestGame||{},lr=x.latestRole||{};
  const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`]];
- const propRows=(x.props||[]).map(p=>[propLabel(p.market),`${fmt(p.line,1)} · ${p.source} · ${ago(p.observed_at)}`]);
+ let propRows=[];try{propRows=(x.props||[]).map(p=>[propLabel(p.market),`${fmt(p.line,1)} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
  const lastRows=x.p.position==='RB'
   ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['Team rush share',pct(lr.rushShare)],['Team target share',pct(lr.targetShare)],['Red-zone share',pct(lr.rzShare)]]
   :x.p.position==='WR'||x.p.position==='TE'
