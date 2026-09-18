@@ -529,12 +529,22 @@ function ago(iso){
  const hrs=Math.floor(mins/60);if(hrs<24)return `${hrs}h ago`;
  return `${Math.floor(hrs/24)}d ago`
 }
-function propLabel(m){return ({rushing_yards:'Rush yds',rushing_receiving_yards:'Rush + rec yds',receiving_yards:'Rec yds',receptions:'Receptions',rushing_attempts:'Rush att',touchdown_scored:'Anytime TD'}[m]||String(m||'').replaceAll('_',' '))}
+function propLabel(m){return ({rushing_yards:'Rush yds',rushing_receiving_yards:'Rush + rec yds',receiving_yards:'Rec yds',receptions:'Receptions',rushing_attempts:'Rush att',passing_yards:'Pass yds',passing_touchdowns:'Pass TDs',anytime_touchdown:'Anytime TD',touchdown_scored:'Anytime TD'}[m]||String(m||'').replaceAll('_',' '))}
+function odd(v){const n=Number(v);return Number.isFinite(n)?`${n>0?'+':''}${n}`:''}
+function propValue(p){
+ if(p?.market==='anytime_touchdown'||p?.market==='touchdown_scored')return odd(p.over_odds)||'Line posted';
+ return fmt(p?.line,1)
+}
+function propOdds(p){
+ if(p?.market==='anytime_touchdown'||p?.market==='touchdown_scored')return '';
+ const o=odd(p?.over_odds),u=odd(p?.under_odds);
+ return o||u?[o?`O ${o}`:'',u?`U ${u}`:''].filter(Boolean).join(' / '):''
+}
 function propsCell(x){
  try{
-  const a=(x.props||[]).slice(0,6);
-  if(!a.length)return matrixCell('No verified line','Nothing fresh in the last 24h');
-  return `<div class="propstack">${a.map(p=>`<div class="propitem"><span>${esc(p.label||propLabel(p.market))}</span><b>${fmt(p.line,1)}</b></div>`).join('')}<span class="sub">${esc(a[0]?.source||'Verified consensus')} · ${esc(ago(a[0]?.observed_at))}</span></div>`
+  const a=(x.props||[]).slice(0,8);
+  if(!a.length)return matrixCell('No verified line','No current-week market returned');
+  return `<div class="propstack">${a.map(p=>`<div class="propitem"><span>${esc(p.label||propLabel(p.market))}</span><b>${esc(propValue(p))}</b>${propOdds(p)?`<small>${esc(propOdds(p))}</small>`:''}</div>`).join('')}<span class="sub">${esc(a[0]?.source||'Verified market')} · ${esc(ago(a[0]?.observed_at))}</span></div>`
  }catch(_){return matrixCell('No verified line','Prop display unavailable')}
 }
 function latestStatCell(x){
@@ -630,7 +640,7 @@ function matchupDetailRows(prefix,d,pos){
 function detailCard(x){
  const d26=x.mu?.y2026,d25=x.mu?.y2025,st=status.get(String(x.id))||{},lg=x.latestGame||{},lr=x.latestRole||{};
  const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`]];
- let propRows=[];try{propRows=(x.props||[]).map(p=>[p.label||propLabel(p.market),`${fmt(p.line,1)} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
+ let propRows=[];try{propRows=(x.props||[]).map(p=>[p.label||propLabel(p.market),`${propValue(p)}${propOdds(p)?` · ${propOdds(p)}`:''} · ${p.source||'Verified line'} · ${ago(p.observed_at)}`])}catch(_){propRows=[]}
  const wrEfficiency=[
   ['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamPassAttempts??'—'} team pass attempts`],
   ['Target distribution',lr.targetDistribution==null?'—':`${pct(lr.targetDistribution)} · ${lr.targets??'—'}/${lr.totalTargets??'—'} recorded player targets`],
