@@ -165,17 +165,7 @@ function newsContext(items,injury){
  const adjustment=Math.max(-7,Math.min(7,directAdjustment+indirectAdjustment));
  return {adjustment,reasons:[...new Set(reasons)].slice(0,3),market:market.slice(0,2),direct,directState,directAdjustment,indirectAdjustment}
 }
-function teamContext(p){
- const rows=(teamStatus.get(normTeam(p.team))||[]).slice(),reasons=[];let adjustment=0;
- if(p.position!=='QB'){
-  const qbs=rows.filter(x=>x.position==='QB').sort((a,b)=>(Number(a.search_rank)||9999)-(Number(b.search_rank)||9999));
-  const qb=qbs[0],st=String(qb?.injury_status||qb?.status||'').toLowerCase();
-  if(qb&&/(^|\b)(out|ir|pup|na|dnr|sus|suspended)(\b|$)/.test(st)){adjustment-=3;reasons.push(`${qb.full_name||'Top-listed team QB'} is currently unavailable, which lowers offensive stability.`)}
-  else if(qb&&/doubtful/.test(st)){adjustment-=2;reasons.push(`${qb.full_name||'Top-listed team QB'} is doubtful.`)}
-  else if(qb&&/questionable|limited|dnp/.test(st)){adjustment-=1;reasons.push(`${qb.full_name||'Top-listed team QB'} carries an injury designation.`)}
- }
- return {adjustment:Math.max(-4,Math.min(2,adjustment)),reasons}
-}
+function teamContext(){return {adjustment:0,reasons:[]}}
 function availabilityRisk(injury,newsCtx){
  const st=String(injury||'').toLowerCase();
  if(/(^|\b)(out|ir|pup|na|dnr|sus|suspended)(\b|$)/.test(st))return 1;
@@ -210,11 +200,12 @@ async function scheduleFor(season,w){
  scheduleCache.set(key,map);return map
 }
 function defenseMetrics(pos,s){
- if(pos==='QB')return {ppr:E.fantasyPoints(s,'ppr'),yards:E.num(E.first(s,'pass_yd')),td:E.num(E.first(s,'pass_td'))};
- if(pos==='RB')return {ppr:E.fantasyPoints(s,'ppr'),yards:E.num(E.first(s,'rush_yd')),td:E.num(E.first(s,'rush_td'))};
- return {ppr:E.fantasyPoints(s,'ppr'),yards:E.num(E.first(s,'rec_yd')),td:E.num(E.first(s,'rec_td'))}
+ const base={ppr:E.fantasyPoints(s,'ppr'),half:E.fantasyPoints(s,'half'),std:E.fantasyPoints(s,'standard')};
+ if(pos==='QB')return {...base,yards:E.num(E.first(s,'pass_yd')),td:E.num(E.first(s,'pass_td'))};
+ if(pos==='RB')return {...base,yards:E.num(E.first(s,'rush_yd')),td:E.num(E.first(s,'rush_td'))};
+ return {...base,yards:E.num(E.first(s,'rec_yd')),td:E.num(E.first(s,'rec_td'))}
 }
-function matchupCacheKey(season,through){return `wh_start_sit_matchup_v2::${season}::${through}`}
+function matchupCacheKey(season,through){return `wh_start_sit_matchup_v3::${season}::${through}`}
 function readMatchupCache(season,through){
  try{const x=JSON.parse(localStorage.getItem(matchupCacheKey(season,through))||'null');return x?.table?x:null}catch(_){return null}
 }
@@ -222,18 +213,18 @@ async function buildMatchupReference(season,through){
  const cached=readMatchupCache(season,through);if(cached)return cached;
  const table={},positions=['QB','RB','WR','TE'];let attributed=0,skipped=0;
  const packs=await Promise.all(Array.from({length:through},async(_,i)=>{const w=i+1;const [sched,stats]=await Promise.all([scheduleFor(season,w),weekStats(season,w)]);return {sched,stats}}));
- const bucket=(team,pos)=>{table[team]??={};table[team][pos]??={games:0,totals:{ppr:0,yards:0,td:0},avg:{},ranks:{}};return table[team][pos]};
+ const bucket=(team,pos)=>{table[team]??={};table[team][pos]??={games:0,totals:{ppr:0,half:0,std:0,yards:0,td:0},avg:{},ranks:{}};return table[team][pos]};
  for(const {sched,stats} of packs){
   for(const team of sched.keys())for(const pos of positions)bucket(team,pos).games++;
   for(const entry of statRows(Object.fromEntries(stats))){
    const pos=historicalPos(entry);if(!positions.includes(pos))continue;
    const team=historicalTeam(entry),game=sched.get(team);if(!team||!game?.opp){skipped++;continue}
    attributed++;
-   const b=bucket(game.opp,pos),m=defenseMetrics(pos,entry.stats);b.totals.ppr+=m.ppr;b.totals.yards+=m.yards;b.totals.td+=m.td
+   const b=bucket(game.opp,pos),m=defenseMetrics(pos,entry.stats);b.totals.ppr+=m.ppr;b.totals.half+=m.half;b.totals.std+=m.std;b.totals.yards+=m.yards;b.totals.td+=m.td
   }
  }
- for(const byPos of Object.values(table))for(const b of Object.values(byPos)){b.avg.ppr=b.games?b.totals.ppr/b.games:0;b.avg.yards=b.games?b.totals.yards/b.games:0;b.avg.td=b.games?b.totals.td/b.games:0}
- for(const pos of positions)for(const metric of ['ppr','yards','td']){
+ for(const byPos of Object.values(table))for(const b of Object.values(byPos)){b.avg.ppr=b.games?b.totals.ppr/b.games:0;b.avg.half=b.games?b.totals.half/b.games:0;b.avg.std=b.games?b.totals.std/b.games:0;b.avg.yards=b.games?b.totals.yards/b.games:0;b.avg.td=b.games?b.totals.td/b.games:0}
+ for(const pos of positions)for(const metric of ['ppr','half','std','yards','td']){
   const list=Object.entries(table).filter(([,x])=>x?.[pos]?.games).map(([team,x])=>({team,value:x[pos].avg[metric]})).sort((a,b)=>a.value-b.value);
   list.forEach((x,i)=>{table[x.team][pos].ranks[metric]=i+1;table[x.team][pos].rankTotal=list.length})
  }
@@ -247,11 +238,12 @@ async function ensureMatchups(){
  if(through&&!matchupCache[2026])matchupCache[2026]=await buildMatchupReference(2026,through);
  return matchupCache
 }
+function matchupPointKey(){return format==='half'?'half':format==='standard'?'std':'ppr'}
 function rankScore(d){
- const total=Number(d?.rankTotal)||32;
- const ranks=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(r=>r>0);
+ const total=Number(d?.rankTotal)||32,pointsKey=matchupPointKey();
+ const ranks=[pointsKey,'yards','td'].map(k=>Number(d?.ranks?.[k])).filter(r=>r>0);
  if(!ranks.length||total<=1)return null;
- const avg=ranks.reduce((a,b)=>a+b,0)/ranks.length;
+ const avg=ranks.reduce((x,y)=>x+y,0)/ranks.length;
  return Math.round((avg-1)/(total-1)*100)
 }
 function matchupFor(p,game){
@@ -277,7 +269,7 @@ function workload(pos,stats,limit=3){
 async function grade(id){
  const p=pool.get(String(id)),current=await history(id),priorPromise=priorHistory(id),newsPromise=loadNewsFor(p);
  const game=games.get(normTeam(p.team))||null,prior=await priorPromise,news=await newsPromise,custom=customMeta(id);
- const inj=injuryText(id),rank=whRank(id),newsCtx=newsContext(news,inj),teamCtx=teamContext(p),mu=matchupFor(p,game);
+ const inj=injuryText(id),rank=format==='ppr'?whRank(id):null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p),mu=matchupFor(p,game);
  const priorTeam=[...prior].reverse().map(s=>normTeam(textFirst(s,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection),weeklyProjection=providerProjection(id);
  const rankWeight=slot==='SUPERFLEX'?.04:.14;
@@ -410,7 +402,7 @@ function sourceProjectionName(x){return x.weeklyProjection==null?'—':fmt(x.wee
 function statusTone(x){return x.g?.eligible===false?'bad':x.injuryRisk>=.15?'bad':x.injuryRisk>0?'neutral':''}
 function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
 function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
-function matchupCell(x){const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),total=d?.rankTotal||32,source=x.mu?.y2026?'2026 sample':'2025 baseline';if(x.mu?.score==null)return matrixCell('—','No verified matchup');return matrixCell(`#${r||'—'} / ${total}`,`${x.mu.label} · ${d?fmt(d.avg?.ppr,1):'—'} ${scoringName()} pts allowed/G · ${source}`,matchupTone(x.mu.score))}
+function matchupCell(x){const d=x.mu?.y2026||x.mu?.y2025,r=matchupRank(d),total=d?.rankTotal||32,source=x.mu?.y2026?'2026 sample':'2025 baseline';if(x.mu?.score==null)return matrixCell('—','No verified matchup');return matrixCell(`#${r||'—'} / ${total}`,`${x.mu.label} · ${d?fmt(d.avg?.[matchupPointKey()],1):'—'} ${scoringName()} pts allowed/G · ${source}`,matchupTone(x.mu.score))}
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
 function matrixRows(graded){
@@ -438,9 +430,9 @@ function renderMatrix(graded){const rows=matrixRows(graded);return `<section cla
 function dataRows(rows){return rows.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<div class="drow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}
 function detailCard(x){
  const p=x.g?.projection||{},d26=x.mu?.y2026,d25=x.mu?.y2025,r26=matchupRank(d26),r25=matchupRank(d25),st=status.get(String(x.id))||{};
- const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`],['Workhorse projection',p.points==null?'—':`${fmt(p.points,1)} pts`],['Workhorse range',p.floor==null?'—':`${fmt(p.floor,1)}–${fmt(p.ceiling,1)}`],['2026 form baseline',p.currentBase==null?'—':fmt(p.currentBase,1)],['2025 form baseline',p.priorBase==null?'—':fmt(p.priorBase,1)],['Projection source',p.source||'—']];
+ const projectionRows=[['Sleeper weekly projection',x.weeklyProjection==null?'—':`${fmt(x.weeklyProjection,1)} pts`],['Workhorse projection',p.points==null?'—':`${fmt(p.points,1)} pts`],['Workhorse range',p.floor==null?'—':`${fmt(p.floor,1)}–${fmt(p.ceiling,1)}`],['2026 form baseline',p.currentBase==null?'—':fmt(p.currentBase,1)],['2025 form baseline',p.priorBase==null?'—':fmt(p.priorBase,1)],['Projection source',p.source==='provider_blend'?'Sleeper weekly + Workhorse form':p.source==='provider'?'Sleeper weekly':p.source==='owner'?'Owner override':p.source==='blend'?'2026 + 2025 form':p.source==='current'?'2026 form':p.source==='prior'?'2025 baseline':'—']];
  const currentRows=[['2026 PPG',fmt(x.seasonWork?.ppg,1)],['Last 3 PPG',fmt(x.currentWork?.ppg,1)],['Snap share',pct(x.currentWork?.snap)],['Pass att / G',fmt(x.currentWork?.passAtt,1)],['Carries / G',fmt(x.currentWork?.carries,1)],['Targets / G',fmt(x.currentWork?.targets,1)],['Routes / G',fmt(x.currentWork?.routes,1)],['Red-zone looks / G',fmt(x.currentWork?.rz,1)]];
- const matchupRows=[['Opponent',x.game?.opp||'—'],['2026 matchup rank',r26?`#${r26}/${d26?.rankTotal||32}`:'—'],['2026 positional PPR allowed / G',d26?fmt(d26.avg?.ppr,1):'—'],['2026 sample',d26?.games?`${d26.games} games`:'—'],['2025 matchup rank',r25?`#${r25}/${d25?.rankTotal||32}`:'—'],['2025 positional PPR allowed / G',d25?fmt(d25.avg?.ppr,1):'—'],['Current-season matchup weight',x.mu?.y2026?`${Math.round((x.mu.currentWeight||0)*100)}%`:'0%']];
+ const matchupRows=[['Opponent',x.game?.opp||'—'],['2026 matchup rank',r26?`#${r26}/${d26?.rankTotal||32}`:'—'],[`2026 positional ${scoringName()} allowed / G`,d26?fmt(d26.avg?.[matchupPointKey()],1):'—'],['2026 sample',d26?.games?`${d26.games} games`:'—'],['2025 matchup rank',r25?`#${r25}/${d25?.rankTotal||32}`:'—'],[`2025 positional ${scoringName()} allowed / G`,d25?fmt(d25.avg?.[matchupPointKey()],1):'—'],['Current-season matchup weight',x.mu?.y2026?`${Math.round((x.mu.currentWeight||0)*100)}%`:'0%']];
  const gameRows=[['Status',x.inj||'Active'],['Status updated',st.updated_at?new Date(st.updated_at).toLocaleString():'—'],['Game',x.game?`${x.game.home?'vs':'@'} ${x.game.opp}`:(scheduleLoaded?'BYE':'—')],['Game total',x.game?.total?fmt(x.game.total,1):'—'],['Team implied',x.game?.teamImplied?fmt(x.game.teamImplied,1):'—'],['Spread',Number.isFinite(x.game?.spread)?`${x.game.spread>0?'+':''}${fmt(x.game.spread,1)}`:'—']];
  const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,3);
  return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Projection</h4>${dataRows(projectionRows)}</div><div class="detail-section"><h4>2026 workload</h4>${dataRows(currentRows)}</div><div class="detail-section"><h4>Matchup</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
@@ -468,7 +460,7 @@ async function compare(){
   if(!projectionsLoaded)warnings.push('Sleeper weekly projections could not be verified, so Workhorse excluded them instead of substituting another source.');
   else if(graded.some(x=>x.g?.eligible&&x.weeklyProjection==null))warnings.push('Sleeper did not supply a weekly projection for at least one selected player. That field is excluded for that player.');
   if(!scheduleLoaded)warnings.push('The current ESPN schedule could not be verified, so opponent, matchup and game-environment inputs were excluded instead of guessed.');
-  if(!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rank is not initialized in this browser, so rank is excluded instead of being replaced with Sleeper ADP.');
+  if(format==='ppr'&&!load(`wh_week_master_v3::${week}`,[]).length)warnings.push('Workhorse weekly rank is not initialized in this browser, so rank is excluded instead of being replaced with Sleeper ADP.');
   if(graded.some(x=>x.g?.eligible&&x.confidence<48))warnings.push('At least one eligible player has limited evidence coverage. Confidence is reduced rather than filling missing stats with estimates.');
   if(graded.some(x=>x.mu?.y2026&&Number(x.mu.y2026.games)<2))warnings.push('At least one 2026 opponent-vs-position sample is only one game; 2025 still carries most of that matchup context.');
   document.querySelector('#ss-output').innerHTML=callout(a,b)+renderMatrix(graded)+renderDetails(graded)+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Weekly projection: Sleeper current-week projection when supplied. Matchup: Workhorse opponent-vs-position calculation from actual game stats. Schedule/odds: ESPN. News/status: Workhorse feed + Sleeper status. Missing fields are shown as — and are not backfilled with guesses.</div>`;
