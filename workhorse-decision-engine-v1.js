@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(globalThis.WorkhorseDecisionEngine?.version>=1)return;
+if(globalThis.WorkhorseDecisionEngine?.version>=2)return;
 
 const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,Number(n)||0));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -96,7 +96,120 @@ function startSitScore(input={}){
  return {score:Math.round(clamp(score,0,100)),projection:proj,usage,role,reasons,injuryPenalty:inj};
 }
 
-const api={version:1,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,marketSignal,trendSeries,injuryPenalty,startSitScore};
+
+function weightedProjection(pos,currentStats,priorStats,format='ppr',opts={}){
+ const current=(currentStats||[]).filter(played),prior=(priorStats||[]).filter(played);
+ const manual=Number(opts.ownerProjection),hasManual=Number.isFinite(manual)&&manual>=0;
+ const curVals=current.map(x=>fantasyPoints(x,format)),priorVals=prior.map(x=>fantasyPoints(x,format));
+ const currentProj=projection(pos,current,format);
+ const priorSeason=priorVals.length?mean(priorVals):null,priorRecent=priorVals.length?mean(priorVals.slice(-6)):null;
+ let priorBase=priorSeason==null?null:(priorSeason*.35+(priorRecent??priorSeason)*.65);
+ let currentBase=currentProj.points;
+ let currentWeight=0;
+ if(curVals.length===1)currentWeight=.48;
+ else if(curVals.length===2)currentWeight=.65;
+ else if(curVals.length===3)currentWeight=.78;
+ else if(curVals.length>=4)currentWeight=.86;
+ if(currentBase==null&&priorBase!=null)currentWeight=0;
+ if(currentBase!=null&&priorBase==null)currentWeight=1;
+ if(opts.teamChanged&&currentWeight<1&&priorBase!=null){
+   const priorWeight=(1-currentWeight)*.62;
+   currentWeight=1-priorWeight;
+ }
+ const role=roleChange(pos,current);
+ if(currentBase!=null&&priorBase!=null&&role.direction!=='flat'&&role.key!=='insufficient'){
+   currentWeight=Math.min(.94,currentWeight+.06);
+ }
+ let points;
+ if(hasManual)points=manual;
+ else if(currentBase!=null&&priorBase!=null)points=currentBase*currentWeight+priorBase*(1-currentWeight);
+ else points=currentBase??priorBase;
+ if(points==null)return {points:null,floor:null,ceiling:null,confidence:0,currentWeight:0,priorWeight:0,currentGames:curVals.length,priorGames:priorVals.length,source:'none'};
+ const values=[...priorVals.slice(-8),...curVals.slice(-6)],sd=stdev(values),spread=Math.max(3,sd||0);
+ const floor=Math.max(0,points-Math.max(2.5,spread*.85)),ceiling=points+Math.max(3.5,spread*1.05);
+ const currentSupport=Math.min(1,curVals.length/4),priorSupport=Math.min(1,priorVals.length/6);
+ let confidence=Math.round(100*clamp(currentSupport*.56+priorSupport*.22+(currentBase!=null?.12:0)+(hasManual?.10:0),0,1));
+ if(!curVals.length&&priorVals.length)confidence=Math.min(confidence,48);
+ if(hasManual)confidence=Math.max(confidence,72);
+ return {
+  points:Number(points.toFixed(1)),floor:Number(floor.toFixed(1)),ceiling:Number(ceiling.toFixed(1)),confidence,
+  currentWeight:currentBase!=null&&priorBase!=null?Number(currentWeight.toFixed(2)):(currentBase!=null?1:0),
+  priorWeight:currentBase!=null&&priorBase!=null?Number((1-currentWeight).toFixed(2)):(priorBase!=null?1:0),
+  currentGames:curVals.length,priorGames:priorVals.length,currentBase,priorBase:priorBase==null?null:Number(priorBase.toFixed(1)),
+  source:hasManual?'owner':currentBase!=null&&priorBase!=null?'blend':currentBase!=null?'current':'prior'
+ };
+}
+
+function environmentScore(pos,env={}){
+ const total=Number(env.gameTotal),implied=Number(env.teamImplied),spread=Number(env.spread);
+ let score=50,used=0;
+ if(Number.isFinite(implied)&&implied>0){score+=(implied-22.5)*2.15;used++}
+ if(Number.isFinite(total)&&total>0){score+=(total-44.5)*.72;used++}
+ if(Number.isFinite(spread)){
+   const p=String(pos||'').toUpperCase();
+   if(p==='RB')score+=clamp(-spread/8,-1,1)*7;
+   else if(['QB','WR','TE'].includes(p))score+=clamp(spread/10,-1,1)*2.5;
+   used++;
+ }
+ if(env.home===true){score+=1;used++}
+ return {score:used?Math.round(clamp(score,20,82)):null,available:used>0,gameTotal:Number.isFinite(total)&&total>0?total:null,teamImplied:Number.isFinite(implied)&&implied>0?implied:null,spread:Number.isFinite(spread)?spread:null,home:env.home===true};
+}
+
+function startSitScoreV2(input={}){
+ const pos=String(input.pos||'').toUpperCase(),format=input.format||'ppr',currentStats=input.currentStats||input.stats||[],priorStats=input.priorStats||[];
+ if(input.locked)return {score:null,eligible:false,locked:true,reasons:['This player’s game has already started, so the lineup decision is locked.']};
+ if(input.bye)return {score:0,eligible:false,bye:true,reasons:['This player does not have a game this week.']};
+ const proj=weightedProjection(pos,currentStats,priorStats,format,{
+   ownerProjection:input.ownerProjection,teamChanged:!!input.teamChanged
+ });
+ const currentPlayed=(currentStats||[]).filter(played),priorPlayed=(priorStats||[]).filter(played);
+ let usage=usageScore(pos,currentPlayed);
+ let usageSource='2026';
+ if(usage.score==null&&priorPlayed.length){usage=usageScore(pos,priorPlayed.slice(-3));usageSource='2025 baseline'}
+ const role=roleChange(pos,currentPlayed),rank=Number(input.weeklyRank);
+ const rankComponent=Number.isFinite(rank)&&rank>0?100*clamp(1-(rank-1)/120,0,1):null;
+ if(proj.points==null)return {score:null,eligible:false,projection:proj,usage,role,reasons:['Not enough current or prior-season data to grade this player safely.']};
+ const status=String(input.injuryStatus||'').toLowerCase();
+ if(/(^|\b)(out|ir|pup|suspended|sus)(\b|$)/.test(status)){
+   return {score:0,eligible:false,projection:proj,usage,usageSource,role,injuryPenalty:1,reasons:[`Unavailable: ${input.injuryStatus||'Out'}`]};
+ }
+ const projectionComponent=100*clamp((proj.points-5)/22,0,1);
+ const matchup=Number(input.matchupScore),matchupComponent=Number.isFinite(matchup)?clamp(matchup,0,100):null;
+ const env=environmentScore(pos,input.environment||{}),envComponent=env.score;
+ const rankWeight=Number.isFinite(Number(input.rankWeight))?Math.max(0,Number(input.rankWeight)):.14;
+ let parts=[[projectionComponent,.45],[usage.score,.19],[rankComponent,rankWeight],[matchupComponent,.12],[envComponent,.10]].filter(([v,w])=>v!=null&&w>0);
+ const weight=parts.reduce((a,x)=>a+x[1],0);
+ let score=parts.reduce((a,[v,w])=>a+v*w,0)/Math.max(.01,weight);
+ const roleBoost=role.key==='major_up'?6:role.direction==='up'?3:role.key==='major_down'?-6:role.direction==='down'?-3:0;
+ const newsAdjustment=clamp(Number(input.newsAdjustment)||0,-7,7),contextAdjustment=clamp(Number(input.contextAdjustment)||0,-7,7);
+ score+=roleBoost+newsAdjustment+contextAdjustment;
+ const inj=injuryPenalty(input.injuryStatus);
+ score*=1-inj;
+ const coverage=[
+   proj.confidence/100,
+   usage.score!=null?usage.confidence/100:null,
+   matchupComponent!=null?clamp(Number(input.matchupConfidence??60)/100,0,1):null,
+   rankComponent!=null?1:null,
+   envComponent!=null?.85:null
+ ].filter(x=>x!=null);
+ const confidence=Math.round(100*(coverage.length?mean(coverage):0));
+ const reasons=[];
+ reasons.push(`${proj.points.toFixed(1)} WH estimate (${proj.floor.toFixed(1)}–${proj.ceiling.toFixed(1)} range)`);
+ if(proj.source==='blend')reasons.push(`Projection blend: ${Math.round(proj.currentWeight*100)}% 2026 · ${Math.round(proj.priorWeight*100)}% 2025`);
+ else if(proj.source==='prior')reasons.push('Using 2025 as a reduced-confidence baseline because 2026 game data is not available yet');
+ else if(proj.source==='owner')reasons.push('Owner projection override is active');
+ if(usage.score!=null)reasons.push(`Usage ${usage.score}/100${usageSource==='2025 baseline'?' · 2025 baseline':''}`);
+ if(role.key!=='insufficient')reasons.push(role.label);
+ if(rankComponent!=null)reasons.push(`Workhorse weekly rank #${rank}`);
+ if(matchupComponent!=null)reasons.push(`Matchup ${Math.round(matchupComponent)}/100`);
+ if(env.teamImplied!=null)reasons.push(`Team implied ${env.teamImplied.toFixed(1)} points`);
+ if(newsAdjustment)reasons.push(`News context ${newsAdjustment>0?'+':''}${newsAdjustment.toFixed(1)}`);
+ if(contextAdjustment)reasons.push(`Team context ${contextAdjustment>0?'+':''}${contextAdjustment.toFixed(1)}`);
+ if(inj)reasons.push(`Availability penalty applied for ${input.injuryStatus}`);
+ return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
+}
+
+const api={version:2,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
