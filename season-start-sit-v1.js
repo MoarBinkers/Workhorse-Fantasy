@@ -475,6 +475,14 @@ function statusTone(x){return x.g?.eligible===false?'bad':x.injuryRisk>=.15?'bad
 function playerHeader(x){const g=x.game;return `<div class="playercol"><img src="https://sleepercdn.com/content/nfl/players/thumb/${encodeURIComponent(x.id)}.jpg" onerror="this.style.visibility='hidden'" alt=""><div><b>${esc(x.p.full_name)}</b><small>${esc(x.p.position)} · ${esc(x.p.team||'FA')}${g?` · ${g.home?'vs':'@'} ${esc(g.opp)}`:''}</small></div></div>`}
 function matrixCell(main,sub='',cls=''){return `<span class="val ${cls}">${esc(main)}</span>${sub?`<span class="sub">${esc(sub)}</span>`:''}`}
 
+function ago(iso){
+ if(!iso)return '';
+ const t=new Date(iso).getTime();if(!Number.isFinite(t))return '';
+ const mins=Math.max(0,Math.floor((Date.now()-t)/60000));
+ if(mins<60)return `${mins}m ago`;
+ const hrs=Math.floor(mins/60);if(hrs<24)return `${hrs}h ago`;
+ return `${Math.floor(hrs/24)}d ago`
+}
 function propLabel(m){return ({rushing_yards:'Rush yds',rushing_receiving_yards:'Rush + rec yds',receiving_yards:'Rec yds',receptions:'Receptions',rushing_attempts:'Rush att',touchdown_scored:'Anytime TD'}[m]||String(m||'').replaceAll('_',' '))}
 function propsCell(x){
  const a=(x.props||[]).slice(0,3);
