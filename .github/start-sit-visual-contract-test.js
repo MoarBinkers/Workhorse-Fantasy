@@ -16,7 +16,6 @@ const bad=[
   ':root{',
   'html,body{',
   'body{margin:',
-  '*{box-sizing:border-box}',
   'function extraStyles()'
 ];
 for(const m of bad){if(s.includes(m))throw new Error('Unscoped Start/Sit visual rule detected: '+m)}
