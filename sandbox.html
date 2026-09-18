@@ -34,7 +34,7 @@
  }
  if(v==='start-sit'||v==='signals'){
    document.body.innerHTML='<div class="wh-load"><div><b>SANDBOX · NOT LIVE</b><h1>WORKHORSE</h1><p>Loading decision engine…</p></div></div>';
-   const engine=document.createElement('script');engine.src='./workhorse-decision-engine-v1.js?v=5';engine.async=false;
+   const engine=document.createElement('script');engine.src='./workhorse-decision-engine-v1.js?v=6';engine.async=false;
    engine.onload=()=>{const tool=document.createElement('script');tool.src=v==='start-sit'?'./season-start-sit-v1.js?v=9':'./season-market-signals-v1.js?v=1';tool.async=false;document.body.appendChild(tool)};
    document.body.appendChild(engine);return;
  }
