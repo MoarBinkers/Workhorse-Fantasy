@@ -378,16 +378,33 @@ function latestGameStats(pos,stats){
  }
 }
 async function grade(id){
- const p=pool.get(String(id)),current=await history(id),priorPromise=priorHistory(id),newsPromise=loadNewsFor(p),propsPromise=loadPropsFor(p),rolePromise=latestRoleContext(p,id);
- const game=games.get(normTeam(p.team))||null,prior=await priorPromise,news=await newsPromise,props=await propsPromise,latestRole=await rolePromise,custom=customMeta(id);
- const inj=injuryText(id),rank=format==='ppr'?whRank(id):null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p),mu=matchupFor(p,game);
- const priorTeam=[...prior].reverse().map(s=>normTeam(textFirst(s,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
+ const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
+ let current=[],prior=[],news=[],props=[],latestRole={week:null,score:null,confidence:0,label:'Role data unavailable'};
+ try{current=await history(id)}catch(e){console.warn('history unavailable',id,e)}
+ try{prior=await priorHistory(id)}catch(e){console.warn('prior history unavailable',id,e)}
+ try{news=await loadNewsFor(p)}catch(e){console.warn('news unavailable',id,e)}
+ try{props=await loadPropsFor(p)}catch(e){console.warn('props unavailable',id,e)}
+ try{latestRole=await latestRoleContext(p,id)}catch(e){console.warn('role unavailable',id,e)}
+ const game=games.get(normTeam(p.team))||null,custom=customMeta(id);
+ const inj=injuryText(id),rank=format==='ppr'?whRank(id):null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p);
+ let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
+ try{mu=matchupFor(p,game)}catch(e){console.warn('matchup grade unavailable',id,e)}
+ const priorTeam=[...prior].reverse().map(x=>normTeam(textFirst(x,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection),weeklyProjection=providerProjection(id);
- const rankWeight=slot==='SUPERFLEX'?.04:.14;
- const injuryRisk=availabilityRisk(inj,newsCtx);
+ const rankWeight=slot==='SUPERFLEX'?.04:.14,injuryRisk=availabilityRisk(inj,newsCtx);
  const forwardRoleScore=latestRole.score==null?(newsCtx.forwardRoleBoost?Math.max(0,Math.min(100,50+newsCtx.forwardRoleBoost)):null):Math.max(0,Math.min(100,latestRole.score+(newsCtx.forwardRoleBoost||0)));
  const forwardRoleLabel=newsCtx.forwardRoleBoost?`${latestRole.label||'Latest role'} · coach/news adjustment ${newsCtx.forwardRoleBoost>0?'+':''}${newsCtx.forwardRoleBoost}`:latestRole.label;
- const g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight});
+ let g=null;
+ try{
+  g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight})
+ }catch(e){console.warn('advanced Start/Sit model unavailable',id,e)}
+ if(!g||g.score==null){
+  const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??recent.ppg;
+  const unavailable=/\b(out|ir|pup|suspended|inactive)\b/i.test(String(inj||''));
+  const bye=scheduleLoaded&&!game,locked=!!game?.locked;
+  const fallbackScore=fallbackPts==null?null:Math.max(0,Math.min(100,Math.round(Number(fallbackPts)*4)));
+  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,components:{projection:fallbackScore},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback']}
+ }
  return {id:String(id),p,current,prior,inj,injuryRisk,rank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,confidence:confidence(g),game,news,props,newsCtx,teamCtx,mu,teamChanged,latestGame:latestGameStats(p.position,current),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
