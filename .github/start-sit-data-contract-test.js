@@ -5,7 +5,7 @@ const must=[
   "label:'Expected role'",
   "Clear role edge",
   "sits out again",
-  "latestRoleScore:latestRole.score",
+  "latestRoleScore:forwardRoleScore",
   "function latestRoleContext(p,id)",
   "https://api.sleeper.com/stats/nfl/${season}/${w}?season_type=regular",
   "https://api.sleeper.com/projections/nfl/${SEASON}/${week}?season_type=regular",
