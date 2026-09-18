@@ -2,7 +2,7 @@
 const assert=require('assert');
 require('../workhorse-decision-engine-v1.js');
 const E=global.WorkhorseDecisionEngine;
-assert(E&&E.version>=6,'decision engine loads');
+assert(E&&E.version>=7,'decision engine loads');
 const rb=[
  {rush_att:12,rec_tgt:2,rec:2,rush_yd:45,rec_yd:12,pts_ppr:8.7,snap_pct:.48,rush_rz_att:2},
  {rush_att:16,rec_tgt:4,rec:3,rush_yd:72,rec_yd:26,pts_ppr:14.8,snap_pct:.61,rush_rz_att:3},
@@ -59,3 +59,6 @@ const priceLike=E.startSitScoreV2({
 });
 assert(priceLike.score-qjLike.score>=5,'coach-confirmed workload expansion plus favorable RB matchup must beat stale committee read');
 console.log('PASS: Price-like forward role beats QJ-like static role when coach and matchup evidence support it');
+
+const directProvider=E.startSitScoreV2({pos:'WR',currentStats:[{pts_ppr:5,rec_tgt:4,rec:2,rec_yd:30}],priorStats:[],format:'ppr',providerProjection:15,latestRoleScore:55});
+assert(directProvider.components.projection===Math.round(100*Math.max(0,Math.min(1,(15-5)/22))),'provider number is the projection scoring input');
