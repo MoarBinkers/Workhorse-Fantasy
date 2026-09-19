@@ -564,10 +564,12 @@ function mergeVerifiedRole(p,id,base){
  out.targetDistribution=out.targetShare;
  if(n('rb_carry_share_pct')!=null)out.rushShare=n('rb_carry_share_pct')/100;
  if(n('carries')!=null)out.carries=n('carries');
- const routeVerified=v.route_pct_available===true||v.route_pct_available==='true'||n('route_pct')!=null;
+ const routeVerified=v.route_pct_available===true||v.route_pct_available==='true'||n('route_pct')!=null||n('routes')!=null;
  if(n('route_pct')!=null)out.routeParticipation=n('route_pct')/100;
  if(n('routes')!=null)out.routes=n('routes');
- if(String(p.position||'').toUpperCase()==='RB'&&!routeVerified){out.routeParticipation=null;out.routes=null;out.targetsPerRoute=null}
+ out.routeSource=v.route_pct_source||v.source||'';
+ const routePos=['RB','WR','TE'].includes(String(p.position||'').toUpperCase());
+ if(routePos&&!routeVerified){out.routeParticipation=null;out.routes=null;out.targetsPerRoute=null;out.routeSource=''}
  if(n('team_pass_attempts')!=null)out.teamPassAttempts=n('team_pass_attempts');
  if(n('team_rb_carries')!=null)out.totalCarries=n('team_rb_carries');
  if(out.routes>0&&out.targets!=null)out.targetsPerRoute=out.targets/out.routes;
@@ -593,7 +595,9 @@ function mergeVerifiedGame(p,id,base){
  if(n('receiving_yards')!=null)out.recYds=n('receiving_yards');
  if(n('receiving_td')!=null)out.recTd=n('receiving_td');
  if(n('touches')!=null)out.touches=n('touches');
- if(n('routes')!=null)out.routes=n('routes');
+ const verifiedRoutes=v.route_pct_available===true||v.route_pct_available==='true'||n('route_pct')!=null||n('routes')!=null;
+ if(verifiedRoutes&&n('routes')!=null)out.routes=n('routes');
+ else if(['RB','WR','TE'].includes(String(p.position||'').toUpperCase()))out.routes=null;
  if(n('red_zone_opportunities')!=null)out.rz=n('red_zone_opportunities');
  if(n('goal_line_opportunities')!=null)out.goal=n('goal_line_opportunities');
  if(n('air_yards')!=null)out.airYds=n('air_yards');
