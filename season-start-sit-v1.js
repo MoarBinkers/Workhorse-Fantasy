@@ -1059,7 +1059,7 @@ async function compare(){
   const settled=await Promise.allSettled(selected.map(grade));
   graded=settled.map((x,i)=>{
    if(x.status==='fulfilled'&&x.value)return x.value;
-   console.warn('player grade failed; using emergency rank grade',selected[i],x.reason);
+   console.warn('player grade failed; using emergency verified-data grade',selected[i],x.reason);
    return emergencyGrade(selected[i],x.reason)
   }).filter(Boolean);
   graded.sort((a,b)=>{const ae=!!a.availability?.actionable,be=!!b.availability?.actionable;if(ae!==be)return ae?-1:1;return (b.g?.score??-1)-(a.g?.score??-1)});
