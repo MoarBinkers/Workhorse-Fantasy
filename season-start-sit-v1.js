@@ -817,7 +817,7 @@ function styles(){
 }
 function shell(){
  document.body.innerHTML=`<div id="wh-startsit">
-  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v31</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
+  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v32</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
   <main class="shell">
    <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, news, game environment and your Workhorse ranking. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
    <section class="setup"><div class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></div>
@@ -990,14 +990,15 @@ function detailCard(x){
   ['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamTargets??'—'} team targets`],
   ['Route participation',pct(lr.routeParticipation)],
   ['Targets per route',pct(lr.targetsPerRoute)],
-  ['Yards per route',lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—'],
+  ['Yards per route',lr.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lr.routes)).toFixed(2):'—'],
+  ['Route source',lr.routeSource||'—'],
   ['Air yards',fmt(lg.airYds,0)],
   ['aDOT',lg.adot==null?'—':fmt(lg.adot,1)]
  ];
  const lastRows=x.p.position==='RB'
-  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamTargets??'—'} team targets${lr.verifiedSource?` · ${lr.verifiedSource}`:''}`],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
+  ?[['Fantasy points',fmt(lg.fantasy,1)],['Touches',fmt(lg.touches,0)],['Carries',fmt(lg.carries,0)],['Rushing yards',fmt(lg.rushYds,0)],['Rush yards / carry',lg.carries>0?(Number(lg.rushYds)/Number(lg.carries)).toFixed(2):'—'],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Snap share',pct(lg.snap)],['RB carry share',pct(lr.rushShare)],['Target share',lr.targetShare==null?'—':`${pct(lr.targetShare)} · ${lr.targets??'—'}/${lr.teamTargets??'—'} team targets${lr.verifiedSource?` · ${lr.verifiedSource}`:''}`],['Routes',fmt(lr.routes,0)],['Route participation',pct(lr.routeParticipation)],['Targets per route',pct(lr.targetsPerRoute)],['Route source',lr.routeSource||'—'],['Red-zone opportunities',fmt(lg.rz,0)],['Goal-line opportunities',fmt(lg.goal,0)]]
   :x.p.position==='WR'||x.p.position==='TE'
-   ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Routes',fmt(lg.routes,0)],...wrEfficiency,['Red-zone opportunities',fmt(lg.rz,0)]]
+   ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Routes',fmt(lr.routes,0)],...wrEfficiency,['Red-zone opportunities',fmt(lg.rz,0)]]
    :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
  const rc=x.bundleRoleChange||null,direct=x.newsCtx?.direct||null;
  const roleRows=rc?[
