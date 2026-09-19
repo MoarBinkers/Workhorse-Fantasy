@@ -647,7 +647,6 @@ function emergencyGrade(id,reason=''){
  const news=[...(newsCache.get(sid)||[])];
  const newsCtx=newsContext(news,inj);
  const bundleRoleChange=bundle?.role_change||bundle?.roleChange||bundle?.role_signal||null;
- const trenchContext=bundle?.trench_context||bundle?.trenchContext||bundle?.rb_trench_context||null;
  if(bundleRoleChange){
   const dir=String(bundleRoleChange.direction||'').toLowerCase(),boost=dir==='up'?22:dir==='down'?-22:0;
   if(boost)newsCtx.forwardRoleBoost=boost;
@@ -675,6 +674,7 @@ async function grade(id){
  const game=games.get(normTeam(p.team))||null,custom=customMeta(id);
  const inj=injuryText(id),workhorseRank=whRank(id),rank=format==='ppr'?workhorseRank:null,newsCtx=newsContext(news,inj),teamCtx=teamContext(p);
  const bundleRoleChange=bundle?.role_change||bundle?.roleChange||bundle?.role_signal||null;
+ const trenchContext=bundle?.trench_context||bundle?.trenchContext||bundle?.rb_trench_context||null;
  if(bundleRoleChange){
   const dir=String(bundleRoleChange.direction||'').toLowerCase(),boost=dir==='up'?22:dir==='down'?-22:0;
   if(boost&&Math.abs(Number(newsCtx.forwardRoleBoost)||0)<Math.abs(boost))newsCtx.forwardRoleBoost=boost;
