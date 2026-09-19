@@ -609,12 +609,14 @@ function mergeVerifiedGame(p,id,base){
  out.verifiedSource=v.source||'Verified usage';
  return out
 }
-function coreFallbackScore({roleScore,recentPpg,matchupScore,projectionPoints,newsAdjustment=0,contextAdjustment=0}){
+function coreFallbackScore({roleScore,recentPpg,matchupScore,projectionPoints,trenchScore,gameScriptScore,newsAdjustment=0,contextAdjustment=0}){
  const parts=[];
- const role=Number(roleScore);if(Number.isFinite(role))parts.push([Math.max(0,Math.min(100,role)),.36]);
- const proj=Number(projectionPoints);if(Number.isFinite(proj)&&proj>=0)parts.push([100*Math.max(0,Math.min(1,(proj-5)/22)),.28]);
- const ppg=Number(recentPpg);if(Number.isFinite(ppg)&&ppg>=0)parts.push([100*Math.max(0,Math.min(1,(ppg-4)/20)),.22]);
- const mu=Number(matchupScore);if(Number.isFinite(mu))parts.push([Math.max(0,Math.min(100,mu)),.14]);
+ const role=Number(roleScore);if(Number.isFinite(role))parts.push([Math.max(0,Math.min(100,role)),.30]);
+ const proj=Number(projectionPoints);if(Number.isFinite(proj)&&proj>=0)parts.push([100*Math.max(0,Math.min(1,(proj-5)/22)),.24]);
+ const ppg=Number(recentPpg);if(Number.isFinite(ppg)&&ppg>=0)parts.push([100*Math.max(0,Math.min(1,(ppg-4)/20)),.17]);
+ const mu=Number(matchupScore);if(Number.isFinite(mu))parts.push([Math.max(0,Math.min(100,mu)),.17]);
+ const tr=Number(trenchScore);if(Number.isFinite(tr))parts.push([Math.max(0,Math.min(100,tr)),.06]);
+ const gs=Number(gameScriptScore);if(Number.isFinite(gs))parts.push([Math.max(0,Math.min(100,gs)),.06]);
  if(!parts.length)return null;
  const weight=parts.reduce((a,x)=>a+x[1],0);
  let score=parts.reduce((a,[v,w])=>a+v*w,0)/weight;
@@ -637,12 +639,15 @@ function emergencyGrade(id,reason=''){
  const bye=!!scheduleLoaded&&!game;
  const availability={out,bye,locked:!!game?.locked,actionable:!out&&!bye};
  const weeklyProjection=providerProjection(id);
+ const trenchContext=bundle?.trench_context||bundle?.trenchContext||bundle?.rb_trench_context||null;
+ const script=E.gameScriptScore?E.gameScriptScore(p.position,{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home}):{score:null,label:'No verified game script'};
  const latestRole=mergeVerifiedRole(p,id,{week:Math.max(1,week-1),score:null,confidence:0,snap:null,targetShare:null,targetDistribution:null,routeParticipation:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,teamTargets:null,totalCarries:null,teamPassAttempts:null,teamDropbacks:null,label:'Role data unavailable'});
  const latestGame=mergeVerifiedGame(p,id,{});
  const props=[...(propsCache.get(sid)||[]),...(bundle?.props||[]),...(VERIFIED_FALLBACKS[sid]?.props||[])];
  const news=[...(newsCache.get(sid)||[])];
  const newsCtx=newsContext(news,inj);
  const bundleRoleChange=bundle?.role_change||bundle?.roleChange||bundle?.role_signal||null;
+ const trenchContext=bundle?.trench_context||bundle?.trenchContext||bundle?.rb_trench_context||null;
  if(bundleRoleChange){
   const dir=String(bundleRoleChange.direction||'').toLowerCase(),boost=dir==='up'?22:dir==='down'?-22:0;
   if(boost)newsCtx.forwardRoleBoost=boost;
@@ -652,9 +657,9 @@ function emergencyGrade(id,reason=''){
  }
  let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
  try{mu=matchupFromBundle(bundle,p,game)||matchupFor(p,game)}catch(_){}
- const fallbackScore=coreFallbackScore({roleScore:latestRole.score,recentPpg:latestGame?.fantasy,matchupScore:mu.score,projectionPoints:weeklyProjection,newsAdjustment:newsCtx.adjustment,contextAdjustment:0});
- const g={score:fallbackScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:latestRole.score,matchup:mu.score},projection:{points:weeklyProjection,source:'verified-emergency'},reasons:['Emergency fallback · projection, verified role/usage and matchup only']};
- return {id:sid,p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection,latestRole,forwardRoleScore:latestRole.score,forwardRoleLabel:latestRole.label,g,availability,confidence:35,game,news,props,newsCtx,bundleRoleChange,teamCtx:{adjustment:0,reasons:[]},mu,teamChanged:false,latestGame,currentWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},seasonWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
+ const fallbackScore=coreFallbackScore({roleScore:latestRole.score,recentPpg:latestGame?.fantasy,matchupScore:mu.score,projectionPoints:weeklyProjection,trenchScore:trenchContext?.score,gameScriptScore:script?.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:0});
+ const g={score:fallbackScore,eligible:!out&&!bye,locked:!!game?.locked,bye,confidence:42,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:latestRole.score,matchup:mu.score,trench:trenchContext?.score??null,gameScript:script?.score??null},projection:{points:weeklyProjection,source:'verified-emergency'},gameScript:script,reasons:['Emergency fallback · projection, verified role/usage, matchup, trench and game script']};
+ return {id:sid,p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection,latestRole,forwardRoleScore:latestRole.score,forwardRoleLabel:latestRole.label,g,availability,confidence:modelConfidence(g),game,news,props,newsCtx,bundleRoleChange,trenchContext,gameScript:script,teamCtx:{adjustment:0,reasons:[]},mu,teamChanged:false,latestGame,currentWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},seasonWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
 }
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
@@ -686,17 +691,18 @@ async function grade(id){
  const forwardRoleLabel=newsCtx.forwardRoleBoost?`${latestRole.label||'Latest role'} · coach/news adjustment ${newsCtx.forwardRoleBoost>0?'+':''}${newsCtx.forwardRoleBoost}`:latestRole.label;
  let g=null;
  try{
-  g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game})
+  g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},trenchScore:trenchContext?.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game})
  }catch(e){console.warn('advanced Start/Sit model unavailable',id,e)}
  if(!g||g.score==null){
   const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??(recent.games?recent.ppg:null);
   const unavailable=/\b(out|ir|pup|suspended|inactive)\b/i.test(String(inj||''));
   const bye=scheduleLoaded&&!game,locked=!!game?.locked;
-  const fallbackScore=coreFallbackScore({roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,projectionPoints:weeklyProjection,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
-  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · projection, role, recent production and matchup when available']}
+  const script=E.gameScriptScore?E.gameScriptScore(p.position,{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home}):{score:null,label:'No verified game script'};
+  const fallbackScore=coreFallbackScore({roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,projectionPoints:weeklyProjection,trenchScore:trenchContext?.score,gameScriptScore:script?.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
+  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,confidence:45,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,matchup:mu.score,trench:trenchContext?.score??null,gameScript:script?.score??null},projection:{points:fallbackPts,source:'core-fallback'},gameScript:script,reasons:['Core verified data fallback · projection, role, recent production, matchup, trench and game script when available']}
  }
  const availability=explicitAvailability({inj,game});
- return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,bundleRoleChange,teamCtx,mu,teamChanged,latestGame:mergeVerifiedGame(p,id,latestGameStats(p.position,current)),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
+ return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:modelConfidence(g),game,news,props,newsCtx,bundleRoleChange,trenchContext,gameScript:g?.gameScript||null,teamCtx,mu,teamChanged,latestGame:mergeVerifiedGame(p,id,latestGameStats(p.position,current)),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
 }
 
 function styles(){
@@ -816,9 +822,9 @@ function styles(){
 }
 function shell(){
  document.body.innerHTML=`<div id="wh-startsit">
-  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v33</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
+  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v34</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
   <main class="shell">
-   <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, role-change news and game environment. Weekly rankings are reference-only. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
+   <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, role-change news, game script and RB trench matchups. Weekly rankings are reference-only. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
    <section class="setup"><div class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></div>
    <div class="searchrow"><div class="searchbox"><input id="ss-search" class="search" placeholder="Search players…" autocomplete="off"><div id="ss-results" class="results"></div></div><button id="ss-run" class="run" disabled>Compare</button></div><div id="ss-picked" class="picked"></div><span id="ss-status" class="status"></span></section>
    <section id="ss-output"><div class="empty">Add at least two eligible players to compare.</div></section>
@@ -830,6 +836,13 @@ function renderPicked(){const box=document.querySelector('#ss-picked');box.inner
 function switchSlot(next){slot=next;selected=selected.filter(id=>{const p=pool.get(id);return p&&compatible(p,next)});document.querySelectorAll('[data-slot]').forEach(b=>b.classList.toggle('active',b.dataset.slot===slot));renderPicked();renderSearch();document.querySelector('#ss-output').innerHTML='<div class="empty">Choose at least two eligible players.</div>'}
 function fmt(v,d=1){return v==null||!Number.isFinite(Number(v))?'—':Number(v).toFixed(d)}
 function pct(v){return v==null||!Number.isFinite(Number(v))?'—':`${Math.round(Number(v)*100)}%`}
+function modelConfidence(g){
+ const c=Number(g?.confidence);
+ if(Number.isFinite(c))return Math.max(0,Math.min(100,Math.round(c)));
+ const comps=Object.values(g?.components||{}).filter(v=>Number.isFinite(Number(v)));
+ return comps.length?Math.max(35,Math.min(78,Math.round(38+comps.length*7))):35
+}
+function confidenceTone(v){const n=Number(v);return !Number.isFinite(n)?'':n>=75?'good':n<50?'bad':'neutral'}
 function matchupTone(score){return score==null?'':score>=66?'good':score<=34?'bad':'neutral'}
 function matchupRank(d){const a=['ppr','yards','td'].map(k=>Number(d?.ranks?.[k])).filter(v=>v>0);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null}
 function scoringName(){return format==='ppr'?'PPR':format==='half'?'Half PPR':'Standard'}
@@ -929,12 +942,19 @@ function matchupLine(d,pos){
  if(pos==='QB')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.passYds,1)} pass yds/G · ${fmt(d.avg?.passTd,2)} pass TD/G · ${fmt(d.avg?.rushYds,1)} rush yds/G`;
  return `${pts} ${scoringName()} pts/G`
 }
+function matchupYearTone(raw,d){
+ const diff=String(raw?.difficulty||'').toLowerCase();
+ if(diff==='favorable')return 'good';
+ if(diff==='tough')return 'bad';
+ if(diff==='neutral')return 'neutral';
+ const score=rankScore(d);return matchupTone(score)
+}
 function matchupYearCell(x,year){
  const raw=year===2026?x.mu?.raw2026:x.mu?.raw2025,d=year===2026?x.mu?.y2026:x.mu?.y2025;
  const line=raw?.display||matchupLine(d,x.p.position);
  if(!line)return matrixCell('—',`No verified ${year} matchup data`);
  const sample=raw?.sample_note||(year===2026&&d?`${d.games} completed game${d.games===1?'':'s'}`:year===2025?'2025 full-season baseline':'');
- return matrixCell(line,sample,year===2026?matchupTone(x.mu?.score):'')
+ return matrixCell(line,sample,matchupYearTone(raw,d))
 }
 function matchupCell(x){
  const d26=x.mu?.y2026,d25=x.mu?.y2025,r26=x.mu?.raw2026,r25=x.mu?.raw2025;
@@ -945,6 +965,20 @@ function matchupCell(x){
  return `<div class="matchstack">${line26?`<b>${esc(line26)}</b><small>${esc(sample26)}</small>`:''}${line25?`<b>${esc(line25)}</b><small>${esc(sample25)}</small>`:''}</div>`
 }
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
+function confidenceCell(x){return matrixCell(`${Math.round(Number(x.confidence)||0)}%`,x.emergency?'Fallback evidence confidence':'Model evidence confidence',confidenceTone(x.confidence))}
+function trenchCell(x){
+ if(x.p.position!=='RB')return matrixCell('—','RB-specific');
+ const t=x.trenchContext;if(!t)return matrixCell('—','No verified 2026 trench data');
+ return matrixCell(`${t.score}/100 · ${t.label}`,t.display||t.source||'',matchupTone(t.score))
+}
+function gameScriptCell(x){
+ if(x.p.position!=='RB')return matrixCell('—','RB-specific');
+ const g=x.game;if(!g||!Number.isFinite(Number(g.spread)))return matrixCell('—','No verified spread');
+ const script=x.gameScript||x.g?.gameScript||(E.gameScriptScore?E.gameScriptScore('RB',{spread:g.spread,teamImplied:g.teamImplied,gameTotal:g.total,home:g.home}):null);
+ if(!script||script.score==null)return matrixCell('—','No verified game script');
+ const spread=`${Number(g.spread)>0?'+':''}${fmt(g.spread,1)}`;
+ return matrixCell(`${script.score}/100 · ${script.label}`,`${spread} spread · team implied ${fmt(g.teamImplied,1)}`,matchupTone(script.score))
+}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
 function seasonPpgCell(x){
  const games=Number(x.seasonWork?.games)||0;
@@ -954,10 +988,13 @@ function seasonPpgCell(x){
 }
 function matrixRows(graded){
  const rows=[
+  {label:'Model confidence',note:'Evidence coverage for this player',cell:confidenceCell},
   {label:'Week projection',note:'Current-week verified projection',cell:x=>matrixCell(sourceProjectionName(x),projectionSourceText(x))},
   {label:'Player props',note:'All current verified markets returned',cell:propsCell},
   {label:`2026 matchup vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'Current season · completed games only',cell:x=>matchupYearCell(x,2026)},
   {label:'2025 matchup baseline',note:'Full 2025 season · separate context',cell:x=>matchupYearCell(x,2025)},
+  {label:'RB trench matchup',note:'2026 offensive RBWR vs opponent RSWR',cell:trenchCell},
+  {label:'RB game script',note:'Spread-driven rushing-volume environment',cell:gameScriptCell},
   {label:'Role change',note:'Confirmed coach/team workload news',cell:x=>{const rc=x.bundleRoleChange,d=x.newsCtx?.direct,dir=String(rc?.direction||'').toLowerCase(),headline=rc?.headline||d?.headline||'',source=rc?.source||d?.provider||'',detail=rc?.detail||x.newsCtx?.reasons?.[0]||'No verified role-change report';return matrixCell(rc?.label||(x.newsCtx?.forwardRoleBoost>0?'Role increasing':x.newsCtx?.forwardRoleBoost<0?'Role decreasing':'No confirmed change'),headline?[headline,source].filter(Boolean).join(' · '):detail,dir==='up'||x.newsCtx?.forwardRoleBoost>0?'good':dir==='down'||x.newsCtx?.forwardRoleBoost<0?'bad':'')}},
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:seasonPpgCell},
   {label:'Last game',note:'Exact box-score usage',cell:latestStatCell},
@@ -1037,15 +1074,21 @@ function edgeLabel(a,b){
  if(d<3.5)return low<55?'Toss-up · limited confidence':'Toss-up';
  return 'Slight edge'
 }
+function decisionConfidence(a,b){
+ if(!a)return 0;
+ if(!b)return Math.round(Number(a.confidence)||0);
+ const base=Math.min(Number(a.confidence)||0,Number(b.confidence)||0),gap=Math.abs((Number(a.g?.score)||0)-(Number(b.g?.score)||0));
+ return Math.max(25,Math.min(96,Math.round(base*.76+Math.min(100,30+gap*7)*.24)))
+}
 function callout(a,b){
  if(!a)return '<div class="warning">Every selected player is explicitly unavailable or on bye. Active players are always retained in the comparison.</div>';
  if(!b)return `<div class="call"><small>Only actionable option</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player currently eligible for this lineup slot.</p></div>`;
- const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',role:'Latest role',usage:'Verified usage',matchup:'Matchup',environment:'Game environment'};
+ const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',role:'Latest role',usage:'Verified usage',matchup:'Matchup',trench:'OL vs DL',gameScript:'Game script',environment:'Game environment'};
  for(const k of Object.keys(labels))if(ca[k]!=null&&cb[k]!=null&&ca[k]-cb[k]>=7)drivers.push(labels[k]);
  if((a.newsCtx?.adjustment||0)>(b.newsCtx?.adjustment||0)+1.5)drivers.push(a.newsCtx?.indirect?'Teammate injury opportunity':'News / availability');
  if((a.teamCtx?.adjustment||0)>(b.teamCtx?.adjustment||0)+1.5)drivers.push('Team / QB context');
- const cls=toss?'call knot':'call',headline=toss?'Too close to force':`Start ${esc(a.p.full_name)}`,copy=toss?`${esc(a.p.full_name)} has the small model edge, but the evidence gap is not strong enough for a confident call.`:`${esc(a.p.full_name)} has the stronger current-week profile over ${esc(b.p.full_name)}.`;
- return `<div class="${cls}"><small>${esc(edge)}</small><h2>${headline}</h2><p>${copy}</p>${drivers.length?`<div class="drivers">${[...new Set(drivers)].slice(0,4).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`
+ const recConfidence=decisionConfidence(a,b),cls=toss?'call knot':'call',headline=toss?'Too close to force':`Start ${esc(a.p.full_name)}`,copy=toss?`${esc(a.p.full_name)} has the small model edge, but the evidence gap is not strong enough for a confident call.`:`${esc(a.p.full_name)} has the stronger current-week profile over ${esc(b.p.full_name)}.`;
+ return `<div class="${cls}"><small>${esc(edge)} · ${recConfidence}% confidence</small><h2>${headline}</h2><p>${copy}</p>${drivers.length?`<div class="drivers">${[...new Set(drivers)].slice(0,4).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`
 }
 async function compare(){
  const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Checking projections, stats, matchup and news…';
@@ -1075,7 +1118,7 @@ async function compare(){
   try{matrix=renderMatrix(graded)}catch(e){console.warn('matrix render failed',e);matrix='<div class="warning">Comparison table is temporarily unavailable; the recommendation above is still active.</div>'}
   let details='';
   try{details=renderDetails(graded)}catch(e){console.warn('details render failed',e)}
-  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. RB route participation is shown only when a real route source exists; snap share is never substituted. Player props are current-week, source-stamped markets when verified. Matchups show 2026 opponent-vs-position results separately from the 2025 full-season baseline. Confirmed coach/team role changes are surfaced directly. Workhorse weekly rank is display-only and does not affect the Start/Sit recommendation. Missing optional inputs are excluded instead of guessed.</div>`;
+  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. RB route participation is shown only when a real route source exists; snap share is never substituted. Player props are current-week, source-stamped markets when verified. Matchups show 2026 opponent-vs-position results separately from the 2025 full-season baseline. Confirmed coach/team role changes are surfaced directly. Workhorse weekly rank is display-only and does not affect the Start/Sit recommendation. Lower-projected players receive more matchup weight; RBs also use spread-driven game script and 2026 ESPN Analytics RBWR-vs-RSWR trench context. Missing optional inputs are excluded instead of guessed.</div>`;
   st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable · ${weekSource}`;
  }catch(e){
   console.error('Start/Sit core comparison failure',e);
