@@ -74,6 +74,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           page=Path('sandbox.html').read_text()
+          start_sit_page=Path('start-sit-sandbox-v31.html').read_text()
           league_page=Path('sandbox-league.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
           owner=Path('season-owner-control-v1.js').read_text()
@@ -102,8 +103,8 @@ jobs:
             'bars widen visible team spread': 'Math.pow(ratio,1.12)' in bars and 'Math.max(12' in bars,
             'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
-            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=8' in page,
-            'start sit and signals routes remain': "v==='start-sit'||v==='signals'" in page and 'season-start-sit-v1.js?v=27' in page and 'season-market-signals-v1.js?v=1' in page,
+            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=8' in start_sit_page and 'season-start-sit-v1.js?v=31' in start_sit_page,
+            'start sit route uses current direct sandbox': "v==='start-sit'" in page and "start-sit-sandbox-v31.html" in page and 'season-market-signals-v1.js?v=1' in page,
             'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=8' in Path('season-rankings-seed-v1.js').read_text(),
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
