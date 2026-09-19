@@ -790,7 +790,7 @@ function styles(){
 }
 function shell(){
  document.body.innerHTML=`<div id="wh-startsit">
-  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
+  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v30</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
   <main class="shell">
    <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, news, game environment and your Workhorse ranking. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
    <section class="setup"><div class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></div>
@@ -849,7 +849,7 @@ function latestStatCell(x){
 function roleShareCell(x){
  const r=x.latestRole||{},p=x.p.position;
  if(p==='RB')return matrixCell(r.rushShare==null?'—':pct(r.rushShare),`RB carries · ${r.carries??'—'}/${r.totalCarries??'—'} · ${r.snap==null?'—':pct(r.snap)} snaps`);
- if(p==='WR'||p==='TE')return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.targets??'—'} targets / ${r.teamPassAttempts??'—'} team pass attempts · ${r.snap==null?'—':pct(r.snap)} snaps`);
+ if(p==='WR'||p==='TE'){const tt=r.teamTargets??r.totalTargets;return matrixCell(r.targetShare==null?'—':pct(r.targetShare),`${r.targets??'—'} targets / ${tt??'—'} team targets · ${r.snap==null?'—':pct(r.snap)} snaps`);}
  if(p==='QB')return matrixCell(r.snap==null?'—':pct(r.snap),'snap share');
  return matrixCell('—','')
 }
@@ -866,6 +866,33 @@ function routeCell(x){
  const main=(r.routes??lg.routes)!=null?`${r.routes??lg.routes} routes`:r.routeParticipation!=null?`${pct(r.routeParticipation)} route share`:'—';
  return matrixCell(main,`${rp} route participation · ${tprr} TPRR · ${yprr} YPRR`)
 }
+function dataRows(rows){
+ return (rows||[]).map(([label,value])=>`<div class="drow"><span>${esc(label)}</span><b>${esc(value==null||value===''?'—':value)}</b></div>`).join('')
+}
+function matchupDetailRows(year,d,pos){
+ if(!d)return [[`${year} matchup`,'No verified matchup data']];
+ const rows=[];
+ if(d.display)rows.push([`${year} summary`,d.display]);
+ rows.push([`${year} ${scoringName()} allowed / game`,fmt(d.avg?.[matchupPointKey()],1)]);
+ const rank=matchupRank(d);if(rank!=null)rows.push([`${year} matchup rank`, `#${rank} of ${d.rankTotal||32} by points/yards/TD allowed`]);
+ if(pos==='RB'){
+  rows.push([`${year} RB carries allowed / game`,fmt(d.avg?.carries,1)]);
+  rows.push([`${year} rushing yards allowed / game`,fmt(d.avg?.rushYds,1)]);
+  rows.push([`${year} RB targets allowed / game`,fmt(d.avg?.targets,1)]);
+  rows.push([`${year} RB receiving yards allowed / game`,fmt(d.avg?.recYds,1)]);
+ }else if(pos==='WR'||pos==='TE'){
+  rows.push([`${year} targets allowed / game`,fmt(d.avg?.targets,1)]);
+  rows.push([`${year} receptions allowed / game`,fmt(d.avg?.receptions,1)]);
+  rows.push([`${year} receiving yards allowed / game`,fmt(d.avg?.recYds,1)]);
+ }else if(pos==='QB'){
+  rows.push([`${year} passing yards allowed / game`,fmt(d.avg?.passYds,1)]);
+  rows.push([`${year} passing TD allowed / game`,fmt(d.avg?.passTd,2)]);
+  rows.push([`${year} QB rushing yards allowed / game`,fmt(d.avg?.rushYds,1)]);
+ }
+ if(d.sample_note)rows.push([`${year} sample`,d.sample_note]);
+ if(d.source)rows.push([`${year} source`,d.source]);
+ return rows
+}
 function matchupYardLabel(pos){return pos==='QB'?'pass yds':pos==='RB'?'rush yds':'rec yds'}
 function matchupLine(d,pos){
  if(!d)return '';
@@ -876,9 +903,12 @@ function matchupLine(d,pos){
  return `${pts} ${scoringName()} pts/G`
 }
 function matchupCell(x){
- const d26=x.mu?.y2026,d25=x.mu?.y2025;
- if(!d26&&!d25)return matrixCell('—','No verified matchup sample');
- return `<div class="matchstack">${d26?`<b>2026: ${esc(matchupLine(d26,x.p.position))}</b><small>${d26.games} completed game${d26.games===1?'':'s'}</small>`:''}${d25?`<b>2025: ${esc(matchupLine(d25,x.p.position))}</b><small>${d25.verifiedPpr&&format==='ppr'?'PPR baseline externally cross-checked':'raw box-score baseline'}</small>`:''}</div>`
+ const d26=x.mu?.y2026,d25=x.mu?.y2025,r26=x.mu?.raw2026,r25=x.mu?.raw2025;
+ if(!d26&&!d25&&!r26&&!r25)return matrixCell('—','No verified matchup sample');
+ const line26=r26?.display||matchupLine(d26,x.p.position),line25=r25?.display||matchupLine(d25,x.p.position);
+ const sample26=r26?.sample_note||(d26?`${d26.games} completed game${d26.games===1?'':'s'}`:'');
+ const sample25=r25?.sample_note||(d25?.verifiedPpr&&format==='ppr'?'2025 full-season baseline':'raw box-score baseline');
+ return `<div class="matchstack">${line26?`<b>${esc(line26)}</b><small>${esc(sample26)}</small>`:''}${line25?`<b>${esc(line25)}</b><small>${esc(sample25)}</small>`:''}</div>`
 }
 function gameCell(x){const g=x.game;if(!g)return matrixCell(scheduleLoaded?'BYE':'—',scheduleLoaded?'No game this week':'Schedule unavailable',scheduleLoaded?'bad':'');const main=g.total?`O/U ${fmt(g.total,1)}`:'Scheduled';const sub=[g.teamImplied?`team ${fmt(g.teamImplied,1)}`:'',Number.isFinite(g.spread)?`${g.spread>0?'+':''}${fmt(g.spread,1)} spread`:'' ].filter(Boolean).join(' · ');return matrixCell(main,sub)}
 function roleCell(x){const r=x.g?.role||{};return matrixCell(r.label||'—',r.confidence?`${r.confidence} confidence`:'',r.direction==='up'?'good':r.direction==='down'?'bad':'')}
