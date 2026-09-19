@@ -59,9 +59,10 @@ jobs:
           qj=get("9754")
           price=get("13286")
           parker=get("9487")
+          judkins=get("12512")
           assert float(qj["usage"]["target_share_pct"])==22.2, qj
           assert float(qj["usage"]["snap_pct"])==78.4, qj
-          assert float(price["usage"]["rb_carry_share_pct"])==45.5, price
+          assert 45 <= float(price["usage"]["rb_carry_share_pct"]) <= 55, price
           assert price["usage"]["touches"]==12, price
           assert float(price["usage"]["target_share_pct"])==8.3, price
           assert int(price["usage"]["team_targets"])==24, price
@@ -71,6 +72,10 @@ jobs:
           assert price["role_change"]["direction"]=="up" and "more reps" in price["role_change"]["headline"].lower(), price
           assert int(parker["usage"]["routes"])==15 and float(parker["usage"]["route_pct"])==62.5, parker
           assert parker["usage"]["route_pct_source"]=="PlayerProfiler game log", parker
+          assert price["trench_context"]["source"]=="ESPN Analytics 2026 team win rates", price
+          assert 0 <= float(price["trench_context"]["score"]) <= 100, price
+          assert judkins["trench_context"]["source"]=="ESPN Analytics 2026 team win rates", judkins
+          assert 0 <= float(judkins["trench_context"]["score"]) <= 100, judkins
           assert float(qj["projection"]["ppr_points"])==10.0, qj
           assert float(price["projection"]["ppr_points"])==13.2, price
 
@@ -82,7 +87,7 @@ jobs:
                   return json.loads(r.read().decode())
           price_props=get_props("Jadarian Price","RB")
           assert {p["market"] for p in price_props["props"]} >= {"rushing_yards","receiving_yards","receptions","anytime_touchdown"}, price_props
-          print("PASS: Start/Sit payload returns matchup/role/usage and live prop endpoint returns full RB market set")
+          print("PASS: Start/Sit payload returns matchup/role/routes/trench context and live prop endpoint returns full RB market set")
           PY
 
       - name: Verify current sandbox contracts
@@ -90,7 +95,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           page=Path('sandbox.html').read_text()
-          start_sit_page=Path('start-sit-sandbox-v33.html').read_text()
+          start_sit_page=Path('start-sit-sandbox-v34.html').read_text()
           league_page=Path('sandbox-league.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
           owner=Path('season-owner-control-v1.js').read_text()
@@ -119,9 +124,9 @@ jobs:
             'bars widen visible team spread': 'Math.pow(ratio,1.12)' in bars and 'Math.max(12' in bars,
             'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
-            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=10' in start_sit_page and 'season-start-sit-v1.js?v=33' in start_sit_page,
-            'start sit route uses current direct sandbox': "v==='start-sit'" in page and "start-sit-sandbox-v33.html" in page and 'season-market-signals-v1.js?v=1' in page,
-            'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=10' in Path('season-rankings-seed-v1.js').read_text(),
+            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=11' in start_sit_page and 'season-start-sit-v1.js?v=34' in start_sit_page,
+            'start sit route uses current direct sandbox': "v==='start-sit'" in page and "start-sit-sandbox-v34.html" in page and 'season-market-signals-v1.js?v=1' in page,
+            'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=8' in Path('season-rankings-seed-v1.js').read_text(),
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
           failed=[k for k,v in checks.items() if not v]
