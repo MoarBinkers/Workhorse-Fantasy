@@ -116,16 +116,20 @@ async function loadProjections(){
 async function loadStartSitPlayerBundle(p){
  const id=String(p?.player_id||'');if(!id)return null;
  if(playerBundleCache.has(id))return playerBundleCache.get(id);
- let out=null;
- try{
-  const r=await fetch(`${SB}/functions/v1/get-startsit-player-data?season=${SEASON}&week=${week}&player_id=${encodeURIComponent(id)}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
-  if(r.ok){
-   out=await r.json();
-   if(out?.usage)verifiedUsage.set(id,out.usage);
-   if(out?.projection)verifiedProjections.set(id,out.projection);
-   if(Array.isArray(out?.props)&&out.props.length)propsCache.set(id,out.props);
-  }
- }catch(e){console.warn('unified Start/Sit player data unavailable',id,e)}
+ let out=null,lastErr=null;
+ for(let attempt=0;attempt<2&&!out;attempt++){
+  try{
+   const r=await fetch(`${SB}/functions/v1/get-startsit-player-data?season=${SEASON}&week=${week}&player_id=${encodeURIComponent(id)}&attempt=${attempt+1}`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
+   if(!r.ok){lastErr=new Error(`player bundle HTTP ${r.status}`);continue}
+   const j=await r.json();
+   if(j&&!j.error)out=j;else lastErr=new Error(j?.error||'empty player bundle')
+  }catch(e){lastErr=e}
+ }
+ if(out){
+  if(out?.usage)verifiedUsage.set(id,out.usage);
+  if(out?.projection)verifiedProjections.set(id,out.projection);
+  if(Array.isArray(out?.props)&&out.props.length)propsCache.set(id,out.props);
+ }else if(lastErr)console.warn('unified Start/Sit player data unavailable',id,lastErr);
  playerBundleCache.set(id,out);return out
 }
 async function loadVerifiedWeeklyData(){
