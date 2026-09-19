@@ -609,12 +609,12 @@ function mergeVerifiedGame(p,id,base){
  out.verifiedSource=v.source||'Verified usage';
  return out
 }
-function coreFallbackScore({rank,roleScore,recentPpg,matchupScore,newsAdjustment=0,contextAdjustment=0}){
+function coreFallbackScore({roleScore,recentPpg,matchupScore,projectionPoints,newsAdjustment=0,contextAdjustment=0}){
  const parts=[];
- const r=Number(rank);if(Number.isFinite(r)&&r>0)parts.push([100*Math.max(0,Math.min(1,1-(r-1)/120)),.34]);
- const role=Number(roleScore);if(Number.isFinite(role))parts.push([Math.max(0,Math.min(100,role)),.30]);
- const ppg=Number(recentPpg);if(Number.isFinite(ppg)&&ppg>=0)parts.push([100*Math.max(0,Math.min(1,(ppg-4)/20)),.26]);
- const mu=Number(matchupScore);if(Number.isFinite(mu))parts.push([Math.max(0,Math.min(100,mu)),.10]);
+ const role=Number(roleScore);if(Number.isFinite(role))parts.push([Math.max(0,Math.min(100,role)),.36]);
+ const proj=Number(projectionPoints);if(Number.isFinite(proj)&&proj>=0)parts.push([100*Math.max(0,Math.min(1,(proj-5)/22)),.28]);
+ const ppg=Number(recentPpg);if(Number.isFinite(ppg)&&ppg>=0)parts.push([100*Math.max(0,Math.min(1,(ppg-4)/20)),.22]);
+ const mu=Number(matchupScore);if(Number.isFinite(mu))parts.push([Math.max(0,Math.min(100,mu)),.14]);
  if(!parts.length)return null;
  const weight=parts.reduce((a,x)=>a+x[1],0);
  let score=parts.reduce((a,[v,w])=>a+v*w,0)/weight;
@@ -631,8 +631,7 @@ function explicitAvailability({inj,game}){
 function emergencyGrade(id,reason=''){
  const p=pool.get(String(id));if(!p)return null;
  const sid=String(id),bundle=playerBundleCache.get(sid)||null;
- const rank=whRank(id)??(Number.isFinite(Number(p.sleeper_rank))?Number(p.sleeper_rank):999);
- const rankScore=Math.max(1,Math.min(99,Math.round(100*Math.max(0,Math.min(1,1-(Number(rank)-1)/140)))));
+ const rank=whRank(id)??(Number.isFinite(Number(p.sleeper_rank))?Number(p.sleeper_rank):null);
  const inj=injuryText(id),game=games.get(normTeam(p.team))||null;
  const text=String(inj||'').toLowerCase(),out=/(^|\b)(out|ir|pup|suspended|inactive)(\b|$)/.test(text);
  const bye=!!scheduleLoaded&&!game;
@@ -653,7 +652,8 @@ function emergencyGrade(id,reason=''){
  }
  let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
  try{mu=matchupFromBundle(bundle,p,game)||matchupFor(p,game)}catch(_){}
- const g={score:rankScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{rank:rankScore,matchup:mu.score},projection:{points:weeklyProjection,source:'rank-emergency'},reasons:['Emergency fallback · Workhorse weekly rank + verified player data']};
+ const fallbackScore=coreFallbackScore({roleScore:latestRole.score,recentPpg:latestGame?.fantasy,matchupScore:mu.score,projectionPoints:weeklyProjection,newsAdjustment:newsCtx.adjustment,contextAdjustment:0});
+ const g={score:fallbackScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:latestRole.score,matchup:mu.score},projection:{points:weeklyProjection,source:'verified-emergency'},reasons:['Emergency fallback · projection, verified role/usage and matchup only']};
  return {id:sid,p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection,latestRole,forwardRoleScore:latestRole.score,forwardRoleLabel:latestRole.label,g,availability,confidence:35,game,news,props,newsCtx,bundleRoleChange,teamCtx:{adjustment:0,reasons:[]},mu,teamChanged:false,latestGame,currentWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},seasonWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
 }
 async function grade(id){
@@ -681,20 +681,19 @@ async function grade(id){
  try{mu=matchupFromBundle(bundle,p,game)||matchupFor(p,game)}catch(e){console.warn('matchup grade unavailable',id,e)}
  const priorTeam=[...prior].reverse().map(x=>normTeam(textFirst(x,'team','tm','team_abbr'))).find(Boolean)||'',teamChanged=!!priorTeam&&priorTeam!==normTeam(p.team);
  const ownerProjection=custom.projection===''||custom.projection==null?null:Number(custom.projection),weeklyProjection=providerProjection(id);
- const rankWeight=slot==='SUPERFLEX'?.04:.14,injuryRisk=availabilityRisk(inj,newsCtx);
+ const injuryRisk=availabilityRisk(inj,newsCtx);
  const forwardRoleScore=latestRole.score==null?(newsCtx.forwardRoleBoost?Math.max(0,Math.min(100,50+newsCtx.forwardRoleBoost)):null):Math.max(0,Math.min(100,latestRole.score+(newsCtx.forwardRoleBoost||0)));
  const forwardRoleLabel=newsCtx.forwardRoleBoost?`${latestRole.label||'Latest role'} · coach/news adjustment ${newsCtx.forwardRoleBoost>0?'+':''}${newsCtx.forwardRoleBoost}`:latestRole.label;
  let g=null;
  try{
-  g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,weeklyRank:rank,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game,rankWeight})
+  g=E.startSitScoreV2({pos:p.position,currentStats:current,priorStats:prior,format,injuryStatus:inj,injuryRisk,ownerProjection,providerProjection:weeklyProjection,teamChanged,latestRoleScore:forwardRoleScore,latestRoleConfidence:Math.max(latestRole.confidence||0,newsCtx.forwardRoleBoost?88:0),latestRoleLabel:forwardRoleLabel,matchupScore:mu.score,matchupConfidence:mu.confidence,environment:{gameTotal:game?.total,teamImplied:game?.teamImplied,spread:game?.spread,home:game?.home},newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment,locked:!!game?.locked,bye:scheduleLoaded&&!game})
  }catch(e){console.warn('advanced Start/Sit model unavailable',id,e)}
  if(!g||g.score==null){
   const recent=workload(p.position,current,3),fallbackPts=weeklyProjection??(recent.games?recent.ppg:null);
   const unavailable=/\b(out|ir|pup|suspended|inactive)\b/i.test(String(inj||''));
   const bye=scheduleLoaded&&!game,locked=!!game?.locked;
-  const emergencyRank=(rank??workhorseRank??(Number.isFinite(Number(p.sleeper_rank))?Number(p.sleeper_rank):null));
-  const fallbackScore=coreFallbackScore({rank:emergencyRank,roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
-  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,rank:rank?Math.round(100*Math.max(0,Math.min(1,1-(rank-1)/120))):null,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · weekly rank, role, recent production and matchup when available']}
+  const fallbackScore=coreFallbackScore({roleScore:forwardRoleScore,recentPpg:recent.games?recent.ppg:null,matchupScore:mu.score,projectionPoints:weeklyProjection,newsAdjustment:newsCtx.adjustment,contextAdjustment:teamCtx.adjustment});
+  g={score:fallbackScore,eligible:!unavailable&&!bye,locked,bye,components:{projection:weeklyProjection!=null?Math.round(Math.max(0,Math.min(100,(weeklyProjection-5)/22*100))):null,role:forwardRoleScore,matchup:mu.score},projection:{points:fallbackPts,source:'core-fallback'},reasons:['Core verified data fallback · projection, role, recent production and matchup when available']}
  }
  const availability=explicitAvailability({inj,game});
  return {id:String(id),p,current,prior,inj,injuryRisk,rank,workhorseRank,weeklyProjection,latestRole,forwardRoleScore,forwardRoleLabel,g,availability,confidence:confidence(g),game,news,props,newsCtx,bundleRoleChange,teamCtx,mu,teamChanged,latestGame:mergeVerifiedGame(p,id,latestGameStats(p.position,current)),currentWork:workload(p.position,current,3),seasonWork:workload(p.position,current,0),priorWork:workload(p.position,prior,3)}
@@ -817,7 +816,7 @@ function styles(){
 }
 function shell(){
  document.body.innerHTML=`<div id="wh-startsit">
-  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v32</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
+  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v33</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
   <main class="shell">
    <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, news, game environment and your Workhorse ranking. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
    <section class="setup"><div class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></div>
@@ -966,7 +965,7 @@ function matrixRows(graded){
   {label:'Target share',note:'Targets ÷ total team targets',cell:targetShareCell},
   {label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:routeCell},
   {label:'Game line',note:'Spread · total · implied team points',cell:gameCell},
-  {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
+  {label:'Workhorse weekly rank',note:'Reference only · NOT used in Start/Sit score',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'display only':format==='ppr'?'not initialized':'PPR-only')},
   {label:'Player status',note:'Current availability designation',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?'Availability risk applied':'',statusTone(x))}
  ];
  return rows
@@ -1041,7 +1040,7 @@ function edgeLabel(a,b){
 function callout(a,b){
  if(!a)return '<div class="warning">Every selected player is explicitly unavailable or on bye. Active players are always retained in the comparison.</div>';
  if(!b)return `<div class="call"><small>Only actionable option</small><h2>Start ${esc(a.p.full_name)}</h2><p>${esc(a.p.full_name)} is the only selected player currently eligible for this lineup slot.</p></div>`;
- const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',role:'Latest role',usage:'Verified usage',rank:'Workhorse rank',matchup:'Matchup',environment:'Game environment'};
+ const edge=edgeLabel(a,b),toss=edge.startsWith('Toss'),drivers=[],ca=a.g.components||{},cb=b.g.components||{},labels={projection:'Projection',role:'Latest role',usage:'Verified usage',matchup:'Matchup',environment:'Game environment'};
  for(const k of Object.keys(labels))if(ca[k]!=null&&cb[k]!=null&&ca[k]-cb[k]>=7)drivers.push(labels[k]);
  if((a.newsCtx?.adjustment||0)>(b.newsCtx?.adjustment||0)+1.5)drivers.push(a.newsCtx?.indirect?'Teammate injury opportunity':'News / availability');
  if((a.teamCtx?.adjustment||0)>(b.teamCtx?.adjustment||0)+1.5)drivers.push('Team / QB context');
@@ -1076,7 +1075,7 @@ async function compare(){
   try{matrix=renderMatrix(graded)}catch(e){console.warn('matrix render failed',e);matrix='<div class="warning">Comparison table is temporarily unavailable; the recommendation above is still active.</div>'}
   let details='';
   try{details=renderDetails(graded)}catch(e){console.warn('details render failed',e)}
-  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. RB route participation is shown only when a real route source exists; snap share is never substituted. Player props are current-week, source-stamped markets when verified. Matchups show 2026 opponent-vs-position results separately from the 2025 full-season baseline. Confirmed coach/team role changes are surfaced directly. Missing optional inputs are excluded instead of guessed.</div>`;
+  document.querySelector('#ss-output').innerHTML=recommendation+matrix+details+(warnings.length?`<div class="warning">${warnings.map(esc).join('<br>')}</div>`:'')+`<div class="source-note">Actual stats: Sleeper completed-week data. Target share = player targets ÷ total team targets. RB route participation is shown only when a real route source exists; snap share is never substituted. Player props are current-week, source-stamped markets when verified. Matchups show 2026 opponent-vs-position results separately from the 2025 full-season baseline. Confirmed coach/team role changes are surfaced directly. Workhorse weekly rank is display-only and does not affect the Start/Sit recommendation. Missing optional inputs are excluded instead of guessed.</div>`;
   st.textContent=`Week ${week} · ${scoringName()} · ${valid.length} actionable · ${weekSource}`;
  }catch(e){
   console.error('Start/Sit core comparison failure',e);
