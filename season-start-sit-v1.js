@@ -239,8 +239,8 @@ async function loadNewsFor(p){
  newsCache.set(k,clean);return clean
 }
 async function loadPropsFor(p){
- const k=String(p.player_id);if(propsCache.has(k)&&propsCache.get(k)?.length)return propsCache.get(k);
- let rows=[...(VERIFIED_FALLBACKS[k]?.props||[])];
+ const k=String(p.player_id);
+ let rows=[...(propsCache.get(k)||[]),...(VERIFIED_FALLBACKS[k]?.props||[])];
  try{
   const pk=encodeURIComponent(playerKey(p));
   const r=await fetch(`${SB}/rest/v1/player_prop_lines?select=market,line,over_odds,under_odds,source,source_url,observed_at&season=eq.${SEASON}&week=eq.${week}&player_key=eq.${pk}&order=observed_at.desc&limit=20`,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
@@ -251,13 +251,14 @@ async function loadPropsFor(p){
   const r=await fetch(u,{headers:{apikey:KEY,Accept:'application/json'},cache:'no-store'});
   if(r.ok){const j=await r.json();if(Array.isArray(j?.props))rows.push(...j.props)}
  }catch(e){console.warn('live prop feed unavailable',e)}
- const now=Date.now(),seen=new Set(),fresh=[];
+ const now=Date.now(),best=new Map();
  for(const x of rows){
   const age=(now-new Date(x.observed_at||0).getTime())/36e5;
-  if(!Number.isFinite(age)||age>24||!Number.isFinite(Number(x.line)))continue;
-  if(seen.has(x.market))continue;
-  seen.add(x.market);fresh.push(x)
+  if(!Number.isFinite(age)||age>72||!Number.isFinite(Number(x.line))||!x.market)continue;
+  const prev=best.get(x.market),xt=new Date(x.observed_at||0).getTime(),pt=prev?new Date(prev.observed_at||0).getTime():0;
+  if(!prev||xt>=pt)best.set(x.market,x)
  }
+ const fresh=[...best.values()];
  propsCache.set(k,fresh);return fresh
 }
 function textFirst(o,...keys){for(const k of keys)if(o&&o[k]!=null&&String(o[k]).trim()!=='')return String(o[k]);return ''}
@@ -398,7 +399,12 @@ function newsContext(items,injury){
   const age=(now-new Date(n.published_at||0).getTime())/86400000;
   return Number.isFinite(age)&&age<=7;
  });
- const direct=recent.find(n=>{
+ const roleReport=recent.find(n=>{
+  const c=Array.isArray(n.categories)?n.categories:[];if(c.includes('indirect')||c.includes('trending'))return false;
+  const t=`${n.headline||''} ${n.summary||''} ${n.fantasy_impact||''}`.toLowerCase();
+  return /coach|coordinator|oc\b|hc\b|team said|will get more reps|earned more reps|more reps moving forward|more touches|more playing time|more opportunities|workload (will|should|could) increase|role (will|should|could) expand|named starter|will start|starting role|benched|demoted|reduced role/.test(t)
+ });
+ const direct=roleReport||recent.find(n=>{
   const c=Array.isArray(n.categories)?n.categories:[];
   return !c.includes('indirect')&&!c.includes('trending');
  });
@@ -790,7 +796,7 @@ function styles(){
 }
 function shell(){
  document.body.innerHTML=`<div id="wh-startsit">
-  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v30</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
+  <header class="top"><div class="brand">WORKHORSE</div><span class="tag">START / SIT · v31</span><div class="spacer"></div><a class="back" href="./sandbox.html?view=tools">← Tools</a></header>
   <main class="shell">
    <section class="intro"><div><div class="eyebrow">Weekly lineup decision</div><h1>Start the right player.</h1><p>Compare 2–4 players using current-week projection, actual 2026 production, verified workload, opponent-vs-position results, injuries, news, game environment and your Workhorse ranking. Missing stats stay missing.</p></div><div class="weekpill">Week <b id="ss-week-pill">—</b> · Sandbox</div></section>
    <section class="setup"><div class="controls"><div class="control"><label>Lineup slot</label><div class="seg" id="slot-seg">${['FLEX','SUPERFLEX','QB','RB','WR','TE'].map(x=>`<button data-slot="${x}" class="${x===slot?'active':''}">${x}</button>`).join('')}</div></div><div class="control"><label>Scoring</label><div class="seg" id="format-seg">${[['ppr','PPR'],['half','Half PPR'],['standard','Standard']].map(([x,l])=>`<button data-format="${x}" class="${x===format?'active':''}">${l}</button>`).join('')}</div></div></div>
@@ -902,6 +908,13 @@ function matchupLine(d,pos){
  if(pos==='QB')return `${pts} ${scoringName()} pts/G · ${fmt(d.avg?.passYds,1)} pass yds/G · ${fmt(d.avg?.passTd,2)} pass TD/G · ${fmt(d.avg?.rushYds,1)} rush yds/G`;
  return `${pts} ${scoringName()} pts/G`
 }
+function matchupYearCell(x,year){
+ const raw=year===2026?x.mu?.raw2026:x.mu?.raw2025,d=year===2026?x.mu?.y2026:x.mu?.y2025;
+ const line=raw?.display||matchupLine(d,x.p.position);
+ if(!line)return matrixCell('—',`No verified ${year} matchup data`);
+ const sample=raw?.sample_note||(year===2026&&d?`${d.games} completed game${d.games===1?'':'s'}`:year===2025?'2025 full-season baseline':'');
+ return matrixCell(line,sample,year===2026?matchupTone(x.mu?.score):'')
+}
 function matchupCell(x){
  const d26=x.mu?.y2026,d25=x.mu?.y2025,r26=x.mu?.raw2026,r25=x.mu?.raw2025;
  if(!d26&&!d25&&!r26&&!r25)return matrixCell('—','No verified matchup sample');
@@ -927,10 +940,11 @@ function matrixRows(graded){
   {label:'Primary opportunity',note:'WR/TE = target share · RB = RB carry share',cell:roleShareCell},
   {label:'Target share',note:'Targets ÷ total team targets',cell:targetShareCell},
   {label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:routeCell},
-  {label:`Opponent vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'2026 completed games + 2025 box-score baseline',cell:matchupCell},
+  {label:`2026 matchup vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'Current season · completed games only',cell:x=>matchupYearCell(x,2026)},
+  {label:'2025 matchup baseline',note:'Full 2025 season · shown separately for context',cell:x=>matchupYearCell(x,2025)},
   {label:'Game line',note:'Spread · total · implied team points',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
-  {label:'Role news',note:'Confirmed coach/team statements first',cell:x=>{const rc=x.bundleRoleChange,dir=String(rc?.direction||'').toLowerCase();return matrixCell(rc?.label||(x.newsCtx?.forwardRoleBoost>0?'Trending up':x.newsCtx?.forwardRoleBoost<0?'Trending down':'No confirmed change'),rc?.headline?[rc.headline,rc.source].filter(Boolean).join(' · '):(x.newsCtx?.reasons?.[0]||'No verified role-change report'),dir==='up'||x.newsCtx?.forwardRoleBoost>0?'good':dir==='down'||x.newsCtx?.forwardRoleBoost<0?'bad':'')}},
+  {label:'Role change',note:'Confirmed coach/team workload news',cell:x=>{const rc=x.bundleRoleChange,d=x.newsCtx?.direct,dir=String(rc?.direction||'').toLowerCase(),headline=rc?.headline||d?.headline||'',source=rc?.source||d?.provider||'',detail=rc?.detail||x.newsCtx?.reasons?.[0]||'No verified role-change report';return matrixCell(rc?.label||(x.newsCtx?.forwardRoleBoost>0?'Role increasing':x.newsCtx?.forwardRoleBoost<0?'Role decreasing':'No confirmed change'),headline?[headline,source].filter(Boolean).join(' · '):detail,dir==='up'||x.newsCtx?.forwardRoleBoost>0?'good':dir==='down'||x.newsCtx?.forwardRoleBoost<0?'bad':'')}},
   {label:'Player status',note:'Current availability designation',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?'Availability risk applied':'',statusTone(x))}
  ];
  return rows
@@ -1002,7 +1016,11 @@ async function compare(){
  const btn=document.querySelector('#ss-run'),st=document.querySelector('#ss-status');btn.disabled=true;st.textContent='Checking projections, stats, matchup and news…';
  let graded=[];
  try{
-  try{if(format!=='ppr')await ensureMatchups()}catch(e){console.warn('legacy matchup preload skipped',e)}
+  try{
+   const prefetched=await Promise.all(selected.map(id=>loadStartSitPlayerBundle(pool.get(String(id))).catch(()=>null)));
+   const missingBundleMatchup=prefetched.some(b=>!b?.matchup_2026&&!b?.matchup2026&&!b?.matchup?.current_2026);
+   if(format!=='ppr'||missingBundleMatchup)await ensureMatchups();
+  }catch(e){console.warn('matchup preload fallback skipped',e)}
   const settled=await Promise.allSettled(selected.map(grade));
   graded=settled.map((x,i)=>{
    if(x.status==='fulfilled'&&x.value)return x.value;
