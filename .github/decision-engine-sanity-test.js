@@ -2,7 +2,7 @@
 const assert=require('assert');
 require('../workhorse-decision-engine-v1.js');
 const E=global.WorkhorseDecisionEngine;
-assert(E&&E.version>=10,'decision engine loads');
+assert(E&&E.version>=11,'decision engine loads');
 const rb=[
  {rush_att:12,rec_tgt:2,rec:2,rush_yd:45,rec_yd:12,pts_ppr:8.7,snap_pct:.48,rush_rz_att:2},
  {rush_att:16,rec_tgt:4,rec:3,rush_yd:72,rec_yd:26,pts_ppr:14.8,snap_pct:.61,rush_rz_att:3},
@@ -87,3 +87,25 @@ const legacyRankOne=E.startSitScore({pos:'RB',stats:rb,format:'ppr',weeklyRank:1
 const legacyRankOneTwenty=E.startSitScore({pos:'RB',stats:rb,format:'ppr',weeklyRank:120});
 assert(legacyRankOne.score===legacyRankOneTwenty.score,'legacy Start/Sit scorer must also ignore weekly rank');
 console.log('PASS: weekly rank is display-only and score-invariant');
+
+const priceContext=E.startSitScoreV2({
+ pos:'RB',
+ currentStats:[{pts_ppr:7.8,rush_att:10,rush_yd:52,rec_tgt:2,rec:2,rec_yd:6,snap_pct:.48,rush_rz_att:0,rush_att_5:0}],
+ priorStats:[],format:'ppr',providerProjection:13.2,latestRoleScore:73,latestRoleConfidence:95,
+ matchupScore:72,matchupConfidence:65,trenchScore:53,
+ environment:{gameTotal:40.5,teamImplied:22,spread:-3.5,home:false},newsAdjustment:5.5
+});
+const judkinsContext=E.startSitScoreV2({
+ pos:'RB',
+ currentStats:[{pts_ppr:7,rush_att:12,rush_yd:33,rec_tgt:2,rec:2,rec_yd:17,snap_pct:.647,rush_rz_att:2}],
+ priorStats:[],format:'ppr',providerProjection:12.44,latestRoleScore:83,latestRoleConfidence:95,
+ matchupScore:54,matchupConfidence:65,trenchScore:88,
+ environment:{gameTotal:41.5,teamImplied:16.5,spread:8.5,home:false}
+});
+assert(priceContext.score>judkinsContext.score,'Price should grade ahead of Judkins when verified Week 2 context is applied');
+assert(priceContext.components.trench!==null&&priceContext.components.gameScript!==null,'RB model must include trench and game script');
+assert(judkinsContext.components.trench!==null&&judkinsContext.components.gameScript!==null,'RB model must include opponent trench and game script');
+assert(priceContext.gameScript.score>judkinsContext.gameScript.score,'favored RB game script must beat large-underdog RB script');
+assert(priceContext.weights.matchup>=.17&&judkinsContext.weights.matchup>=.17,'lower-projected RBs must receive elevated matchup weight');
+assert(priceContext.confidence>0&&judkinsContext.confidence>0,'model confidence must be exposed');
+console.log('PASS: Price vs Judkins context model uses matchup, trench, game script and confidence');
