@@ -155,12 +155,18 @@ function environmentScore(pos,env={}){
  if(Number.isFinite(total)&&total>0){score+=(total-44.5)*.72;used++}
  if(Number.isFinite(spread)){
    const p=String(pos||'').toUpperCase();
-   if(p==='RB')score+=clamp(-spread/8,-1,1)*7;
-   else if(['QB','WR','TE'].includes(p))score+=clamp(spread/10,-1,1)*2.5;
+   if(['QB','WR','TE'].includes(p))score+=clamp(spread/10,-1,1)*2.5;
    used++;
  }
  if(env.home===true){score+=1;used++}
  return {score:used?Math.round(clamp(score,20,82)):null,available:used>0,gameTotal:Number.isFinite(total)&&total>0?total:null,teamImplied:Number.isFinite(implied)&&implied>0?implied:null,spread:Number.isFinite(spread)?spread:null,home:env.home===true};
+}
+function gameScriptScore(pos,env={}){
+ const p=String(pos||'').toUpperCase(),spread=Number(env.spread);
+ if(p!=='RB'||!Number.isFinite(spread))return {score:null,spread:null,label:'No verified game script'};
+ const score=Math.round(clamp(50+clamp(-spread,-12,12)*3.5,8,92));
+ const label=spread<=-6?'Strong positive':spread<=-2?'Positive':spread>=6?'Strong negative':spread>=2?'Negative':'Neutral';
+ return {score,spread,label};
 }
 
 function startSitScoreV2(input={}){
@@ -184,17 +190,25 @@ function startSitScoreV2(input={}){
  const projectionComponent=100*clamp((projectionInput-5)/22,0,1);
  const matchup=Number(input.matchupScore),matchupComponent=Number.isFinite(matchup)?clamp(matchup,0,100):null;
  const env=environmentScore(pos,input.environment||{}),envComponent=env.score;
+ const script=gameScriptScore(pos,input.environment||{}),scriptComponent=script.score;
+ const trenchRaw=Number(input.trenchScore),trenchComponent=Number.isFinite(trenchRaw)?clamp(trenchRaw,0,100):null;
  const providerBacked=proj.providerPoints!=null;
  const latestRole=Number(input.latestRoleScore),roleComponent=Number.isFinite(latestRole)?clamp(latestRole,0,100):null;
+ const tierFactor=clamp((16-projectionInput)/7,0,1);
+ const matchupWeight=pos==='RB'
+   ?(providerBacked?.14:.16)+.10*tierFactor
+   :(pos==='WR'||pos==='TE')
+     ?(providerBacked?.08:.10)+.05*tierFactor
+     :(providerBacked?.07:.10);
  let parts;
  if(providerBacked){
-   if(pos==='RB')parts=[[projectionComponent,.38],[roleComponent,.29],[usage.score,.10],[matchupComponent,.12],[envComponent,.05]];
-   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.43],[roleComponent,.26],[usage.score,.12],[matchupComponent,.08],[envComponent,.04]];
-   else parts=[[projectionComponent,.52],[roleComponent,.18],[usage.score,.10],[matchupComponent,.07],[envComponent,.05]];
+   if(pos==='RB')parts=[[projectionComponent,.32],[roleComponent,.27],[usage.score,.09],[matchupComponent,matchupWeight],[trenchComponent,.10],[scriptComponent,.12+.04*tierFactor],[envComponent,.04]];
+   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.42],[roleComponent,.26],[usage.score,.12],[matchupComponent,matchupWeight],[envComponent,.04]];
+   else parts=[[projectionComponent,.52],[roleComponent,.18],[usage.score,.10],[matchupComponent,matchupWeight],[envComponent,.05]];
  }else{
-   if(pos==='RB')parts=[[projectionComponent,.32],[roleComponent,.31],[usage.score,.12],[matchupComponent,.14],[envComponent,.05]];
-   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.37],[roleComponent,.28],[usage.score,.14],[matchupComponent,.10],[envComponent,.04]];
-   else parts=[[projectionComponent,.45],[roleComponent,.20],[usage.score,.12],[matchupComponent,.10],[envComponent,.05]];
+   if(pos==='RB')parts=[[projectionComponent,.27],[roleComponent,.29],[usage.score,.10],[matchupComponent,matchupWeight],[trenchComponent,.11],[scriptComponent,.13+.04*tierFactor],[envComponent,.04]];
+   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.36],[roleComponent,.28],[usage.score,.14],[matchupComponent,matchupWeight],[envComponent,.04]];
+   else parts=[[projectionComponent,.45],[roleComponent,.20],[usage.score,.12],[matchupComponent,matchupWeight],[envComponent,.05]];
  }
  parts=parts.filter(([v,w])=>v!=null&&w>0);
  const weight=parts.reduce((a,x)=>a+x[1],0);
@@ -209,6 +223,8 @@ function startSitScoreV2(input={}){
    roleComponent!=null?clamp(Number(input.latestRoleConfidence??80)/100,0,1):null,
    usage.score!=null?usage.confidence/100:null,
    matchupComponent!=null?clamp(Number(input.matchupConfidence??60)/100,0,1):null,
+   trenchComponent!=null?.9:null,
+   scriptComponent!=null?.95:null,
    envComponent!=null?.85:null
  ].filter(x=>x!=null);
  const confidence=Math.round(100*(coverage.length?mean(coverage):0));
@@ -222,15 +238,17 @@ function startSitScoreV2(input={}){
  if(roleComponent!=null)reasons.push(`Latest role ${Math.round(roleComponent)}/100${input.latestRoleLabel?` · ${input.latestRoleLabel}`:''}`);
  if(usage.score!=null)reasons.push(`Usage ${usage.score}/100${usageSource==='2025 baseline'?' · 2025 baseline':''}`);
  if(role.key!=='insufficient')reasons.push(role.label);
- if(matchupComponent!=null)reasons.push(`Matchup ${Math.round(matchupComponent)}/100`);
+ if(matchupComponent!=null)reasons.push(`Matchup ${Math.round(matchupComponent)}/100 · weight ${Math.round(matchupWeight*100)}%`);
+ if(pos==='RB'&&trenchComponent!=null)reasons.push(`Trench matchup ${Math.round(trenchComponent)}/100`);
+ if(pos==='RB'&&scriptComponent!=null)reasons.push(`Game script ${Math.round(scriptComponent)}/100 · ${script.label}`);
  if(env.teamImplied!=null)reasons.push(`Team implied ${env.teamImplied.toFixed(1)} points`);
  if(newsAdjustment)reasons.push(`News context ${newsAdjustment>0?'+':''}${newsAdjustment.toFixed(1)}`);
  if(contextAdjustment)reasons.push(`Team context ${contextAdjustment>0?'+':''}${contextAdjustment.toFixed(1)}`);
  if(inj)reasons.push(`Availability penalty applied for ${input.injuryStatus}`);
- return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
+ return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,matchup:matchupComponent==null?null:Math.round(matchupComponent),trench:trenchComponent==null?null:Math.round(trenchComponent),gameScript:scriptComponent==null?null:Math.round(scriptComponent),environment:envComponent},weights:{matchup:matchupWeight,tierFactor},environment:env,gameScript:script,newsAdjustment,contextAdjustment};
 }
 
-const api={version:10,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:11,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,gameScriptScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
