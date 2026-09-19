@@ -951,17 +951,17 @@ function seasonPpgCell(x){
 function matrixRows(graded){
  const rows=[
   {label:'Week projection',note:'Current-week verified projection',cell:x=>matrixCell(sourceProjectionName(x),projectionSourceText(x))},
-  {label:'Player props',note:'Current-week verified betting markets',cell:propsCell},
+  {label:'Player props',note:'All current verified markets returned',cell:propsCell},
+  {label:`2026 matchup vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'Current season · completed games only',cell:x=>matchupYearCell(x,2026)},
+  {label:'2025 matchup baseline',note:'Full 2025 season · separate context',cell:x=>matchupYearCell(x,2025)},
+  {label:'Role change',note:'Confirmed coach/team workload news',cell:x=>{const rc=x.bundleRoleChange,d=x.newsCtx?.direct,dir=String(rc?.direction||'').toLowerCase(),headline=rc?.headline||d?.headline||'',source=rc?.source||d?.provider||'',detail=rc?.detail||x.newsCtx?.reasons?.[0]||'No verified role-change report';return matrixCell(rc?.label||(x.newsCtx?.forwardRoleBoost>0?'Role increasing':x.newsCtx?.forwardRoleBoost<0?'Role decreasing':'No confirmed change'),headline?[headline,source].filter(Boolean).join(' · '):detail,dir==='up'||x.newsCtx?.forwardRoleBoost>0?'good':dir==='down'||x.newsCtx?.forwardRoleBoost<0?'bad':'')}},
   {label:`2026 ${scoringName()} points / game`,note:'Actual completed games',cell:seasonPpgCell},
   {label:'Last game',note:'Exact box-score usage',cell:latestStatCell},
   {label:'Primary opportunity',note:'WR/TE = target share · RB = RB carry share',cell:roleShareCell},
   {label:'Target share',note:'Targets ÷ total team targets',cell:targetShareCell},
   {label:'Routes & efficiency',note:'Routes · route participation · TPRR · YPRR',cell:routeCell},
-  {label:`2026 matchup vs ${graded.length&&graded.every(x=>x.p.position===graded[0].p.position)?graded[0].p.position:'position'}`,note:'Current season · completed games only',cell:x=>matchupYearCell(x,2026)},
-  {label:'2025 matchup baseline',note:'Full 2025 season · shown separately for context',cell:x=>matchupYearCell(x,2025)},
   {label:'Game line',note:'Spread · total · implied team points',cell:gameCell},
   {label:'Workhorse weekly rank',note:'Your PPR weekly board; excluded in non-PPR',cell:x=>matrixCell(x.rank?`#${x.rank}`:'—',x.rank?'current week':format==='ppr'?'not initialized':'PPR-only')},
-  {label:'Role change',note:'Confirmed coach/team workload news',cell:x=>{const rc=x.bundleRoleChange,d=x.newsCtx?.direct,dir=String(rc?.direction||'').toLowerCase(),headline=rc?.headline||d?.headline||'',source=rc?.source||d?.provider||'',detail=rc?.detail||x.newsCtx?.reasons?.[0]||'No verified role-change report';return matrixCell(rc?.label||(x.newsCtx?.forwardRoleBoost>0?'Role increasing':x.newsCtx?.forwardRoleBoost<0?'Role decreasing':'No confirmed change'),headline?[headline,source].filter(Boolean).join(' · '):detail,dir==='up'||x.newsCtx?.forwardRoleBoost>0?'good':dir==='down'||x.newsCtx?.forwardRoleBoost<0?'bad':'')}},
   {label:'Player status',note:'Current availability designation',cell:x=>matrixCell(x.inj||'Active',x.injuryRisk?'Availability risk applied':'',statusTone(x))}
  ];
  return rows
