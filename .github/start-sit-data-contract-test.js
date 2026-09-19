@@ -65,7 +65,15 @@ const must=[
   "out.routeSource=v.route_pct_source||v.source||''",
   "if(routePos&&!routeVerified){out.routeParticipation=null;out.routes=null",
   "['Routes',fmt(lr.routes,0)]",
-  "['Route source',lr.routeSource||'—']"
+  "['Route source',lr.routeSource||'—']",
+  "function modelConfidence(g)",
+  "function decisionConfidence(a,b)",
+  "function matchupYearTone(raw,d)",
+  "label:'Model confidence'",
+  "label:'RB trench matchup'",
+  "label:'RB game script'",
+  "trenchScore:trenchContext?.score",
+  "confidence:modelConfidence(g)"
 ];
 for(const m of must)if(!s.includes(m))throw new Error('Start/Sit data contract missing: '+m);
 
@@ -86,7 +94,9 @@ const forbidden=[
   'rankWeight',
   'coreFallbackScore({rank',
   'rank-emergency',
-  'components:{rank'
+  'components:{rank',
+  'confidence:confidence(g)',
+  "year===2026?matchupTone(x.mu?.score):''"
 ];
 for(const m of forbidden)if(s.includes(m))throw new Error('Start/Sit forbidden regression returned: '+m);
 
