@@ -886,12 +886,13 @@ function targetShareCell(x){
  return matrixCell(r.targetShare==null?'—':pct(r.targetShare),sub)
 }
 function routeCell(x){
- const r=x.latestRole||{},lg=x.latestGame||{};
+ const r=x.latestRole||{},lg=x.latestGame||{},routes=Number.isFinite(Number(r.routes))?Number(r.routes):null;
  const tprr=r.targetsPerRoute==null?'—':pct(r.targetsPerRoute);
- const yprr=lg.routes>0&&lg.recYds!=null?(Number(lg.recYds)/Number(lg.routes)).toFixed(2):'—';
+ const yprr=routes>0&&lg.recYds!=null?(Number(lg.recYds)/routes).toFixed(2):'—';
  const rp=r.routeParticipation==null?'—':pct(r.routeParticipation);
- const main=(r.routes??lg.routes)!=null?`${r.routes??lg.routes} routes`:r.routeParticipation!=null?`${pct(r.routeParticipation)} route share`:'—';
- return matrixCell(main,`${rp} route participation · ${tprr} TPRR · ${yprr} YPRR`)
+ const main=routes!=null?`${routes} routes`:r.routeParticipation!=null?`${pct(r.routeParticipation)} route share`:'—';
+ const source=r.routeSource?` · ${r.routeSource}`:'';
+ return matrixCell(main,`${rp} route participation · ${tprr} TPRR · ${yprr} YPRR${source}`)
 }
 function dataRows(rows){
  return (rows||[]).map(([label,value])=>`<div class="drow"><span>${esc(label)}</span><b>${esc(value==null||value===''?'—':value)}</b></div>`).join('')
