@@ -2,7 +2,7 @@
 const assert=require('assert');
 require('../workhorse-decision-engine-v1.js');
 const E=global.WorkhorseDecisionEngine;
-assert(E&&E.version>=8,'decision engine loads');
+assert(E&&E.version>=10,'decision engine loads');
 const rb=[
  {rush_att:12,rec_tgt:2,rec:2,rush_yd:45,rec_yd:12,pts_ppr:8.7,snap_pct:.48,rush_rz_att:2},
  {rush_att:16,rec_tgt:4,rec:3,rush_yd:72,rec_yd:26,pts_ppr:14.8,snap_pct:.61,rush_rz_att:3},
@@ -65,3 +65,25 @@ assert(directProvider.components.projection===Math.round(100*Math.max(0,Math.min
 
 const noProjectionV2=E.startSitScoreV2({pos:'WR',currentStats:[],priorStats:[],format:'ppr',injuryStatus:''});
 assert(noProjectionV2.score===null&&noProjectionV2.eligible===true,'missing projection does not make an active player ineligible');
+
+const rankInvariantBase={
+ pos:'RB',
+ currentStats:rb.slice(-2),
+ priorStats:prior,
+ format:'ppr',
+ providerProjection:16.2,
+ latestRoleScore:70,
+ latestRoleConfidence:90,
+ matchupScore:62,
+ matchupConfidence:75,
+ environment:{gameTotal:46.5,teamImplied:24,spread:-1.5,home:true},
+ newsAdjustment:1.5
+};
+const rankOne=E.startSitScoreV2({...rankInvariantBase,weeklyRank:1,rankWeight:.99});
+const rankOneTwenty=E.startSitScoreV2({...rankInvariantBase,weeklyRank:120,rankWeight:.99});
+assert(rankOne.score===rankOneTwenty.score,'weekly rank must not change Start/Sit score');
+assert(rankOne.components.rank==null&&rankOneTwenty.components.rank==null,'weekly rank must not appear as a score component');
+const legacyRankOne=E.startSitScore({pos:'RB',stats:rb,format:'ppr',weeklyRank:1});
+const legacyRankOneTwenty=E.startSitScore({pos:'RB',stats:rb,format:'ppr',weeklyRank:120});
+assert(legacyRankOne.score===legacyRankOneTwenty.score,'legacy Start/Sit scorer must also ignore weekly rank');
+console.log('PASS: weekly rank is display-only and score-invariant');
