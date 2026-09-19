@@ -994,10 +994,23 @@ function detailCard(x){
   :x.p.position==='WR'||x.p.position==='TE'
    ?[['Fantasy points',fmt(lg.fantasy,1)],['Receptions / targets',`${fmt(lg.rec,0)} / ${fmt(lg.targets,0)}`],['Receiving yards',fmt(lg.recYds,0)],['Receiving TD',fmt(lg.recTd,0)],['Snap share',pct(lg.snap)],['Routes',fmt(lg.routes,0)],...wrEfficiency,['Red-zone opportunities',fmt(lg.rz,0)]]
    :[['Fantasy points',fmt(lg.fantasy,1)],['Pass attempts',fmt(lg.passAtt,0)],['Passing yards',fmt(lg.passYds,0)],['Passing TD',fmt(lg.passTd,0)],['Snap share',pct(lg.snap)]];
+ const rc=x.bundleRoleChange||null,direct=x.newsCtx?.direct||null;
+ const roleRows=rc?[
+  ['Signal',rc.label||'Role change'],
+  ['Headline',rc.headline||'—'],
+  ['What changed',rc.detail||rc.fantasy_impact||'—'],
+  ['Fantasy impact',rc.fantasy_impact||'—'],
+  ['Source',[rc.source,rc.published_at?new Date(rc.published_at).toLocaleString():null].filter(Boolean).join(' · ')||'—']
+ ]:direct&&x.newsCtx?.forwardRoleBoost?[
+  ['Signal',x.newsCtx.forwardRoleBoost>0?'Role increasing':'Role decreasing'],
+  ['Headline',direct.headline||'—'],
+  ['What changed',direct.summary||x.newsCtx?.reasons?.[0]||'—'],
+  ['Source',[direct.provider,direct.published_at?new Date(direct.published_at).toLocaleString():null].filter(Boolean).join(' · ')||'—']
+ ]:[['Signal','No confirmed role change']];
  const matchupRows=[['Opponent',x.game?.opp||'—'],...matchupDetailRows('2026',d26,x.p.position),...matchupDetailRows('2025',d25,x.p.position)];
  const gameRows=[['Status',x.inj||'Active'],['Status updated',st.updated_at?new Date(st.updated_at).toLocaleString():'—'],['Game',x.game?`${x.game.home?'vs':'@'} ${x.game.opp}`:(scheduleLoaded?'BYE':'—')],['Game total',x.game?.total?fmt(x.game.total,1):'—'],['Team implied points',x.game?.teamImplied?fmt(x.game.teamImplied,1):'—'],['Spread',Number.isFinite(x.game?.spread)?`${x.game.spread>0?'+':''}${fmt(x.game.spread,1)}`:'—']];
  const news=(x.news||[]).filter(n=>!(Array.isArray(n.categories)&&n.categories.includes('trending'))).slice(0,5);
- return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Current week & betting lines</h4>${dataRows(projectionRows)}${propRows.length?dataRows(propRows):'<div class="drow"><span>Verified player props</span><b>—</b></div>'}</div><div class="detail-section"><h4>Last game — exact usage</h4>${dataRows(lastRows)}</div><div class="detail-section"><h4>Matchup — position allowed stats</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
+ return `<details class="player-data"><summary>${esc(x.p.full_name)} · supporting data</summary><div class="detail-body"><div class="detail-section"><h4>Current week & betting lines</h4>${dataRows(projectionRows)}${propRows.length?dataRows(propRows):'<div class="drow"><span>Verified player props</span><b>—</b></div>'}</div><div class="detail-section"><h4>Last game — exact usage</h4>${dataRows(lastRows)}</div><div class="detail-section"><h4>Role change</h4>${dataRows(roleRows)}</div><div class="detail-section"><h4>Matchup — position allowed stats</h4>${dataRows(matchupRows)}</div><div class="detail-section"><h4>Game & availability</h4>${dataRows(gameRows)}</div><div class="detail-section"><h4>Recent news</h4>${news.length?news.map(n=>`<div class="newsline"><b>${esc(n.headline||'Player update')}</b><small>${esc(n.provider||'Source')} · ${esc(n.published_at?new Date(n.published_at).toLocaleString():'')}</small></div>`).join(''):'<div class="drow"><span>No recent matched player news</span><b>—</b></div>'}</div></div></details>`
 }
 function safeDetailCard(x){
  try{return detailCard(x)}catch(e){console.warn('Start/Sit detail render failed',x?.p?.full_name,e);return `<details class="player-data"><summary>${esc(x?.p?.full_name||'Player')} · supporting data</summary><div class="detail-body"><div class="warning">Some optional supporting data is unavailable. The recommendation above still uses verified core data.</div></div></details>`}
