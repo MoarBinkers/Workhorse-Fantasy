@@ -21,7 +21,7 @@ const must=[
   "async function loadVerifiedWeeklyData()",
   "actionable:!out&&!bye",
   "const valid=graded.filter(x=>x.availability?.actionable)",
-  "player grade failed; using emergency rank grade",
+  "player grade failed; using emergency verified-data grade",
   "function emergencyGrade(id,reason='')",
   "function calendarWeek(now=Date.now())",
   "/functions/v1/get-nfl-state",
@@ -30,7 +30,6 @@ const must=[
   "source:'saved+normalized'",
   "function explicitAvailability({inj,game})",
   "function coreFallbackScore(",
-  "const emergencyRank=(rank??workhorseRank",
   "Core verified data fallback",
   "function safeMatrixCell(row,x)",
   "function safeDetailCard(x)",
@@ -82,7 +81,12 @@ const forbidden=[
   'return week=1',
   'const valid=graded.filter(x=>x.g?.eligible',
   'None of the selected players is currently a valid lineup option',
-  'Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.'
+  'Workhorse could not verify enough current data to complete this comparison. No recommendation was forced.',
+  'weeklyRank:rank',
+  'rankWeight',
+  'coreFallbackScore({rank',
+  'rank-emergency',
+  'components:{rank'
 ];
 for(const m of forbidden)if(s.includes(m))throw new Error('Start/Sit forbidden regression returned: '+m);
 
