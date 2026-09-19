@@ -58,6 +58,7 @@ jobs:
                   return json.loads(r.read().decode())
           qj=get("9754")
           price=get("13286")
+          parker=get("9487")
           assert float(qj["usage"]["target_share_pct"])==22.2, qj
           assert float(qj["usage"]["snap_pct"])==78.4, qj
           assert float(price["usage"]["rb_carry_share_pct"])==45.5, price
@@ -68,6 +69,8 @@ jobs:
           assert price["matchup_2026"]["opponent"]=="ARI" and price["matchup_2026"]["display"], price
           assert price["matchup_2025"]["season"]==2025 and price["matchup_2025"]["display"], price
           assert price["role_change"]["direction"]=="up" and "more reps" in price["role_change"]["headline"].lower(), price
+          assert int(parker["usage"]["routes"])==15 and float(parker["usage"]["route_pct"])==62.5, parker
+          assert parker["usage"]["route_pct_source"]=="PlayerProfiler game log", parker
           assert float(qj["projection"]["ppr_points"])==10.0, qj
           assert float(price["projection"]["ppr_points"])==13.2, price
 
@@ -87,7 +90,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           page=Path('sandbox.html').read_text()
-          start_sit_page=Path('start-sit-sandbox-v31.html').read_text()
+          start_sit_page=Path('start-sit-sandbox-v32.html').read_text()
           league_page=Path('sandbox-league.html').read_text()
           guard=Path('sandbox-guard-v1.js').read_text()
           owner=Path('season-owner-control-v1.js').read_text()
@@ -116,8 +119,8 @@ jobs:
             'bars widen visible team spread': 'Math.pow(ratio,1.12)' in bars and 'Math.max(12' in bars,
             'audit uses exact model': 'M.buildTeams(ctx())' in audit and 'ASSET' in audit and 'SLOT' in audit,
             'trade route remains': "v==='trade'" in page,
-            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=8' in start_sit_page and 'season-start-sit-v1.js?v=31' in start_sit_page,
-            'start sit route uses current direct sandbox': "v==='start-sit'" in page and "start-sit-sandbox-v31.html" in page and 'season-market-signals-v1.js?v=1' in page,
+            'decision engine is sandbox-wired': 'workhorse-decision-engine-v1.js?v=8' in start_sit_page and 'season-start-sit-v1.js?v=32' in start_sit_page,
+            'start sit route uses current direct sandbox': "v==='start-sit'" in page and "start-sit-sandbox-v32.html" in page and 'season-market-signals-v1.js?v=1' in page,
             'command center loads from rankings': 'season-command-center-v1.js?v=1' in Path('season-rankings-seed-v1.js').read_text() and 'workhorse-decision-engine-v1.js?v=8' in Path('season-rankings-seed-v1.js').read_text(),
           }
           for k,v in checks.items(): print(('PASS' if v else 'FAIL')+': '+k)
