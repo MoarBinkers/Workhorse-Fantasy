@@ -60,13 +60,26 @@ jobs:
           price=get("13286")
           assert float(qj["usage"]["target_share_pct"])==22.2, qj
           assert float(qj["usage"]["snap_pct"])==78.4, qj
-          assert {p["market"] for p in qj["props"]} >= {"receptions","receiving_yards","anytime_touchdown"}, qj
           assert float(price["usage"]["rb_carry_share_pct"])==45.5, price
           assert price["usage"]["touches"]==12, price
-          assert {p["market"] for p in price["props"]} >= {"rushing_yards","anytime_touchdown"}, price
+          assert float(price["usage"]["target_share_pct"])==8.3, price
+          assert int(price["usage"]["team_targets"])==24, price
+          assert float(price["usage"]["route_pct"])==40.7 and price["usage"]["route_pct_available"] is True, price
+          assert price["matchup_2026"]["opponent"]=="ARI" and price["matchup_2026"]["display"], price
+          assert price["matchup_2025"]["season"]==2025 and price["matchup_2025"]["display"], price
+          assert price["role_change"]["direction"]=="up" and "more reps" in price["role_change"]["headline"].lower(), price
           assert float(qj["projection"]["ppr_points"])==10.0, qj
           assert float(price["projection"]["ppr_points"])==13.2, price
-          print("PASS: unified Start/Sit payload returns verified usage, projection and props")
+
+          def get_props(name,pos):
+              import urllib.parse
+              url=sb+'/functions/v1/get-player-props?season=2026&week=2&player='+urllib.parse.quote(name)+'&position='+pos
+              req=urllib.request.Request(url,headers={"apikey":key,"Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  return json.loads(r.read().decode())
+          price_props=get_props("Jadarian Price","RB")
+          assert {p["market"] for p in price_props["props"]} >= {"rushing_yards","receiving_yards","receptions","anytime_touchdown"}, price_props
+          print("PASS: Start/Sit payload returns matchup/role/usage and live prop endpoint returns full RB market set")
           PY
 
       - name: Verify current sandbox contracts
