@@ -622,6 +622,7 @@ function explicitAvailability({inj,game}){
 }
 function emergencyGrade(id,reason=''){
  const p=pool.get(String(id));if(!p)return null;
+ const sid=String(id),bundle=playerBundleCache.get(sid)||null;
  const rank=whRank(id)??(Number.isFinite(Number(p.sleeper_rank))?Number(p.sleeper_rank):999);
  const rankScore=Math.max(1,Math.min(99,Math.round(100*Math.max(0,Math.min(1,1-(Number(rank)-1)/140)))));
  const inj=injuryText(id),game=games.get(normTeam(p.team))||null;
@@ -629,11 +630,23 @@ function emergencyGrade(id,reason=''){
  const bye=!!scheduleLoaded&&!game;
  const availability={out,bye,locked:!!game?.locked,actionable:!out&&!bye};
  const weeklyProjection=providerProjection(id);
- const latestRole=mergeVerifiedRole(p,id,{week:Math.max(1,week-1),score:null,confidence:0,snap:null,targetShare:null,targetDistribution:null,routeParticipation:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,totalCarries:null,teamPassAttempts:null,teamDropbacks:null,label:'Role data unavailable'});
+ const latestRole=mergeVerifiedRole(p,id,{week:Math.max(1,week-1),score:null,confidence:0,snap:null,targetShare:null,targetDistribution:null,routeParticipation:null,targetsPerRoute:null,rushShare:null,rzShare:null,totalTargets:null,teamTargets:null,totalCarries:null,teamPassAttempts:null,teamDropbacks:null,label:'Role data unavailable'});
  const latestGame=mergeVerifiedGame(p,id,{});
- const props=[...(VERIFIED_FALLBACKS[String(id)]?.props||[])];
- const g={score:rankScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{rank:rankScore},projection:{points:weeklyProjection,source:'rank-emergency'},reasons:['Emergency fallback · Workhorse weekly rank + verified player data']};
- return {id:String(id),p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection,latestRole,forwardRoleScore:latestRole.score,forwardRoleLabel:latestRole.label,g,availability,confidence:35,game,news:[],props,newsCtx:{adjustment:0,reasons:[],forwardRoleBoost:0},teamCtx:{adjustment:0,reasons:[]},mu:{score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null},teamChanged:false,latestGame,currentWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},seasonWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
+ const props=[...(propsCache.get(sid)||[]),...(bundle?.props||[]),...(VERIFIED_FALLBACKS[sid]?.props||[])];
+ const news=[...(newsCache.get(sid)||[])];
+ const newsCtx=newsContext(news,inj);
+ const bundleRoleChange=bundle?.role_change||bundle?.roleChange||bundle?.role_signal||null;
+ if(bundleRoleChange){
+  const dir=String(bundleRoleChange.direction||'').toLowerCase(),boost=dir==='up'?22:dir==='down'?-22:0;
+  if(boost)newsCtx.forwardRoleBoost=boost;
+  if(boost)newsCtx.directState=dir==='up'?'role_up':'role_down';
+  const msg=bundleRoleChange.detail||bundleRoleChange.fantasy_impact||bundleRoleChange.headline;
+  if(msg)newsCtx.reasons=[msg,...(newsCtx.reasons||[]).filter(x=>x!==msg)].slice(0,3);
+ }
+ let mu={score:null,confidence:0,label:'No matchup data',y2025:null,y2026:null};
+ try{mu=matchupFromBundle(bundle,p,game)||matchupFor(p,game)}catch(_){}
+ const g={score:rankScore,eligible:!out&&!bye,locked:!!game?.locked,bye,components:{rank:rankScore,matchup:mu.score},projection:{points:weeklyProjection,source:'rank-emergency'},reasons:['Emergency fallback · Workhorse weekly rank + verified player data']};
+ return {id:sid,p,current:[],prior:[],inj,injuryRisk:0,rank:format==='ppr'?rank:null,workhorseRank:rank,weeklyProjection,latestRole,forwardRoleScore:latestRole.score,forwardRoleLabel:latestRole.label,g,availability,confidence:35,game,news,props,newsCtx,bundleRoleChange,teamCtx:{adjustment:0,reasons:[]},mu,teamChanged:false,latestGame,currentWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},seasonWork:{games:latestGame?.fantasy!=null?1:0,ppg:latestGame?.fantasy??null},priorWork:{games:0},emergency:true,emergencyReason:String(reason||'')}
 }
 async function grade(id){
  const p=pool.get(String(id));if(!p)throw new Error('Selected player missing from pool');
