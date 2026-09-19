@@ -55,13 +55,21 @@ const must=[
   "function matchupFromBundle(bundle,p,game)",
   "bundleRoleChange",
   "Targets ÷ total team targets",
-  "route_pct_available"
+  "route_pct_available",
+  "2026 matchup vs",
+  "2025 matchup baseline",
+  "const roleReport=recent.find",
+  "bundle=playerBundleCache.get(sid)||null",
+  "for(let attempt=0;attempt<2&&!out;attempt++)",
+  "function matchupYearCell(x,year)",
+  "<h4>Role change</h4>"
 ];
 for(const m of must)if(!s.includes(m))throw new Error('Start/Sit data contract missing: '+m);
 
 const forbidden=[
   'VERIFIED_2025_PPR',
   "const targetShare=teamPassAttempts>0?targets/teamPassAttempts:null",
+  "if(propsCache.has(k)&&propsCache.get(k)?.length)return propsCache.get(k)",
   'verifiedPpr25(',
   "label:'Workhorse projection'",
   "['Workhorse projection'",
