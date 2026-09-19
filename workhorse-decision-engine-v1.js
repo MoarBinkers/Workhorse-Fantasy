@@ -88,11 +88,11 @@ function trendSeries(pos,stats,format='ppr'){
 
 function injuryPenalty(status){const x=String(status||'').toLowerCase();if(!x)return 0;if(/(^|\b)(out|ir|pup|suspended|suspend|sus|na|dnr)(\b|$)/.test(x))return 1;if(/doubtful/.test(x))return .34;if(/questionable/.test(x))return .08;if(/limited|dnp|did not practice/.test(x))return .06;return 0}
 function startSitScore(input={}){
- const pos=String(input.pos||'').toUpperCase(),stats=input.stats||[],format=input.format||'ppr',proj=projection(pos,stats,format),usage=usageScore(pos,stats),role=roleChange(pos,stats),rank=Number(input.weeklyRank),rankComponent=Number.isFinite(rank)&&rank>0?100*clamp(1-(rank-1)/120,0,1):null;
+ const pos=String(input.pos||'').toUpperCase(),stats=input.stats||[],format=input.format||'ppr',proj=projection(pos,stats,format),usage=usageScore(pos,stats),role=roleChange(pos,stats);
  if(proj.points==null)return {score:null,projection:proj,usage,role,reasons:['Not enough 2026 game data to grade this player safely.']};
  const projectionComponent=100*clamp(proj.points/(pos==='QB'?28:pos==='TE'?18:24),0,1),inj=injuryPenalty(input.injuryStatus),roleBoost=role.direction==='up'?5:role.direction==='down'?-5:0;
- let parts=[[projectionComponent,.52],[usage.score,.30],[rankComponent,.18]].filter(([v])=>v!=null),w=parts.reduce((a,x)=>a+x[1],0),score=parts.reduce((a,[v,wt])=>a+v*wt,0)/Math.max(.01,w);score=(score+roleBoost)*(1-inj);
- const reasons=[];reasons.push(`${proj.points.toFixed(1)} WH estimate (${proj.floor.toFixed(1)}–${proj.ceiling.toFixed(1)} range)`);if(usage.score!=null)reasons.push(`Usage ${usage.score}/100`);reasons.push(role.label);if(rankComponent!=null)reasons.push(`Workhorse weekly rank #${rank}`);if(inj)reasons.push(`Availability penalty applied for ${input.injuryStatus}`);
+ let parts=[[projectionComponent,.64],[usage.score,.36]].filter(([v])=>v!=null),w=parts.reduce((a,x)=>a+x[1],0),score=parts.reduce((a,[v,wt])=>a+v*wt,0)/Math.max(.01,w);score=(score+roleBoost)*(1-inj);
+ const reasons=[];reasons.push(`${proj.points.toFixed(1)} WH estimate (${proj.floor.toFixed(1)}–${proj.ceiling.toFixed(1)} range)`);if(usage.score!=null)reasons.push(`Usage ${usage.score}/100`);reasons.push(role.label);if(inj)reasons.push(`Availability penalty applied for ${input.injuryStatus}`);
  return {score:Math.round(clamp(score,0,100)),projection:proj,usage,role,reasons,injuryPenalty:inj};
 }
 
@@ -192,9 +192,9 @@ function startSitScoreV2(input={}){
    else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.43],[roleComponent,.26],[usage.score,.12],[matchupComponent,.08],[envComponent,.04]];
    else parts=[[projectionComponent,.52],[roleComponent,.18],[usage.score,.10],[matchupComponent,.07],[envComponent,.05]];
  }else{
-   if(pos==='RB')parts=[[projectionComponent,.32],[roleComponent,.31],[usage.score,.12],[rankComponent,Math.min(rankWeight,.06)],[matchupComponent,.14],[envComponent,.05]];
-   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.37],[roleComponent,.28],[usage.score,.14],[rankComponent,Math.min(rankWeight,.07)],[matchupComponent,.10],[envComponent,.04]];
-   else parts=[[projectionComponent,.45],[roleComponent,.20],[usage.score,.12],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.10],[envComponent,.05]];
+   if(pos==='RB')parts=[[projectionComponent,.32],[roleComponent,.31],[usage.score,.12],[matchupComponent,.14],[envComponent,.05]];
+   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.37],[roleComponent,.28],[usage.score,.14],[matchupComponent,.10],[envComponent,.04]];
+   else parts=[[projectionComponent,.45],[roleComponent,.20],[usage.score,.12],[matchupComponent,.10],[envComponent,.05]];
  }
  parts=parts.filter(([v,w])=>v!=null&&w>0);
  const weight=parts.reduce((a,x)=>a+x[1],0);
@@ -230,7 +230,7 @@ function startSitScoreV2(input={}){
  return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:9,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:10,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
