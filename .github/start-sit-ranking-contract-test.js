@@ -21,4 +21,15 @@ if(!seed.includes('function resolvedWeek()'))throw new Error('Ranking seed does 
 if(!seed.includes('function storageKey()'))throw new Error('Ranking seed still uses a fixed startup week key');
 if(seed.includes('localStorage.setItem(key,JSON.stringify(ids))'))throw new Error('Ranking seed can still save to stale fixed week key');
 
-console.log('PASS: Start/Sit and Weekly Rankings share the resolved weekly order');
+const engine=fs.readFileSync('workhorse-decision-engine-v1.js','utf8');
+const forbiddenScore=[
+  'input.weeklyRank',
+  'rankComponent',
+  'rankWeight',
+  'Workhorse weekly rank #'
+];
+for(const m of forbiddenScore)if(engine.includes(m))throw new Error('Weekly rank leaked back into Start/Sit engine: '+m);
+for(const m of ['weeklyRank:rank','coreFallbackScore({rank','rank-emergency','components:{rank'])if(start.includes(m))throw new Error('Weekly rank leaked back into Start/Sit frontend scoring: '+m);
+if(!start.includes("Reference only · NOT used in Start/Sit score"))throw new Error('Weekly rank row must be explicitly display-only');
+
+console.log('PASS: Weekly Rankings stay available for display/order but do not influence Start/Sit scoring');
