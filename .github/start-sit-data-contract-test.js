@@ -62,7 +62,11 @@ const must=[
   "bundle=playerBundleCache.get(sid)||null",
   "for(let attempt=0;attempt<2&&!out;attempt++)",
   "function matchupYearCell(x,year)",
-  "<h4>Role change</h4>"
+  "<h4>Role change</h4>",
+  "out.routeSource=v.route_pct_source||v.source||''",
+  "if(routePos&&!routeVerified){out.routeParticipation=null;out.routes=null",
+  "['Routes',fmt(lr.routes,0)]",
+  "['Route source',lr.routeSource||'—']"
 ];
 for(const m of must)if(!s.includes(m))throw new Error('Start/Sit data contract missing: '+m);
 
@@ -70,6 +74,7 @@ const forbidden=[
   'VERIFIED_2025_PPR',
   "const targetShare=teamPassAttempts>0?targets/teamPassAttempts:null",
   "if(propsCache.has(k)&&propsCache.get(k)?.length)return propsCache.get(k)",
+  "Number(lg.recYds)/Number(lg.routes)",
   'verifiedPpr25(',
   "label:'Workhorse projection'",
   "['Workhorse projection'",
