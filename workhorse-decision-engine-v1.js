@@ -174,8 +174,7 @@ function startSitScoreV2(input={}){
  let usage=usageScore(pos,currentPlayed);
  let usageSource='2026';
  if(usage.score==null&&priorPlayed.length){usage=usageScore(pos,priorPlayed.slice(-3));usageSource='2025 baseline'}
- const role=roleChange(pos,currentPlayed),rank=Number(input.weeklyRank);
- const rankComponent=Number.isFinite(rank)&&rank>0?100*clamp(1-(rank-1)/120,0,1):null;
+ const role=roleChange(pos,currentPlayed);
  if(proj.points==null)return {score:null,eligible:true,dataInsufficient:true,projection:proj,usage,role,reasons:['Projection data is incomplete; lineup eligibility is unchanged.']};
  const status=String(input.injuryStatus||'').toLowerCase();
  if(/(^|\b)(out|ir|pup|suspended|suspend|sus|na|dnr)(\b|$)/.test(status)){
@@ -185,14 +184,13 @@ function startSitScoreV2(input={}){
  const projectionComponent=100*clamp((projectionInput-5)/22,0,1);
  const matchup=Number(input.matchupScore),matchupComponent=Number.isFinite(matchup)?clamp(matchup,0,100):null;
  const env=environmentScore(pos,input.environment||{}),envComponent=env.score;
- const rankWeight=Number.isFinite(Number(input.rankWeight))?Math.max(0,Number(input.rankWeight)):.14;
  const providerBacked=proj.providerPoints!=null;
  const latestRole=Number(input.latestRoleScore),roleComponent=Number.isFinite(latestRole)?clamp(latestRole,0,100):null;
  let parts;
  if(providerBacked){
-   if(pos==='RB')parts=[[projectionComponent,.38],[roleComponent,.29],[usage.score,.10],[rankComponent,Math.min(rankWeight,.06)],[matchupComponent,.12],[envComponent,.05]];
-   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.43],[roleComponent,.26],[usage.score,.12],[rankComponent,Math.min(rankWeight,.07)],[matchupComponent,.08],[envComponent,.04]];
-   else parts=[[projectionComponent,.52],[roleComponent,.18],[usage.score,.10],[rankComponent,Math.min(rankWeight,.08)],[matchupComponent,.07],[envComponent,.05]];
+   if(pos==='RB')parts=[[projectionComponent,.38],[roleComponent,.29],[usage.score,.10],[matchupComponent,.12],[envComponent,.05]];
+   else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.43],[roleComponent,.26],[usage.score,.12],[matchupComponent,.08],[envComponent,.04]];
+   else parts=[[projectionComponent,.52],[roleComponent,.18],[usage.score,.10],[matchupComponent,.07],[envComponent,.05]];
  }else{
    if(pos==='RB')parts=[[projectionComponent,.32],[roleComponent,.31],[usage.score,.12],[rankComponent,Math.min(rankWeight,.06)],[matchupComponent,.14],[envComponent,.05]];
    else if(pos==='WR'||pos==='TE')parts=[[projectionComponent,.37],[roleComponent,.28],[usage.score,.14],[rankComponent,Math.min(rankWeight,.07)],[matchupComponent,.10],[envComponent,.04]];
@@ -211,7 +209,6 @@ function startSitScoreV2(input={}){
    roleComponent!=null?clamp(Number(input.latestRoleConfidence??80)/100,0,1):null,
    usage.score!=null?usage.confidence/100:null,
    matchupComponent!=null?clamp(Number(input.matchupConfidence??60)/100,0,1):null,
-   rankComponent!=null?1:null,
    envComponent!=null?.85:null
  ].filter(x=>x!=null);
  const confidence=Math.round(100*(coverage.length?mean(coverage):0));
@@ -225,16 +222,15 @@ function startSitScoreV2(input={}){
  if(roleComponent!=null)reasons.push(`Latest role ${Math.round(roleComponent)}/100${input.latestRoleLabel?` · ${input.latestRoleLabel}`:''}`);
  if(usage.score!=null)reasons.push(`Usage ${usage.score}/100${usageSource==='2025 baseline'?' · 2025 baseline':''}`);
  if(role.key!=='insufficient')reasons.push(role.label);
- if(rankComponent!=null)reasons.push(`Workhorse weekly rank #${rank}`);
  if(matchupComponent!=null)reasons.push(`Matchup ${Math.round(matchupComponent)}/100`);
  if(env.teamImplied!=null)reasons.push(`Team implied ${env.teamImplied.toFixed(1)} points`);
  if(newsAdjustment)reasons.push(`News context ${newsAdjustment>0?'+':''}${newsAdjustment.toFixed(1)}`);
  if(contextAdjustment)reasons.push(`Team context ${contextAdjustment>0?'+':''}${contextAdjustment.toFixed(1)}`);
  if(inj)reasons.push(`Availability penalty applied for ${input.injuryStatus}`);
- return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,rank:rankComponent==null?null:Math.round(rankComponent),matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
+ return {score:Math.round(clamp(score,0,100)),eligible:true,projection:proj,usage,usageSource,role,reasons,injuryPenalty:inj,confidence,components:{projection:Math.round(projectionComponent),role:roleComponent==null?null:Math.round(roleComponent),usage:usage.score,matchup:matchupComponent==null?null:Math.round(matchupComponent),environment:envComponent},environment:env,newsAdjustment,contextAdjustment};
 }
 
-const api={version:8,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
+const api={version:9,clamp,num,mean,stdev,first,played,fantasyPoints,snapPct,routes,targets,carries,rz,goalLine,opportunities,usageScore,roleChange,projection,weightedProjection,environmentScore,marketSignal,trendSeries,injuryPenalty,startSitScore,startSitScoreV2};
 globalThis.WorkhorseDecisionEngine=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
